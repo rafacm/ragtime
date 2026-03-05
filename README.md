@@ -96,6 +96,10 @@ Set the following environment variables (or use a `.env` file):
 - `RAGTIME_CHROMA_PORT` — ChromaDB server port (default: `8000`)
 - `RAGTIME_CHROMA_COLLECTION` — ChromaDB collection name (default: `ragtime`)
 
+## Built with AI
+
+This project was developed with [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+
 ## License
 
 MIT
