@@ -1,8 +1,13 @@
 # RAGtime
-
-> Retrieval in the Key of Jazz
+> Retrieval Augmented Generation (RAG) in the Key of Jazz
 
 RAGtime is a Django application for ingesting jazz-related podcast episodes. It extracts metadata, transcribes audio, identifies jazz entities, and powers **Scott** — a jazz-focused AI agent that answers questions strictly from ingested episode content, with references to specific episodes and timestamps.
+
+<p align="center">
+  <img src="ragtime.jpg" alt="RAGtime -- Retrieval Augmented Generation (RAG) in the Key of Jazz" width="100%">
+  <br>
+  <sub>Image generated with <a href="https://gemini.google/overview/image-generation/">Nano Banana</a> from the cover of <a href="https://en.wikipedia.org/wiki/Ragtime_(novel)">E.L. Doctorow's novel "Ragtime"</a></sub>
+</p>
 
 ## Features
 
