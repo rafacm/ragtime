@@ -43,3 +43,16 @@ Use `uv` for everything — never `pip install` directly.
 - Frontend: Django templates + HTMX + Tailwind CSS (CDN)
 - `python-dotenv` for env vars (`.env` file, `RAGTIME_*` prefix)
 - ffmpeg required for audio downsampling (files > 25MB)
+
+## Documentation
+
+Feature documentation lives in `doc/features/`, one Markdown file per feature or significant change. Each document should include:
+
+- **Problem** — what was wrong or what need the feature addresses.
+- **Changes** — what was modified, with enough detail that a reader can understand the approach without reading the diff.
+- **Key parameters** — any tunable constants, their values, and why those values were chosen.
+- **Verification** — how to test the change on-device (deploy command + expected behaviour).
+- **Files modified** — list of touched files with a one-line summary of each change.
+
+Keep prose concise. Prefer tables and lists over long paragraphs. Use code blocks for CLI commands and signal-flow diagrams.
+Add an entry for each feature or fix in the `Features & Fixes` section of `README.md` with the date the feature was implemented, a short description and a link to the feature document.
