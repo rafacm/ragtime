@@ -96,6 +96,12 @@ Set the following environment variables (or use a `.env` file):
 - `RAGTIME_CHROMA_PORT` — ChromaDB server port (default: `8000`)
 - `RAGTIME_CHROMA_COLLECTION` — ChromaDB collection name (default: `ragtime`)
 
+## Features & Fixes
+
+| Date | Description | Details |
+|------|-------------|---------|
+| 2026-03-09 | Step 1: Submit Episode — Django project bootstrap, Episode model with status tracking, admin interface | [doc](doc/features/step-01-submit-episode.md) |
+
 ## Built with AI
 
 This project was developed with [Claude Code](https://docs.anthropic.com/en/docs/claude-code).

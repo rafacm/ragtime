@@ -46,6 +46,8 @@ Use `uv` for everything — never `pip install` directly.
 
 ## Documentation
 
+The detailed implementation plans for a given feature should be rendered as Markdown and saved to `doc/plans/`, one Markdown file per plan.
+
 Feature documentation lives in `doc/features/`, one Markdown file per feature or significant change. Each document should include:
 
 - **Problem** — what was wrong or what need the feature addresses.
@@ -56,3 +58,7 @@ Feature documentation lives in `doc/features/`, one Markdown file per feature or
 
 Keep prose concise. Prefer tables and lists over long paragraphs. Use code blocks for CLI commands and signal-flow diagrams.
 Add an entry for each feature or fix in the `Features & Fixes` section of `README.md` with the date the feature was implemented, a short description and a link to the feature document.
+
+The conversation session for a given feature should be exported to a Markdown file in `doc/sessions/`, on Mardown file per session.
+
+The commit for a given feature MUST contain the corresponding Mardown files for the plan, the feature documentation and the session.
