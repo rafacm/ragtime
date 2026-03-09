@@ -1,0 +1,45 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project
+
+RAGtime is a Django app for ingesting jazz podcast episodes — scraping metadata, transcribing audio, extracting jazz entities, and powering **Scott**, a strict RAG chatbot that answers questions only from ingested content. The full specification lives in `README.md`.
+
+## Commands
+
+```bash
+uv sync                                    # Install/update dependencies
+uv run python manage.py runserver          # Run dev server
+uv run python manage.py migrate            # Apply migrations
+uv run python manage.py makemigrations     # Generate migrations
+uv run python manage.py test               # Run all tests
+uv run python manage.py test episodes      # Run tests for one app
+uv run python manage.py check              # Django system checks
+```
+
+Use `uv` for everything — never `pip install` directly.
+
+## Architecture
+
+**Two Django apps:**
+- `episodes` — Ingestion pipeline, models, entity extraction, provider abstractions
+- `chat` — Scott chatbot interface with streaming responses
+
+**Provider abstraction:** LLM, transcription, and embedding backends are pluggable via abstract base classes in `episodes/providers/base.py` with a factory in `episodes/providers/factory.py`. Configured through `RAGTIME_*` environment variables.
+
+**12-step pipeline** (`episodes/pipeline.py`): submit → dedup → scrape → download → resize → transcribe → summarize → extract → resolve → chunk → embed → ready. Each step updates the episode status. Failures set status to `failed`. Runs async via Django Q2.
+
+**Entity resolution:** After extraction, entities (artists, bands, albums, venues, sessions, labels, years) are resolved against existing DB records using LLM-based fuzzy matching to prevent duplicates.
+
+**Scott (RAG agent):** Embeds user question → retrieves chunks from ChromaDB → LLM answers strictly from retrieved content with episode/timestamp references. Responds in the user's language via multilingual embeddings. No hallucination — refuses if no relevant content found.
+
+## Tech Choices
+
+- Python 3.13 (`requires-python = ">=3.13,<3.14"`)
+- No build-system in `pyproject.toml` (this is an app, not a library)
+- SQLite for relational data, ChromaDB for vector store
+- Django Q2 with ORM broker (no Redis needed)
+- Frontend: Django templates + HTMX + Tailwind CSS (CDN)
+- `python-dotenv` for env vars (`.env` file, `RAGTIME_*` prefix)
+- ffmpeg required for audio downsampling (files > 25MB)
