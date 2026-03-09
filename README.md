@@ -101,6 +101,7 @@ Set the following environment variables (or use a `.env` file):
 | Date | Description | Details |
 |------|-------------|---------|
 | 2026-03-09 | Step 1: Submit Episode — Django project bootstrap, Episode model with status tracking, admin interface | [plan](doc/plans/step-01-submit-episode.md), [feature](doc/features/step-01-submit-episode.md), [session](doc/sessions/2026-03-09-step-01-submit-episode.md) |
+| 2026-03-09 | Step 2: Dedup — Duplicate episode detection via unique URL constraint at database level | [plan](doc/plans/step-02-dedup.md), [feature](doc/features/step-02-dedup.md), [session](doc/sessions/2026-03-09-step-02-dedup.md) |
 
 ## Built with AI
 
