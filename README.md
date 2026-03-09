@@ -102,4 +102,4 @@ This project was developed with [Claude Code](https://docs.anthropic.com/en/docs
 
 ## License
 
-MIT
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
