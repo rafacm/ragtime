@@ -57,7 +57,8 @@ Feature documentation lives in `doc/features/`, one Markdown file per feature or
 - **Files modified** — list of touched files with a one-line summary of each change.
 
 Keep prose concise. Prefer tables and lists over long paragraphs. Use code blocks for CLI commands and signal-flow diagrams.
-Add an entry for each feature or fix in the `Features & Fixes` section of `README.md` with the date the feature was implemented, a short description and a link to the feature document.
+
+Add an entry for each feature or fix in the `Features & Fixes` section of `README.md` with the date the feature was implemented, a short description and a "Details" column with links to the plan document, the feature document and the session conversation. 
 
 The conversation session for a given feature should be exported to a Markdown file in `doc/sessions/`, on Mardown file per session.
 

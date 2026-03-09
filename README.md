@@ -100,7 +100,7 @@ Set the following environment variables (or use a `.env` file):
 
 | Date | Description | Details |
 |------|-------------|---------|
-| 2026-03-09 | Step 1: Submit Episode — Django project bootstrap, Episode model with status tracking, admin interface | [doc](doc/features/step-01-submit-episode.md) |
+| 2026-03-09 | Step 1: Submit Episode — Django project bootstrap, Episode model with status tracking, admin interface | [plan](doc/plans/step-01-submit-episode.md), [feature](doc/features/step-01-submit-episode.md), [session](doc/sessions/2026-03-09-step-01-submit-episode.md) |
 
 ## Built with AI
 
