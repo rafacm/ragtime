@@ -10,7 +10,12 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -37,6 +42,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_q',
     'episodes',
 ]
 
@@ -121,3 +127,21 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Django Q2 — async task queue with ORM broker
+Q_CLUSTER = {
+    'name': 'ragtime',
+    'workers': 2,
+    'timeout': 300,
+    'retry': 600,
+    'orm': 'default',
+    'save_limit': 250,
+    'ack_failures': True,
+    'max_attempts': 1,
+    'catch_up': False,
+}
+
+# RAGtime provider configuration
+RAGTIME_LLM_PROVIDER = os.getenv('RAGTIME_LLM_PROVIDER', 'openai')
+RAGTIME_LLM_API_KEY = os.getenv('RAGTIME_LLM_API_KEY', '')
+RAGTIME_LLM_MODEL = os.getenv('RAGTIME_LLM_MODEL', 'gpt-4.1-mini')

@@ -24,7 +24,7 @@ Each episode goes through the following steps, with status tracked throughout:
 |------|-------------|--------|
 | 1. Submit | User submits an episode page URL | `pending` |
 | 2. Dedup | Check if episode URL already exists | `pending` |
-| 3. Scrape | Extract metadata (title, description, date, image) + detect language | `downloading` |
+| 3. Scrape | Extract metadata (title, description, date, image) + detect language | `scraping` |
 | 4. Download | Find and download the audio file | `downloading` |
 | 5. Resize | If audio > 25MB, downsample with ffmpeg | `downloading` |
 | 6. Transcribe | Whisper transcription with detected language, segment + word timestamps | `transcribing` |
@@ -87,6 +87,7 @@ Set the following environment variables (or use a `.env` file):
 
 - `RAGTIME_LLM_PROVIDER` — LLM provider (`anthropic`, `openai`, etc.)
 - `RAGTIME_LLM_API_KEY` — API key for the LLM provider
+- `RAGTIME_LLM_MODEL` — LLM model name (default: `gpt-4.1-mini`)
 - `RAGTIME_TRANSCRIPTION_PROVIDER` — Transcription backend (`whisper_api`, `whisper_local`, etc.)
 - `RAGTIME_TRANSCRIPTION_API_KEY` — API key for transcription (if using API)
 - `RAGTIME_EMBEDDING_PROVIDER` — Embedding provider
@@ -102,6 +103,7 @@ Set the following environment variables (or use a `.env` file):
 |------|-------------|---------|
 | 2026-03-09 | Step 1: Submit Episode — Django project bootstrap, Episode model with status tracking, admin interface | [plan](doc/plans/step-01-submit-episode.md), [feature](doc/features/step-01-submit-episode.md), [session](doc/sessions/2026-03-09-step-01-submit-episode.md) |
 | 2026-03-09 | Step 2: Dedup — Duplicate episode detection via unique URL constraint at database level | [plan](doc/plans/step-02-dedup.md), [feature](doc/features/step-02-dedup.md), [session](doc/sessions/2026-03-09-step-02-dedup.md) |
+| 2026-03-09 | Step 3: Scrape — LLM-based metadata extraction with Django Q2 async tasks, provider abstraction, and needs_review workflow | [plan](doc/plans/step-03-scrape.md), [feature](doc/features/step-03-scrape.md), [session](doc/sessions/2026-03-09-step-03-scrape.md) |
 
 ## Built with AI
 
