@@ -123,6 +123,10 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Media files (uploaded/downloaded content)
+MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_URL = '/media/'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -145,3 +149,6 @@ Q_CLUSTER = {
 RAGTIME_LLM_PROVIDER = os.getenv('RAGTIME_LLM_PROVIDER', 'openai')
 RAGTIME_LLM_API_KEY = os.getenv('RAGTIME_LLM_API_KEY', '')
 RAGTIME_LLM_MODEL = os.getenv('RAGTIME_LLM_MODEL', 'gpt-4.1-mini')
+
+# Audio processing
+RAGTIME_MAX_AUDIO_SIZE = 25 * 1024 * 1024  # 25MB — Whisper API limit

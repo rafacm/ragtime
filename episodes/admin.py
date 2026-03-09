@@ -8,7 +8,7 @@ from .models import Episode
 class EpisodeAdmin(admin.ModelAdmin):
     list_display = ("url", "title", "language", "status", "created_at")
     list_filter = ("status", "language")
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = ("created_at", "updated_at", "audio_file", "error_message")
     actions = ["reprocess"]
 
     METADATA_FIELDS = (
@@ -36,12 +36,19 @@ class EpisodeAdmin(admin.ModelAdmin):
     def get_fieldsets(self, request, obj=None):
         if obj is None:
             return [(None, {"fields": ("url",)})]
-        return [
-            (None, {"fields": ("url", "status")}),
+        main_fields = ["url", "status"]
+        if obj.status == Episode.Status.FAILED and obj.error_message:
+            main_fields.append("error_message")
+        fieldsets = [
+            (None, {"fields": main_fields}),
             (
                 "Metadata",
                 {"fields": self.METADATA_FIELDS},
             ),
+        ]
+        if obj.audio_file:
+            fieldsets.append(("Files", {"fields": ("audio_file",)}))
+        fieldsets += [
             (
                 "Debug",
                 {
@@ -57,6 +64,7 @@ class EpisodeAdmin(admin.ModelAdmin):
                 },
             ),
         ]
+        return fieldsets
 
     @admin.action(description="Reprocess selected episodes")
     def reprocess(self, request, queryset):

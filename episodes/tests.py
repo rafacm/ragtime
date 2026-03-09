@@ -1,5 +1,7 @@
+import os
+import tempfile
 from datetime import date
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, PropertyMock, call, patch
 
 from django.db import IntegrityError
 from django.test import TestCase, override_settings
@@ -290,3 +292,302 @@ class EpisodeAdminTests(TestCase):
         content = response.content.decode()
         # title field should be an input (editable), not in readonly
         self.assertIn('name="title"', content)
+
+
+# ---------------------------------------------------------------------------
+# Step 4: Download tests
+# ---------------------------------------------------------------------------
+
+
+@override_settings(RAGTIME_MAX_AUDIO_SIZE=25 * 1024 * 1024)
+class DownloadEpisodeTests(TestCase):
+    """Tests for the download_episode task function."""
+
+    def _create_episode(self, **kwargs):
+        with patch("episodes.signals.async_task"):
+            return Episode.objects.create(**kwargs)
+
+    @patch("episodes.downloader.httpx.stream")
+    def test_success_small_file(self, mock_stream):
+        """Download ≤ 25MB → status transcribing."""
+        from episodes.downloader import download_episode
+
+        # Mock streaming response with small content
+        audio_data = b"fake-mp3-data" * 100  # small file
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.iter_bytes.return_value = [audio_data]
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=False)
+        mock_stream.return_value = mock_response
+
+        episode = self._create_episode(
+            url="https://example.com/ep/dl-1",
+            audio_url="https://example.com/ep1.mp3",
+            status=Episode.Status.DOWNLOADING,
+        )
+
+        with patch("episodes.signals.async_task"):
+            download_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.TRANSCRIBING)
+        self.assertTrue(episode.audio_file)
+
+    @patch("episodes.downloader.httpx.stream")
+    @override_settings(RAGTIME_MAX_AUDIO_SIZE=100)  # 100 bytes limit
+    def test_large_file_triggers_resize(self, mock_stream):
+        """Download > max size → status resizing."""
+        from episodes.downloader import download_episode
+
+        audio_data = b"x" * 200  # exceeds 100 byte limit
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.iter_bytes.return_value = [audio_data]
+        mock_response.__enter__ = MagicMock(return_value=mock_response)
+        mock_response.__exit__ = MagicMock(return_value=False)
+        mock_stream.return_value = mock_response
+
+        episode = self._create_episode(
+            url="https://example.com/ep/dl-2",
+            audio_url="https://example.com/ep2.mp3",
+            status=Episode.Status.DOWNLOADING,
+        )
+
+        with patch("episodes.signals.async_task"):
+            download_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.RESIZING)
+
+    @patch("episodes.downloader.httpx.stream")
+    def test_http_error_sets_failed(self, mock_stream):
+        """HTTP error → status failed with error_message."""
+        from episodes.downloader import download_episode
+
+        mock_stream.side_effect = Exception("Connection refused")
+
+        episode = self._create_episode(
+            url="https://example.com/ep/dl-3",
+            audio_url="https://example.com/ep3.mp3",
+            status=Episode.Status.DOWNLOADING,
+        )
+
+        with patch("episodes.signals.async_task"):
+            download_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.FAILED)
+        self.assertIn("Connection refused", episode.error_message)
+
+    def test_nonexistent_episode(self):
+        """Non-existent episode ID → no crash."""
+        from episodes.downloader import download_episode
+
+        download_episode(99999)  # should not raise
+
+    def test_wrong_status_skips(self):
+        """Episode not in 'downloading' status → skip."""
+        from episodes.downloader import download_episode
+
+        episode = self._create_episode(
+            url="https://example.com/ep/dl-4",
+            status=Episode.Status.PENDING,
+        )
+
+        download_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.PENDING)
+
+
+# ---------------------------------------------------------------------------
+# Step 5: Resize tests
+# ---------------------------------------------------------------------------
+
+
+class ResizeEpisodeTests(TestCase):
+    """Tests for the resize_episode task function."""
+
+    def _create_episode_with_audio(self, **kwargs):
+        """Create an episode with a real temporary audio file."""
+        from django.core.files.base import ContentFile
+
+        with patch("episodes.signals.async_task"):
+            episode = Episode.objects.create(**kwargs)
+            # Save a fake audio file
+            episode.audio_file.save(
+                f"{episode.pk}.mp3",
+                ContentFile(b"fake-audio-data" * 100),
+                save=True,
+            )
+        return episode
+
+    def _create_episode(self, **kwargs):
+        with patch("episodes.signals.async_task"):
+            return Episode.objects.create(**kwargs)
+
+    @patch("episodes.resizer.subprocess.run")
+    @patch("episodes.resizer.shutil.which", return_value="/usr/bin/ffmpeg")
+    @override_settings(RAGTIME_MAX_AUDIO_SIZE=25 * 1024 * 1024)
+    def test_success_resize(self, mock_which, mock_run):
+        """Successful resize → status transcribing."""
+        from episodes.resizer import resize_episode
+
+        episode = self._create_episode_with_audio(
+            url="https://example.com/ep/rs-1",
+            status=Episode.Status.RESIZING,
+        )
+
+        # Mock ffmpeg success — write a small file to the output path
+        def fake_ffmpeg(args, **kw):
+            output_path = args[-1]  # last arg is output file
+            with open(output_path, "wb") as f:
+                f.write(b"resized-audio" * 10)  # small output
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = fake_ffmpeg
+
+        with patch("episodes.signals.async_task"):
+            resize_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.TRANSCRIBING)
+
+    @patch("episodes.resizer.subprocess.run")
+    @patch("episodes.resizer.shutil.which", return_value="/usr/bin/ffmpeg")
+    @override_settings(RAGTIME_MAX_AUDIO_SIZE=50)  # 50 bytes limit
+    def test_still_too_large_after_resize(self, mock_which, mock_run):
+        """Resized file still > max → status failed."""
+        from episodes.resizer import resize_episode
+
+        episode = self._create_episode_with_audio(
+            url="https://example.com/ep/rs-2",
+            status=Episode.Status.RESIZING,
+        )
+
+        def fake_ffmpeg(args, **kw):
+            output_path = args[-1]
+            with open(output_path, "wb") as f:
+                f.write(b"x" * 200)  # still too large
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = fake_ffmpeg
+
+        with patch("episodes.signals.async_task"):
+            resize_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.FAILED)
+        self.assertIn("exceeds 25MB after resizing", episode.error_message)
+
+    @patch("episodes.resizer.subprocess.run")
+    @patch("episodes.resizer.shutil.which", return_value="/usr/bin/ffmpeg")
+    def test_ffmpeg_error(self, mock_which, mock_run):
+        """ffmpeg returns non-zero → status failed."""
+        from episodes.resizer import resize_episode
+
+        episode = self._create_episode_with_audio(
+            url="https://example.com/ep/rs-3",
+            status=Episode.Status.RESIZING,
+        )
+
+        mock_run.return_value = MagicMock(
+            returncode=1, stderr=b"Invalid input file"
+        )
+
+        with patch("episodes.signals.async_task"):
+            resize_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.FAILED)
+        self.assertIn("ffmpeg failed", episode.error_message)
+
+    @patch("episodes.resizer.shutil.which", return_value=None)
+    def test_ffmpeg_not_installed(self, mock_which):
+        """ffmpeg not on PATH → status failed with helpful message."""
+        from episodes.resizer import resize_episode
+
+        episode = self._create_episode_with_audio(
+            url="https://example.com/ep/rs-4",
+            status=Episode.Status.RESIZING,
+        )
+
+        with patch("episodes.signals.async_task"):
+            resize_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.FAILED)
+        self.assertIn("ffmpeg is not installed", episode.error_message)
+
+    def test_no_audio_file(self):
+        """No audio file → status failed."""
+        from episodes.resizer import resize_episode
+
+        episode = self._create_episode(
+            url="https://example.com/ep/rs-5",
+            status=Episode.Status.RESIZING,
+        )
+
+        with patch("episodes.signals.async_task"):
+            resize_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.FAILED)
+        self.assertIn("No audio file", episode.error_message)
+
+    def test_nonexistent_episode(self):
+        from episodes.resizer import resize_episode
+
+        resize_episode(99999)  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# Updated signal tests for download/resize triggers
+# ---------------------------------------------------------------------------
+
+
+class DownloadResizeSignalTests(TestCase):
+    @patch("episodes.signals.async_task")
+    def test_status_change_to_downloading_queues_download(self, mock_async):
+        episode = Episode.objects.create(url="https://example.com/ep/sig-dl-1")
+        mock_async.reset_mock()
+
+        episode.status = Episode.Status.DOWNLOADING
+        episode.save(update_fields=["status", "updated_at"])
+
+        mock_async.assert_called_once_with(
+            "episodes.downloader.download_episode", episode.pk
+        )
+
+    @patch("episodes.signals.async_task")
+    def test_status_change_to_resizing_queues_resize(self, mock_async):
+        episode = Episode.objects.create(url="https://example.com/ep/sig-rs-1")
+        mock_async.reset_mock()
+
+        episode.status = Episode.Status.RESIZING
+        episode.save(update_fields=["status", "updated_at"])
+
+        mock_async.assert_called_once_with(
+            "episodes.resizer.resize_episode", episode.pk
+        )
+
+    @patch("episodes.signals.async_task")
+    def test_other_status_change_does_not_queue(self, mock_async):
+        episode = Episode.objects.create(url="https://example.com/ep/sig-other")
+        mock_async.reset_mock()
+
+        episode.status = Episode.Status.FAILED
+        episode.save(update_fields=["status", "updated_at"])
+
+        mock_async.assert_not_called()
+
+    @patch("episodes.signals.async_task")
+    def test_save_without_update_fields_does_not_queue(self, mock_async):
+        episode = Episode.objects.create(url="https://example.com/ep/sig-nuf")
+        mock_async.reset_mock()
+
+        episode.status = Episode.Status.DOWNLOADING
+        episode.save()  # no update_fields
+
+        mock_async.assert_not_called()

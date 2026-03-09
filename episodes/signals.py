@@ -6,6 +6,19 @@ from .models import Episode
 
 
 @receiver(post_save, sender=Episode)
-def queue_scrape_on_create(sender, instance, created, **kwargs):
+def queue_next_step(sender, instance, created, **kwargs):
     if created and instance.status == Episode.Status.PENDING:
         async_task("episodes.scraper.scrape_episode", instance.pk)
+        return
+
+    if created:
+        return
+
+    update_fields = kwargs.get("update_fields")
+    if not update_fields or "status" not in update_fields:
+        return
+
+    if instance.status == Episode.Status.DOWNLOADING:
+        async_task("episodes.downloader.download_episode", instance.pk)
+    elif instance.status == Episode.Status.RESIZING:
+        async_task("episodes.resizer.resize_episode", instance.pk)
