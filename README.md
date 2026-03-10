@@ -20,24 +20,37 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 
 ## Processing Pipeline
 
-Each episode goes through the following steps, with status tracked throughout:
+Each episode goes through the following steps, with status tracked throughout. Any step failure marks the episode as `failed`.
 
-| Step | Description | Status |
-|------|-------------|--------|
-| 1. Submit | User submits an episode page URL | `pending` |
-| 2. Dedup | Check if episode URL already exists | `pending` |
-| 3. Scrape | Extract metadata (title, description, date, image) + detect language | `scraping` |
-| 4. Download | Find and download the audio file | `downloading` |
-| 5. Resize | If audio > 25MB, downsample with ffmpeg | `downloading` |
-| 6. Transcribe | Whisper transcription with detected language, segment + word timestamps | `transcribing` |
-| 7. Summarize | LLM-generated episode summary | `summarizing` |
-| 8. Extract | LLM-based entity extraction (artists, albums, venues, etc.) | `extracting` |
-| 9. Resolve | LLM-based entity resolution against existing entities in DB | `deduplicating` |
-| 10. Chunk | Split transcript by Whisper segments | `embedding` |
-| 11. Embed | Generate multilingual embeddings and store in ChromaDB | `embedding` |
-| 12. Ready | Episode available for Scott to reference | `ready` |
+```mermaid
+flowchart TD
+    A["1. Submit\n<i>pending</i>"] --> B["2. Dedup\n<i>pending</i>"]
+    B --> C["3. Scrape\n<i>scraping</i>"]
+    C --> D["4. Download\n<i>downloading</i>"]
+    D --> E["5. Resize\n<i>downloading</i>"]
+    E --> F["6. Transcribe\n<i>transcribing</i>"]
+    F --> G["7. Summarize\n<i>summarizing</i>"]
+    G --> H["8. Extract\n<i>extracting</i>"]
+    H --> I["9. Resolve\n<i>deduplicating</i>"]
+    I --> J["10. Chunk\n<i>embedding</i>"]
+    J --> K["11. Embed\n<i>embedding</i>"]
+    K --> L["12. Ready\n<i>ready</i>"]
 
-Any step failure marks the episode as `failed`.
+    A -.->|failure| X["❌ Failed"]
+    B -.->|failure| X
+    C -.->|failure| X
+    D -.->|failure| X
+    E -.->|failure| X
+    F -.->|failure| X
+    G -.->|failure| X
+    H -.->|failure| X
+    I -.->|failure| X
+    J -.->|failure| X
+    K -.->|failure| X
+
+    style L fill:#2d6a4f,color:#fff
+    style X fill:#d32f2f,color:#fff
+```
 
 ## Tech Stack
 
