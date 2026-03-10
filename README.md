@@ -6,6 +6,17 @@
   <sub>Image generated with <a href="https://gemini.google/overview/image-generation/">Nano Banana</a> from the cover of <a href="https://en.wikipedia.org/wiki/Ragtime_(novel)">E.L. Doctorow's novel "Ragtime"</a></sub>
 </div>
 
+<br>
+
+<div align="center">
+
+[![CI](https://github.com/rafacm/ragtime/actions/workflows/ci.yml/badge.svg)](https://github.com/rafacm/ragtime/actions/workflows/ci.yml)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-blue)](https://www.python.org/)
+[![Django 5.2](https://img.shields.io/badge/django-5.2-green)](https://www.djangoproject.com/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE)
+
+</div>
+
 ## What is RAGtime?
 
 RAGtime is a Django application for ingesting jazz-related podcast episodes. It extracts metadata, transcribes audio, identifies jazz entities, and powers **Scott** — a jazz-focused AI agent that answers questions strictly from ingested episode content, with references to specific episodes and timestamps.
@@ -107,6 +118,7 @@ Set the following environment variables (or use a `.env` file):
 | 2026-03-09 | Step 2: Dedup — Duplicate episode detection via unique URL constraint at database level | [plan](doc/plans/step-02-dedup.md), [feature](doc/features/step-02-dedup.md), [session](doc/sessions/2026-03-09-step-02-dedup.md) |
 | 2026-03-09 | Step 3: Scrape — LLM-based metadata extraction with Django Q2 async tasks, provider abstraction, and needs_review workflow | [plan](doc/plans/step-03-scrape.md), [feature](doc/features/step-03-scrape.md), [session](doc/sessions/2026-03-09-step-03-scrape.md) |
 | 2026-03-09 | Steps 4 & 5: Download & Resize — Audio download with streaming, ffmpeg downsampling for Whisper API limit, error tracking | [plan](doc/plans/step-04-05-download-resize.md), [feature](doc/features/step-04-05-download-resize.md), [session](doc/sessions/2026-03-09-step-04-05-download-resize.md) |
+| 2026-03-10 | CI: GitHub Actions — Automated test suite on PRs and pushes to main, README badges for build status, Python, Django, license | [feature](doc/features/ci-github-actions.md), [session](doc/sessions/2026-03-10-ci-github-actions.md) |
 
 ## Built with AI
 
