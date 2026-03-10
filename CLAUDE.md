@@ -44,6 +44,10 @@ Use `uv` for everything — never `pip install` directly.
 - `python-dotenv` for env vars (`.env` file, `RAGTIME_*` prefix)
 - ffmpeg required for audio downsampling (files > 25MB)
 
+## Branching
+
+All new features and fixes must be implemented in a dedicated branch off `main`. Never commit directly to `main`. Use a descriptive branch name (e.g., `feature/transcribe-step`, `fix/dedup-race-condition`). Once the work is complete, open a pull request to merge back into `main`.
+
 ## Documentation
 
 The detailed implementation plans for a given feature should be rendered as Markdown and saved to `doc/plans/`, one Markdown file per plan.
