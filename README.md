@@ -1,6 +1,6 @@
 <div align="center">
   <picture>
-    <img src="ragtime.png" alt="RAGtime -- Retrieval Augmented Generation (RAG) in the Key of Jazz" width="100%">
+    <img src="ragtime.svg" alt="RAGtime -- Retrieval Augmented Generation (RAG) in the Key of Jazz" width="100%">
   </picture>
   <br>
   <sub>Image generated with <a href="https://gemini.google/overview/image-generation/">Nano Banana</a> from the cover of <a href="https://en.wikipedia.org/wiki/Ragtime_(novel)">E.L. Doctorow's novel "Ragtime"</a></sub>
