@@ -48,7 +48,7 @@ Use `uv` for everything — never `pip install` directly.
 
 All new features and fixes must be implemented in a dedicated branch off `main`. Never commit directly to `main`. Use a descriptive branch name (e.g., `feature/transcribe-step`, `fix/dedup-race-condition`). Once the work is complete, open a pull request to merge back into `main`.
 
-When creating PRs, enable automerge with the rebase strategy (`gh pr merge --auto --rebase`). Squash and merge-commit strategies are not allowed on this repository.
+When creating PRs, use the rebase strategy. Squash and merge-commit strategies are not allowed on this repository.
 
 ## Documentation
 
