@@ -122,7 +122,7 @@ Set the following environment variables (or use a `.env` file):
 
 ## Built with AI
 
-This project was developed with [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+This project was developed with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and reviewed by [Codex](https://openai.com/index/introducing-codex/).
 
 ## License
 
