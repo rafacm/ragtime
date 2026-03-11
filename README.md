@@ -119,6 +119,7 @@ Set the following environment variables (or use a `.env` file):
 | 2026-03-09 | Step 3: Scrape — LLM-based metadata extraction with Django Q2 async tasks, provider abstraction, and needs_review workflow | [plan](doc/plans/step-03-scrape.md), [feature](doc/features/step-03-scrape.md), [session](doc/sessions/2026-03-09-step-03-scrape.md) |
 | 2026-03-09 | Steps 4 & 5: Download & Resize — Audio download with streaming, ffmpeg downsampling for Whisper API limit, error tracking | [plan](doc/plans/step-04-05-download-resize.md), [feature](doc/features/step-04-05-download-resize.md), [session](doc/sessions/2026-03-09-step-04-05-download-resize.md) |
 | 2026-03-10 | CI: GitHub Actions — Automated test suite on PRs and pushes to main, README badges for build status, Python, Django, license | [feature](doc/features/ci-github-actions.md), [session](doc/sessions/2026-03-10-ci-github-actions.md) |
+| 2026-03-11 | Step 6: Transcribe — Whisper API transcription with segment and word timestamps, pluggable provider abstraction | [plan](doc/plans/step-06-transcribe.md), [feature](doc/features/step-06-transcribe.md), [session](doc/sessions/2026-03-11-step-06-transcribe.md) |
 
 ## Built with AI
 

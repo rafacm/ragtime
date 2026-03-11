@@ -8,7 +8,14 @@ from .models import Episode
 class EpisodeAdmin(admin.ModelAdmin):
     list_display = ("url", "title", "language", "status", "created_at")
     list_filter = ("status", "language")
-    readonly_fields = ("created_at", "updated_at", "audio_file", "error_message")
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+        "audio_file",
+        "error_message",
+        "transcript",
+        "transcript_json",
+    )
     actions = ["reprocess"]
 
     METADATA_FIELDS = (
@@ -48,6 +55,16 @@ class EpisodeAdmin(admin.ModelAdmin):
         ]
         if obj.audio_file:
             fieldsets.append(("Files", {"fields": ("audio_file",)}))
+        if obj.transcript:
+            fieldsets.append(("Transcript", {"fields": ("transcript",)}))
+        if obj.transcript_json:
+            fieldsets.append((
+                "Transcript JSON",
+                {
+                    "classes": ("collapse",),
+                    "fields": ("transcript_json",),
+                },
+            ))
         fieldsets += [
             (
                 "Debug",
