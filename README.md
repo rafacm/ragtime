@@ -101,6 +101,9 @@ Set the following environment variables (or use a `.env` file):
 - `RAGTIME_LLM_PROVIDER` — LLM provider (`anthropic`, `openai`, etc.)
 - `RAGTIME_LLM_API_KEY` — API key for the LLM provider
 - `RAGTIME_LLM_MODEL` — LLM model name (default: `gpt-4.1-mini`)
+- `RAGTIME_SUMMARIZATION_PROVIDER` — Summarization LLM provider (default: `openai`)
+- `RAGTIME_SUMMARIZATION_API_KEY` — API key for the summarization provider
+- `RAGTIME_SUMMARIZATION_MODEL` — Summarization model name (default: `gpt-4.1-mini`)
 - `RAGTIME_TRANSCRIPTION_PROVIDER` — Transcription backend (`whisper_api`, `whisper_local`, etc.)
 - `RAGTIME_TRANSCRIPTION_API_KEY` — API key for transcription (if using API)
 - `RAGTIME_EMBEDDING_PROVIDER` — Embedding provider
