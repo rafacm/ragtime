@@ -37,6 +37,10 @@ class Episode(models.Model):
     # Stored cleaned HTML for debugging/re-processing
     scraped_html = models.TextField(blank=True, default="")
 
+    # Transcription (populated by transcriber)
+    transcript = models.TextField(blank=True, default="")
+    transcript_json = models.JSONField(blank=True, null=True)
+
     # Error message (populated on failure)
     error_message = models.TextField(blank=True, default="")
 
