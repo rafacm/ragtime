@@ -893,7 +893,7 @@ class SummarizeEpisodeTests(TestCase):
 
     @patch("episodes.summarizer.get_summarization_provider")
     def test_generate_called_with_correct_args(self, mock_factory):
-        from episodes.summarizer import SUMMARIZE_SYSTEM_PROMPT, summarize_episode
+        from episodes.summarizer import summarize_episode
 
         mock_provider = MagicMock()
         mock_provider.generate.return_value = "Summary."
@@ -904,15 +904,39 @@ class SummarizeEpisodeTests(TestCase):
             url="https://example.com/ep/sum-5",
             status=Episode.Status.SUMMARIZING,
             transcript=transcript_text,
+            language="de",
         )
 
         with patch("episodes.signals.async_task"):
             summarize_episode(episode.pk)
 
-        mock_provider.generate.assert_called_once_with(
-            system_prompt=SUMMARIZE_SYSTEM_PROMPT,
-            user_content=transcript_text,
+        mock_provider.generate.assert_called_once()
+        _, kwargs = mock_provider.generate.call_args
+        self.assertEqual(kwargs["user_content"], transcript_text)
+        self.assertIn("German", kwargs["system_prompt"])
+
+    @patch("episodes.summarizer.get_summarization_provider")
+    def test_generate_called_with_empty_language(self, mock_factory):
+        from episodes.summarizer import summarize_episode
+
+        mock_provider = MagicMock()
+        mock_provider.generate.return_value = "Summary."
+        mock_factory.return_value = mock_provider
+
+        transcript_text = self.coltrane_whisper["text"]
+        episode = self._create_episode(
+            url="https://example.com/ep/sum-6",
+            status=Episode.Status.SUMMARIZING,
+            transcript=transcript_text,
+            language="",
         )
+
+        with patch("episodes.signals.async_task"):
+            summarize_episode(episode.pk)
+
+        mock_provider.generate.assert_called_once()
+        _, kwargs = mock_provider.generate.call_args
+        self.assertIn("same language as the transcript", kwargs["system_prompt"])
 
 
 class SummarizeSignalTests(TestCase):

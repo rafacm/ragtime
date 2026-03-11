@@ -5,16 +5,42 @@ from .providers.factory import get_summarization_provider
 
 logger = logging.getLogger(__name__)
 
-SUMMARIZE_SYSTEM_PROMPT = (
+_BASE_SYSTEM_PROMPT = (
     "You are an expert podcast summarizer specializing in jazz music. "
     "Given a transcript of a jazz podcast episode, write a concise summary that includes:\n"
-    "- The language the episode is in\n"
     "- The key topics discussed\n"
     "- Artists, bands, albums, and musical works mentioned\n"
     "- Musical context, historical background, and stylistic connections\n\n"
     "Write in clear, flowing prose. Do not use bullet points or lists. "
     "Keep the summary to 2-4 paragraphs."
 )
+
+ISO_639_LANGUAGE_NAMES: dict[str, str] = {
+    "de": "German",
+    "en": "English",
+    "es": "Spanish",
+    "fr": "French",
+    "it": "Italian",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "nl": "Dutch",
+    "pl": "Polish",
+    "pt": "Portuguese",
+    "ru": "Russian",
+    "sv": "Swedish",
+    "tr": "Turkish",
+    "zh": "Chinese",
+}
+
+
+def build_system_prompt(language: str) -> str:
+    if language:
+        lang_name = ISO_639_LANGUAGE_NAMES.get(language, language)
+        return f"{_BASE_SYSTEM_PROMPT}\nWrite the summary in {lang_name}."
+    return (
+        f"{_BASE_SYSTEM_PROMPT}\n"
+        "Write the summary in the same language as the transcript."
+    )
 
 
 def summarize_episode(episode_id: int) -> None:
@@ -40,8 +66,9 @@ def summarize_episode(episode_id: int) -> None:
 
     try:
         provider = get_summarization_provider()
+        system_prompt = build_system_prompt(episode.language)
         summary = provider.generate(
-            system_prompt=SUMMARIZE_SYSTEM_PROMPT,
+            system_prompt=system_prompt,
             user_content=episode.transcript,
         )
 

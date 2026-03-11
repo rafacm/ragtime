@@ -124,6 +124,7 @@ Set the following environment variables (or use a `.env` file):
 | 2026-03-10 | CI: GitHub Actions — Automated test suite on PRs and pushes to main, README badges for build status, Python, Django, license | [feature](doc/features/ci-github-actions.md), [session](doc/sessions/2026-03-10-ci-github-actions.md) |
 | 2026-03-11 | Step 6: Transcribe — Whisper API transcription with segment and word timestamps, pluggable provider abstraction | [plan](doc/plans/step-06-transcribe.md), [feature](doc/features/step-06-transcribe.md), [session](doc/sessions/2026-03-11-step-06-transcribe.md) |
 | 2026-03-11 | Step 7: Summarize — LLM-generated episode summaries with independently configurable summarization provider | [plan](doc/plans/step-07-summarize.md), [feature](doc/features/step-07-summarize.md), [session](doc/sessions/2026-03-11-step-07-summarize.md) |
+| 2026-03-11 | Fix: Summarization respects episode language — summaries generated in the episode's language instead of defaulting to English | [feature](doc/features/fix-summarization-language.md), [session](doc/sessions/2026-03-11-fix-summarization-language.md) |
 
 ## Built with AI
 
