@@ -9,6 +9,11 @@ class LLMProvider(ABC):
         """Send prompt + content to LLM, return structured JSON dict."""
         ...
 
+    @abstractmethod
+    def generate(self, system_prompt: str, user_content: str) -> str:
+        """Send prompt + content to LLM, return plain text."""
+        ...
+
 
 class TranscriptionProvider(ABC):
     @abstractmethod

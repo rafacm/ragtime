@@ -24,3 +24,5 @@ def queue_next_step(sender, instance, created, **kwargs):
         async_task("episodes.resizer.resize_episode", instance.pk)
     elif instance.status == Episode.Status.TRANSCRIBING:
         async_task("episodes.transcriber.transcribe_episode", instance.pk)
+    elif instance.status == Episode.Status.SUMMARIZING:
+        async_task("episodes.summarizer.summarize_episode", instance.pk)

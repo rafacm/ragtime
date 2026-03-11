@@ -41,6 +41,9 @@ class Episode(models.Model):
     transcript = models.TextField(blank=True, default="")
     transcript_json = models.JSONField(blank=True, null=True)
 
+    # LLM-generated summary (populated by summarizer)
+    summary_generated = models.TextField(blank=True, default="")
+
     # Error message (populated on failure)
     error_message = models.TextField(blank=True, default="")
 

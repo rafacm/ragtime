@@ -15,6 +15,7 @@ class EpisodeAdmin(admin.ModelAdmin):
         "error_message",
         "transcript",
         "transcript_json",
+        "summary_generated",
     )
     actions = ["reprocess"]
 
@@ -57,6 +58,8 @@ class EpisodeAdmin(admin.ModelAdmin):
             fieldsets.append(("Files", {"fields": ("audio_file",)}))
         if obj.transcript:
             fieldsets.append(("Transcript", {"fields": ("transcript",)}))
+        if obj.summary_generated:
+            fieldsets.append(("Summary", {"fields": ("summary_generated",)}))
         if obj.transcript_json:
             fieldsets.append((
                 "Transcript JSON",
