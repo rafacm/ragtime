@@ -66,6 +66,6 @@ Keep prose concise. Prefer tables and lists over long paragraphs. Use code block
 
 Add an entry for each feature or fix in the `Features & Fixes` section of `README.md` with the date the feature was implemented, a short description and a "Details" column with links to the plan document, the feature document and the session conversation.
 
-The full conversation transcript for a given feature should be exported as a Markdown file and stored in `doc/sessions/`, one Markdown file per session.
+Session transcripts live in `doc/sessions/`, one Markdown file per session. Each transcript must record the actual conversation as a sequence of `### User` and `### Assistant` sections. Summarise what the user asked and what the assistant did in each turn — do not paraphrase into phases or bullet-point summaries. Include a short `## Summary` at the top. See `doc/sessions/2026-03-10-ci-github-actions.md` as the reference format.
 
 The commit for a given feature MUST contain the corresponding Markdown files for the plan, the feature documentation and the session.

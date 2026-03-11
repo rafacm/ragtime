@@ -21,6 +21,14 @@ class OpenAILLMProvider(LLMProvider):
         )
         return json.loads(response.output_text)
 
+    def generate(self, system_prompt: str, user_content: str) -> str:
+        response = self.client.responses.create(
+            model=self.model,
+            instructions=system_prompt,
+            input=user_content,
+        )
+        return response.output_text
+
 
 class OpenAITranscriptionProvider(TranscriptionProvider):
     def __init__(self, api_key: str, model: str):
