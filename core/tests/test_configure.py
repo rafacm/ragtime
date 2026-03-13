@@ -234,6 +234,7 @@ class ConfigureWizardTest(TestCase):
             "gpt-4.1-mini",  # Scraping model
             "gpt-4.1-mini",  # Summarization model
             "gpt-4.1-mini",  # Extraction model
+            "gpt-4.1-mini",  # Resolution model
             "openai",         # Transcription provider
             "whisper-1",      # Transcription model
         ]
@@ -270,6 +271,9 @@ class ConfigureWizardTest(TestCase):
                     )
                     self.assertEqual(
                         values["RAGTIME_EXTRACTION_API_KEY"], "sk-newkey123"
+                    )
+                    self.assertEqual(
+                        values["RAGTIME_RESOLUTION_API_KEY"], "sk-newkey123"
                     )
                     self.assertEqual(
                         values["RAGTIME_TRANSCRIPTION_PROVIDER"], "openai"
@@ -312,6 +316,7 @@ class ConfigureWizardTest(TestCase):
             "gpt-4.1-mini",  # Scraping model
             "gpt-4.1-mini",  # Summarization model
             "gpt-4.1-mini",  # Extraction model
+            "gpt-4.1-mini",  # Resolution model
             "openai",         # Transcription provider
             "whisper-1",      # Transcription model
         ]
