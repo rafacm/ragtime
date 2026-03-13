@@ -15,6 +15,8 @@ uv run python manage.py migrate            # Apply migrations
 uv run python manage.py makemigrations     # Generate migrations
 uv run python manage.py test               # Run all tests
 uv run python manage.py test episodes      # Run tests for one app
+uv run python manage.py configure          # Interactive setup wizard
+uv run python manage.py configure --show   # Show current config (masked)
 uv run python manage.py check              # Django system checks
 ```
 
@@ -22,7 +24,8 @@ Use `uv` for everything — never `pip install` directly.
 
 ## Architecture
 
-**Two Django apps:**
+**Three Django apps:**
+- `core` — Project-wide management commands and utilities (e.g. `configure`)
 - `episodes` — Ingestion pipeline, models, entity extraction, provider abstractions
 - `chat` — Scott chatbot interface with streaming responses
 
