@@ -118,7 +118,8 @@ uv run python manage.py runserver
 
 ### Configuration
 
-Set the following environment variables (or use a `.env` file):
+Set the following environment variables (or use a `.env` file).
+You can also run `uv run python manage.py configure` to launch an interactive setup wizard for all `RAGTIME_*` env vars:
 
 - `RAGTIME_SCRAPING_PROVIDER` — Scraping LLM provider (default: `openai`)
 - `RAGTIME_SCRAPING_API_KEY` — API key for the scraping LLM provider
