@@ -112,6 +112,7 @@ git clone <repo-url>
 cd ragtime
 uv sync
 uv run python manage.py migrate
+uv run python manage.py configure   # Interactive setup wizard for RAGTIME_* env vars
 uv run python manage.py runserver
 ```
 
@@ -153,6 +154,7 @@ Set the following environment variables (or use a `.env` file):
 | 2026-03-13 | Refactor: Split episode tests into a test package — 9 focused modules under `episodes/tests/`, one per component | [session transcript](doc/sessions/2026-03-13-refactor-episode-tests.md) |
 | 2026-03-13 | Docs: Multi-session transcript format — session IDs, reasoning steps, multi-session coverage | [feature](doc/features/session-transcript-format.md), [session transcript](doc/sessions/2026-03-13-session-transcript-format.md) |
 | 2026-03-13 | Refactor: Rename RAGTIME_LLM_* → RAGTIME_SCRAPING_* — align scraping provider naming with RAGTIME_\<PURPOSE\>_* convention | [plan](doc/plans/refactor-rename-scraping-provider.md), [feature](doc/features/refactor-rename-scraping-provider.md), [session transcript](doc/sessions/2026-03-13-rename-scraping-provider.md) |
+| 2026-03-13 | `manage.py configure` — Interactive setup wizard for RAGTIME_* environment variables with shared credentials, secret masking, and `--show` flag | [plan](doc/plans/manage-py-configure.md), [feature](doc/features/manage-py-configure.md), [session transcript](doc/sessions/2026-03-13-manage-py-configure.md) |
 
 ## Built with AI
 
