@@ -152,7 +152,7 @@ Set the following environment variables (or use a `.env` file):
 | 2026-03-13 | Step 8: Extract Entities — LLM-based entity extraction (artists, albums, venues, etc.) with independently configurable provider | [plan](doc/plans/step-08-extract-entities.md), [feature](doc/features/step-08-extract-entities.md), [session transcript](doc/sessions/2026-03-13-step-08-extract-entities.md) |
 | 2026-03-13 | Refactor: Split episode tests into a test package — 9 focused modules under `episodes/tests/`, one per component | [session transcript](doc/sessions/2026-03-13-refactor-episode-tests.md) |
 | 2026-03-13 | Docs: Multi-session transcript format — session IDs, reasoning steps, multi-session coverage | [feature](doc/features/session-transcript-format.md), [session transcript](doc/sessions/2026-03-13-session-transcript-format.md) |
-| 2026-03-13 | Refactor: Rename RAGTIME_LLM_* → RAGTIME_SCRAPING_* — align scraping provider naming with RAGTIME_\<PURPOSE\>_* convention | |
+| 2026-03-13 | Refactor: Rename RAGTIME_LLM_* → RAGTIME_SCRAPING_* — align scraping provider naming with RAGTIME_\<PURPOSE\>_* convention | [plan](doc/plans/refactor-rename-scraping-provider.md), [session transcript](doc/sessions/2026-03-13-rename-scraping-provider.md) |
 
 ## Built with AI
 
