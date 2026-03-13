@@ -119,9 +119,9 @@ uv run python manage.py runserver
 
 Set the following environment variables (or use a `.env` file):
 
-- `RAGTIME_LLM_PROVIDER` — LLM provider (`anthropic`, `openai`, etc.)
-- `RAGTIME_LLM_API_KEY` — API key for the LLM provider
-- `RAGTIME_LLM_MODEL` — LLM model name (default: `gpt-4.1-mini`)
+- `RAGTIME_SCRAPING_PROVIDER` — Scraping LLM provider (default: `openai`)
+- `RAGTIME_SCRAPING_API_KEY` — API key for the scraping LLM provider
+- `RAGTIME_SCRAPING_MODEL` — Scraping LLM model name (default: `gpt-4.1-mini`)
 - `RAGTIME_SUMMARIZATION_PROVIDER` — Summarization LLM provider (default: `openai`)
 - `RAGTIME_SUMMARIZATION_API_KEY` — API key for the summarization provider
 - `RAGTIME_SUMMARIZATION_MODEL` — Summarization model name (default: `gpt-4.1-mini`)

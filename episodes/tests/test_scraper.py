@@ -44,9 +44,9 @@ class CleanHtmlTests(TestCase):
 
 
 @override_settings(
-    RAGTIME_LLM_PROVIDER="openai",
-    RAGTIME_LLM_API_KEY="test-key",
-    RAGTIME_LLM_MODEL="gpt-4.1-mini",
+    RAGTIME_SCRAPING_PROVIDER="openai",
+    RAGTIME_SCRAPING_API_KEY="test-key",
+    RAGTIME_SCRAPING_MODEL="gpt-4.1-mini",
 )
 class ScrapeEpisodeTests(TestCase):
     """Tests for the scrape_episode task function with mocked HTTP and LLM."""
@@ -87,7 +87,7 @@ class ScrapeEpisodeTests(TestCase):
         with patch("episodes.signals.async_task"):
             return Episode.objects.create(**kwargs)
 
-    @patch("episodes.scraper.get_llm_provider")
+    @patch("episodes.scraper.get_scraping_provider")
     @patch("episodes.scraper.fetch_html")
     def test_success_path(self, mock_fetch, mock_provider_factory):
         mock_fetch.return_value = self.SAMPLE_HTML
@@ -106,7 +106,7 @@ class ScrapeEpisodeTests(TestCase):
         self.assertEqual(episode.published_at, date(2026, 1, 15))
         self.assertNotEqual(episode.scraped_html, "")
 
-    @patch("episodes.scraper.get_llm_provider")
+    @patch("episodes.scraper.get_scraping_provider")
     @patch("episodes.scraper.fetch_html")
     def test_incomplete_extraction_needs_review(self, mock_fetch, mock_provider_factory):
         mock_fetch.return_value = self.SAMPLE_HTML
@@ -132,7 +132,7 @@ class ScrapeEpisodeTests(TestCase):
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
 
-    @patch("episodes.scraper.get_llm_provider")
+    @patch("episodes.scraper.get_scraping_provider")
     def test_reprocess_with_user_filled_fields(self, mock_provider_factory):
         """When user fills required fields and reprocesses, LLM is skipped."""
         episode = self._create_episode(
@@ -150,7 +150,7 @@ class ScrapeEpisodeTests(TestCase):
         # LLM should not have been called
         mock_provider_factory.assert_not_called()
 
-    @patch("episodes.scraper.get_llm_provider")
+    @patch("episodes.scraper.get_scraping_provider")
     @patch("episodes.scraper.fetch_html")
     def test_uses_cached_html_on_reprocess(self, mock_fetch, mock_provider_factory):
         """When scraped_html is already stored, HTTP fetch is skipped."""
