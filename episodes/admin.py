@@ -16,6 +16,7 @@ class EpisodeAdmin(admin.ModelAdmin):
         "transcript",
         "transcript_json",
         "summary_generated",
+        "entities_json",
     )
     actions = ["reprocess"]
 
@@ -60,6 +61,14 @@ class EpisodeAdmin(admin.ModelAdmin):
             fieldsets.append(("Transcript", {"fields": ("transcript",)}))
         if obj.summary_generated:
             fieldsets.append(("Summary", {"fields": ("summary_generated",)}))
+        if obj.entities_json:
+            fieldsets.append((
+                "Entities",
+                {
+                    "classes": ("collapse",),
+                    "fields": ("entities_json",),
+                },
+            ))
         if obj.transcript_json:
             fieldsets.append((
                 "Transcript JSON",

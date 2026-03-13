@@ -44,6 +44,9 @@ class Episode(models.Model):
     # LLM-generated summary (populated by summarizer)
     summary_generated = models.TextField(blank=True, default="")
 
+    # LLM-extracted entities (populated by extractor)
+    entities_json = models.JSONField(blank=True, null=True)
+
     # Error message (populated on failure)
     error_message = models.TextField(blank=True, default="")
 

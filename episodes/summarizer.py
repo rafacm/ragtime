@@ -1,6 +1,6 @@
 import logging
-import re
 
+from .languages import ISO_639_LANGUAGE_NAMES, ISO_639_RE
 from .models import Episode
 from .providers.factory import get_summarization_provider
 
@@ -16,33 +16,13 @@ _BASE_SYSTEM_PROMPT = (
     "Keep the summary to 2-4 paragraphs."
 )
 
-ISO_639_LANGUAGE_NAMES: dict[str, str] = {
-    "de": "German",
-    "en": "English",
-    "es": "Spanish",
-    "fr": "French",
-    "it": "Italian",
-    "ja": "Japanese",
-    "ko": "Korean",
-    "nl": "Dutch",
-    "pl": "Polish",
-    "pt": "Portuguese",
-    "ru": "Russian",
-    "sv": "Swedish",
-    "tr": "Turkish",
-    "zh": "Chinese",
-}
-
-
-_ISO_639_RE = re.compile(r"^[a-z]{2}$")
-
 _FALLBACK_INSTRUCTION = (
     "Write the summary in the same language as the transcript."
 )
 
 
 def build_system_prompt(language: str) -> str:
-    if language and _ISO_639_RE.match(language):
+    if language and ISO_639_RE.match(language):
         lang_name = ISO_639_LANGUAGE_NAMES.get(language, language)
         return f"{_BASE_SYSTEM_PROMPT}\nWrite the summary in {lang_name}."
     return f"{_BASE_SYSTEM_PROMPT}\n{_FALLBACK_INSTRUCTION}"
