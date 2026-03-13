@@ -150,6 +150,7 @@ Set the following environment variables (or use a `.env` file):
 | 2026-03-11 | Step 7: Summarize — LLM-generated episode summaries with independently configurable summarization provider | [plan](doc/plans/step-07-summarize.md), [feature](doc/features/step-07-summarize.md), [session transcript](doc/sessions/2026-03-11-step-07-summarize.md) |
 | 2026-03-11 | Fix: Summarization respects episode language — summaries generated in the episode's language instead of defaulting to English | [feature](doc/features/fix-summarization-language.md), [session transcript](doc/sessions/2026-03-11-fix-summarization-language.md) |
 | 2026-03-13 | Step 8: Extract Entities — LLM-based entity extraction (artists, albums, venues, etc.) with independently configurable provider | [plan](doc/plans/step-08-extract-entities.md), [feature](doc/features/step-08-extract-entities.md), [session transcript](doc/sessions/2026-03-13-step-08-extract-entities.md) |
+| 2026-03-13 | Refactor: Split episode tests into a test package — 9 focused modules under `episodes/tests/`, one per component | [session transcript](doc/sessions/2026-03-13-refactor-episode-tests.md) |
 
 ## Built with AI
 
