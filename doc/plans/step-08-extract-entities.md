@@ -23,7 +23,7 @@ Add `entities_json` JSONField (nullable, blank) to store extracted entities.
 - Load entity types from YAML at module level
 - `build_system_prompt(language)` — language-aware prompt with entity type definitions
 - `build_response_schema()` — dynamic JSON schema from entity types
-- `extract_entities(episode_id)` — task function: validate status, call `structured_extract()`, store result, advance to `DEDUPLICATING`
+- `extract_entities(episode_id)` — task function: validate status, call `structured_extract()`, store result, advance to `RESOLVING`
 
 ### 5. Settings: `ragtime/settings.py`
 

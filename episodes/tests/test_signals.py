@@ -110,3 +110,17 @@ class ExtractSignalTests(TestCase):
         mock_async.assert_called_once_with(
             "episodes.extractor.extract_entities", episode.pk
         )
+
+
+class ResolveSignalTests(TestCase):
+    @patch("episodes.signals.async_task")
+    def test_status_change_to_resolving_queues_resolve(self, mock_async):
+        episode = Episode.objects.create(url="https://example.com/ep/sig-res-1")
+        mock_async.reset_mock()
+
+        episode.status = Episode.Status.RESOLVING
+        episode.save(update_fields=["status", "updated_at"])
+
+        mock_async.assert_called_once_with(
+            "episodes.resolver.resolve_entities", episode.pk
+        )

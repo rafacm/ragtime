@@ -43,7 +43,7 @@ Each episode goes through the following steps, with status tracked throughout:
 | 6. Transcribe | Whisper transcription with detected language, segment + word timestamps | `transcribing` |
 | 7. Summarize | LLM-generated episode summary | `summarizing` |
 | 8. Extract | LLM-based entity extraction (artists, albums, venues, etc.) | `extracting` |
-| 9. Resolve | LLM-based entity resolution against existing entities in DB | `deduplicating` |
+| 9. Resolve | LLM-based entity resolution against existing entities in DB | `resolving` |
 | 10. Chunk | Split transcript by Whisper segments | `embedding` |
 | 11. Embed | Generate multilingual embeddings and store in ChromaDB | `embedding` |
 | 12. Ready | Episode available for Scott to reference | `ready` |
@@ -130,6 +130,9 @@ You can also run `uv run python manage.py configure` to launch an interactive se
 - `RAGTIME_EXTRACTION_PROVIDER` — Entity extraction LLM provider (default: `openai`)
 - `RAGTIME_EXTRACTION_API_KEY` — API key for the entity extraction provider
 - `RAGTIME_EXTRACTION_MODEL` — Entity extraction model name (default: `gpt-4.1-mini`)
+- `RAGTIME_RESOLUTION_PROVIDER` — Entity resolution LLM provider (default: `openai`)
+- `RAGTIME_RESOLUTION_API_KEY` — API key for the entity resolution provider
+- `RAGTIME_RESOLUTION_MODEL` — Entity resolution model name (default: `gpt-4.1-mini`)
 - `RAGTIME_TRANSCRIPTION_PROVIDER` — Transcription backend (`whisper_api`, `whisper_local`, etc.)
 - `RAGTIME_TRANSCRIPTION_API_KEY` — API key for transcription (if using API)
 - `RAGTIME_EMBEDDING_PROVIDER` — Embedding provider
@@ -156,6 +159,7 @@ You can also run `uv run python manage.py configure` to launch an interactive se
 | 2026-03-13 | Docs: Multi-session transcript format — session IDs, reasoning steps, multi-session coverage | [feature](doc/features/session-transcript-format.md), [session transcript](doc/sessions/2026-03-13-session-transcript-format.md) |
 | 2026-03-13 | Refactor: Rename RAGTIME_LLM_* → RAGTIME_SCRAPING_* — align scraping provider naming with RAGTIME_\<PURPOSE\>_* convention | [plan](doc/plans/refactor-rename-scraping-provider.md), [feature](doc/features/refactor-rename-scraping-provider.md), [session transcript](doc/sessions/2026-03-13-rename-scraping-provider.md) |
 | 2026-03-13 | `manage.py configure` — Interactive setup wizard for RAGTIME_* environment variables with shared credentials, secret masking, and `--show` flag | [plan](doc/plans/manage-py-configure.md), [feature](doc/features/manage-py-configure.md), [session transcript](doc/sessions/2026-03-13-manage-py-configure.md) |
+| 2026-03-13 | Step 9: Resolve Entities — LLM-based entity resolution against existing DB records with fuzzy matching, canonical naming, and cross-language support | [plan](doc/plans/step-09-resolve-entities.md), [feature](doc/features/step-09-resolve-entities.md), [session transcript](doc/sessions/2026-03-13-step-09-resolve-entities.md) |
 
 ## Built with AI
 

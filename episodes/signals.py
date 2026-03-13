@@ -28,3 +28,5 @@ def queue_next_step(sender, instance, created, **kwargs):
         async_task("episodes.summarizer.summarize_episode", instance.pk)
     elif instance.status == Episode.Status.EXTRACTING:
         async_task("episodes.extractor.extract_entities", instance.pk)
+    elif instance.status == Episode.Status.RESOLVING:
+        async_task("episodes.resolver.resolve_entities", instance.pk)

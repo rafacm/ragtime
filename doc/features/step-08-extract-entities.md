@@ -10,7 +10,7 @@ After summarization (Step 7), episodes transition to `EXTRACTING` status but not
 
 - **Shared language module** (`episodes/languages.py`): Extracted `ISO_639_LANGUAGE_NAMES` dict and `ISO_639_RE` regex from `episodes/summarizer.py` into a shared module. Both summarizer and extractor import from here, eliminating duplication.
 
-- **Extractor task** (`episodes/extractor.py`): New module with `extract_entities(episode_id)`. Loads entity types from YAML at module level. Builds a language-aware system prompt listing all entity types. Dynamically generates a JSON response schema where each entity type key maps to an array of `{name, context}` objects (or null). Calls `provider.structured_extract()`, stores result in `entities_json`, and advances to `DEDUPLICATING`. Errors set status to `FAILED`.
+- **Extractor task** (`episodes/extractor.py`): New module with `extract_entities(episode_id)`. Loads entity types from YAML at module level. Builds a language-aware system prompt listing all entity types. Dynamically generates a JSON response schema where each entity type key maps to an array of `{name, context}` objects (or null). Calls `provider.structured_extract()`, stores result in `entities_json`, and advances to `RESOLVING`. Errors set status to `FAILED`.
 
 - **Extraction provider factory** (`episodes/providers/factory.py`): Added `get_extraction_provider()` reading from `RAGTIME_EXTRACTION_*` settings, independent from summarization and scraper providers.
 
@@ -38,7 +38,7 @@ uv run python manage.py test episodes
 uv run python manage.py runserver   # Terminal 1
 uv run python manage.py qcluster   # Terminal 2
 
-# Expected flow: ... → summarizing → extracting → deduplicating
+# Expected flow: ... → summarizing → extracting → resolving
 # Check admin detail view for Entities section (collapsible JSON)
 ```
 
