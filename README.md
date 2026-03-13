@@ -50,6 +50,27 @@ Each episode goes through the following steps, with status tracked throughout:
 
 Any step failure marks the episode as `failed`.
 
+## Extracted Entities
+
+Step 8 extracts the following jazz entity types from each episode transcript. Entity types are defined in [`episodes/entity_types.yaml`](episodes/entity_types.yaml) and can be customized.
+
+| Key | Name | Description | Examples |
+|-----|------|-------------|----------|
+| `artist` | Artist | Individual musicians or singers | Miles Davis, Alice Coltrane |
+| `band` | Band | Organized groups or ensembles | The Jazz Messengers, Snarky Puppy |
+| `album` | Album | Specific studio or live record releases | Kind of Blue, A Love Supreme |
+| `composition` | Composition | Specific songs, standards, or tunes | Take Five, Giant Steps, Summertime |
+| `venue` | Venue | Physical clubs, theaters, or festivals | Village Vanguard, Newport Jazz Festival |
+| `recording_session` | Recording Session | A specific date/time/place of a recording | The Blackhawk Sessions, 1959 Sessions |
+| `label` | Label | The record company/publisher | Blue Note, Impulse!, ECM |
+| `year` | Year | The specific calendar year mentioned | 1959, 1942, 2024 |
+| `era` | Era | Broad historical periods or movements | The Swing Era, Prohibition, Post-Bop |
+| `city` | City | The specific metropolitan area | New Orleans, Paris, Tokyo |
+| `country` | Country | The nation of origin or performance | USA, Brazil, Ethiopia, France |
+| `sub_genre` | Sub-genre | Specific stylistic categories within Jazz | Hard Bop, Fusion, Modal, Free Jazz |
+| `instrument` | Instrument | The tool used to create the music | Trumpet, Fender Rhodes, Double Bass |
+| `role` | Role | The artist's function in that moment | Bandleader, Sideman, Arranger, Producer |
+
 ## Tech Stack
 
 - **Runtime**: Python 3.13
@@ -104,6 +125,9 @@ Set the following environment variables (or use a `.env` file):
 - `RAGTIME_SUMMARIZATION_PROVIDER` — Summarization LLM provider (default: `openai`)
 - `RAGTIME_SUMMARIZATION_API_KEY` — API key for the summarization provider
 - `RAGTIME_SUMMARIZATION_MODEL` — Summarization model name (default: `gpt-4.1-mini`)
+- `RAGTIME_EXTRACTION_PROVIDER` — Entity extraction LLM provider (default: `openai`)
+- `RAGTIME_EXTRACTION_API_KEY` — API key for the entity extraction provider
+- `RAGTIME_EXTRACTION_MODEL` — Entity extraction model name (default: `gpt-4.1-mini`)
 - `RAGTIME_TRANSCRIPTION_PROVIDER` — Transcription backend (`whisper_api`, `whisper_local`, etc.)
 - `RAGTIME_TRANSCRIPTION_API_KEY` — API key for transcription (if using API)
 - `RAGTIME_EMBEDDING_PROVIDER` — Embedding provider
@@ -125,6 +149,7 @@ Set the following environment variables (or use a `.env` file):
 | 2026-03-11 | Step 6: Transcribe — Whisper API transcription with segment and word timestamps, pluggable provider abstraction | [plan](doc/plans/step-06-transcribe.md), [feature](doc/features/step-06-transcribe.md), [session](doc/sessions/2026-03-11-step-06-transcribe.md) |
 | 2026-03-11 | Step 7: Summarize — LLM-generated episode summaries with independently configurable summarization provider | [plan](doc/plans/step-07-summarize.md), [feature](doc/features/step-07-summarize.md), [session](doc/sessions/2026-03-11-step-07-summarize.md) |
 | 2026-03-11 | Fix: Summarization respects episode language — summaries generated in the episode's language instead of defaulting to English | [feature](doc/features/fix-summarization-language.md), [session](doc/sessions/2026-03-11-fix-summarization-language.md) |
+| 2026-03-13 | Step 8: Extract Entities — LLM-based entity extraction (artists, albums, venues, etc.) with independently configurable provider | [plan](doc/plans/step-08-extract-entities.md), [feature](doc/features/step-08-extract-entities.md), [session](doc/sessions/2026-03-13-step-08-extract-entities.md) |
 
 ## Built with AI
 
