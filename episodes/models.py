@@ -11,7 +11,7 @@ class Episode(models.Model):
         TRANSCRIBING = "transcribing"
         SUMMARIZING = "summarizing"
         EXTRACTING = "extracting"
-        DEDUPLICATING = "deduplicating"
+        RESOLVING = "resolving"
         EMBEDDING = "embedding"
         READY = "ready"
         FAILED = "failed"
@@ -55,3 +55,44 @@ class Episode(models.Model):
 
     def __str__(self):
         return self.title or self.url
+
+
+class Entity(models.Model):
+    entity_type = models.CharField(max_length=30, db_index=True)
+    name = models.CharField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["entity_type", "name"],
+                name="unique_entity_type_name",
+            ),
+        ]
+        verbose_name_plural = "entities"
+
+    def __str__(self):
+        return f"{self.name} ({self.entity_type})"
+
+
+class EntityMention(models.Model):
+    entity = models.ForeignKey(
+        Entity, on_delete=models.CASCADE, related_name="mentions"
+    )
+    episode = models.ForeignKey(
+        Episode, on_delete=models.CASCADE, related_name="entity_mentions"
+    )
+    context = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["entity", "episode", "context"],
+                name="unique_entity_episode_context",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.entity.name} in {self.episode}"

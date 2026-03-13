@@ -18,7 +18,7 @@ RAGtime had no code — only a specification in README.md. The project needed a 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
 | `url` max length | 200 (Django `URLField` default) | Sufficient for podcast episode URLs |
-| `status` max length | 20 | Longest status value is `deduplicating` (13 chars); 20 gives headroom |
+| `status` max length | 20 | Longest status value is `downloading` (11 chars); 20 gives headroom |
 | `url` unique constraint | `True` | Enables dedup check in Step 2 without additional queries |
 
 ## Verification

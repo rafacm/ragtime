@@ -1,0 +1,212 @@
+{
+  "artist": [
+    {
+      "name": "Django Reinhardt",
+      "context": "Hauptthema des Podcasts, herausragender Gypsy Jazz Gitarrist"
+    },
+    {
+      "name": "Stoccolo Rosenberg",
+      "context": "Herausragender Gitarrist des heutigen Gypsy Jazz"
+    },
+    {
+      "name": "Emil Savitry",
+      "context": "Jazz-begeisterter Maler und Fotograf, der Django mit amerikanischem Jazz bekannt macht"
+    },
+    {
+      "name": "Louis Armstrong",
+      "context": "Jazz-Legende, mit der Django und Stéphane Grappelli in Paris in Kontakt kamen"
+    },
+    {
+      "name": "Duke Ellington",
+      "context": "Duke Ellingtons Orchester tritt in Paris auf, später spielt er mit Django in Amerika"
+    },
+    {
+      "name": "Stéphane Grappelli",
+      "context": "Italo-französischer Geiger, künstlerischer Partner von Django"
+    },
+    {
+      "name": "Martin Taylor",
+      "context": "Britischer Gitarrist, spielte elf Jahre lang mit Stéphane Grappelli"
+    },
+    {
+      "name": "Babik Reinhardt",
+      "context": "Djangos Sohn, ebenfalls ein formidabler Gitarrist"
+    },
+    {
+      "name": "Eckehard Joost",
+      "context": "Musikwissenschaftler und Jazzforscher, der Django charakterisiert"
+    },
+    {
+      "name": "Coleman Hawkins",
+      "context": "Tenor-Saxophonist, machte Aufnahmen mit Django und Stéphane"
+    },
+    {
+      "name": "Rex Stewart",
+      "context": "Trompeter aus Duke Ellingtons Orchester, beteiligt an Studioaufnahmen mit Django"
+    },
+    {
+      "name": "John Lewis",
+      "context": "Pianist und Leiter des Modern Jazz Quartet, schrieb die Komposition 'Django' zu Ehren Reinhardts"
+    }
+  ],
+  "band": [
+    {
+      "name": "Quintet du Oddclub de France",
+      "context": "Django Reinhardts Ensemble mit Stéphane Grappelli und weiteren Rhythmus-Gitarristen"
+    },
+    {
+      "name": "ATC Band",
+      "context": "Band, mit der Django Reinhardt in einer Jam Session spielt"
+    }
+  ],
+  "album": null,
+  "composition": [
+    {
+      "name": "Nuage",
+      "context": "Melancholischer Titel von Django Reinhardt, Sinnbild für Heimat der Sinti und Roma"
+    },
+    {
+      "name": "Marseillaise",
+      "context": "Französische Nationalhymne, aufgenommen von Django und Stéphane, jedoch im Rundfunk verboten"
+    },
+    {
+      "name": "Django",
+      "context": "Komposition von John Lewis zu Ehren Django Reinhardts, wird Jazz-Standard"
+    }
+  ],
+  "venue": [
+    {
+      "name": "52. Straße von New York",
+      "context": "Ort von Salons, wo Django nach Kriegsende spielt"
+    },
+    {
+      "name": "Sidewalk Cafés von Montmartre",
+      "context": "Pariser Ort, an dem Django nach Kriegsende auftritt"
+    },
+    {
+      "name": "Carnegie Hall",
+      "context": "New Yorker Konzertsaal, wo Django mit Duke Ellington auftritt"
+    }
+  ],
+  "recording_session": null,
+  "label": null,
+  "year": [
+    { "name": "1910", "context": "Geburtsjahr Django Reinhardts" },
+    {
+      "name": "1928",
+      "context": "Jahr des Brandunfalls mit schweren Verbrennungen"
+    },
+    {
+      "name": "1937",
+      "context": "Erster Titel des Quintets in den US-Pop-Charts"
+    },
+    { "name": "1939", "context": "Auftritt von Duke Ellington in Paris" },
+    {
+      "name": "1940",
+      "context": "Besetzung Frankreichs durch Deutschland und Aufnahme von 'Nuage'"
+    },
+    {
+      "name": "1945",
+      "context": "Django ist Gast einer amerikanischen Militärband"
+    },
+    { "name": "1952", "context": "Versuch eines Comebacks und USA-Tournee" },
+    { "name": "1953", "context": "Jahr von Djangos Tod" },
+    {
+      "name": "1940-1945",
+      "context": "Zeit des Zweiten Weltkriegs, Django bleibt in Frankreich"
+    },
+    {
+      "name": "1940er Jahre",
+      "context": "Djangos Auftritt in Paris und Einfluss in der Jazzszene"
+    }
+  ],
+  "era": [
+    {
+      "name": "Gypsy Jazz",
+      "context": "von Django Reinhardt geschaffenes Jazz Subgenre"
+    },
+    {
+      "name": "Jazz Manouche",
+      "context": "Anderer Begriff für Gypsy Jazz, Djangos Stil"
+    },
+    {
+      "name": "Bebop",
+      "context": "Jazzstyle, für den Django eine Komposition schrieb und der sein Genre verdrängt"
+    },
+    {
+      "name": "Swing Era",
+      "context": "Einordnung einiger Aktivitäten und Musikstile im Text"
+    },
+    {
+      "name": "Post-Bop",
+      "context": "nicht direkt genannt, aber Bebop-Stil wird erwähnt"
+    }
+  ],
+  "city": [
+    { "name": "Paris", "context": "Hauptwirkungsort von Django Reinhardt" },
+    {
+      "name": "Toulon",
+      "context": "Ort eines Auftritts, wo Django Emil Savitry trifft"
+    },
+    {
+      "name": "London",
+      "context": "Stéphane Grappellis Aufenthaltsort während Zweitem Weltkrieg, später Treffpunkt"
+    },
+    {
+      "name": "New York",
+      "context": "Ort der Carnegie Hall und der 52. Straße, Djangos USA-Aufenthalt"
+    },
+    {
+      "name": "Saint-Moi-sur-Seine",
+      "context": "Dorf südlich von Paris, wo Django seine letzten Jahre verbringt"
+    },
+    { "name": "Liberchi", "context": "Belgisches Dorf, Djangos Geburtsort" },
+    { "name": "Brüssel", "context": "Ort des Django-Festivals Django Folie" }
+  ],
+  "country": [
+    { "name": "Belgien", "context": "Djangos Geburtsland" },
+    {
+      "name": "Frankreich",
+      "context": "Wirkungsstätte und Heimat von Django Reinhardt"
+    },
+    {
+      "name": "USA",
+      "context": "Land der USA-Tournee und Aufenthaltsort diverses Jazzmusiker"
+    },
+    { "name": "Italien", "context": "Reiseort der Familie Reinhardt vor Paris" }
+  ],
+  "sub_genre": [
+    { "name": "Gypsy Jazz", "context": "Djangos eigenschaffener Stil" },
+    {
+      "name": "Jazz Manouche",
+      "context": "Französische Bezeichnung für Gypsy Jazz"
+    },
+    {
+      "name": "Bebop",
+      "context": "Jazzstil, der das Interesse an Gypsy Jazz verdrängt"
+    }
+  ],
+  "instrument": [
+    { "name": "Gitarre", "context": "Djangos Hauptinstrument" },
+    {
+      "name": "Geige",
+      "context": "Instrument, das Django autodidaktisch lernte und von Stéphane Grappelli gespielt wurde"
+    },
+    {
+      "name": "Banjo",
+      "context": "Instrument, das Django autodidaktisch lernte"
+    },
+    {
+      "name": "Akkordeon",
+      "context": "Instrument, mit dem Django zu Beginn spielte"
+    },
+    { "name": "Trompete", "context": "Instrument von Rex Stewart" },
+    { "name": "Tenor-Saxophon", "context": "Instrument von Coleman Hawkins" }
+  ],
+  "role": [
+    { "name": "Gitarrist", "context": "Djangos Hauptrolle als Musiker" },
+    { "name": "Violinist", "context": "Rolle von Stéphane Grappelli" },
+    { "name": "Pianist", "context": "Rolle von John Lewis" },
+    { "name": "Musikwissenschaftler", "context": "Eckehard Joosts Rolle" }
+  ]
+}

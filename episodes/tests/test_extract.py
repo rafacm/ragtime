@@ -114,7 +114,7 @@ class ExtractEntitiesTests(TestCase):
             extract_entities(episode.pk)
 
         episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.DEDUPLICATING)
+        self.assertEqual(episode.status, Episode.Status.RESOLVING)
         self.assertEqual(episode.entities_json, self.SAMPLE_ENTITIES)
 
     @patch("episodes.extractor.get_extraction_provider")

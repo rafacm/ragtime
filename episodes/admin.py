@@ -1,7 +1,33 @@
 from django.contrib import admin
+from django.db.models import Count
+from django.utils.html import format_html
 from django_q.tasks import async_task
 
-from .models import Episode
+from .models import Entity, EntityMention, Episode
+
+
+class EntityMentionInlineForEpisode(admin.TabularInline):
+    model = EntityMention
+    extra = 0
+    readonly_fields = ("entity", "context", "created_at")
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class EntityMentionInlineForEntity(admin.TabularInline):
+    model = EntityMention
+    extra = 0
+    readonly_fields = ("episode", "context", "created_at")
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Episode)
@@ -19,6 +45,7 @@ class EpisodeAdmin(admin.ModelAdmin):
         "entities_json",
     )
     actions = ["reprocess"]
+    inlines = [EntityMentionInlineForEpisode]
 
     METADATA_FIELDS = (
         "title",
@@ -104,3 +131,40 @@ class EpisodeAdmin(admin.ModelAdmin):
             async_task("episodes.scraper.scrape_episode", episode.pk)
             count += 1
         self.message_user(request, f"Queued {count} episode(s) for reprocessing.")
+
+
+@admin.register(Entity)
+class EntityAdmin(admin.ModelAdmin):
+    list_display = ("entity_type", "name", "mention_count", "created_at")
+    list_filter = ("entity_type",)
+    search_fields = ("name",)
+    readonly_fields = ("entity_type", "name", "created_at", "updated_at")
+    inlines = [EntityMentionInlineForEntity]
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate(_mention_count=Count("mentions"))
+
+    @admin.display(description="Mentions", ordering="_mention_count")
+    def mention_count(self, obj):
+        return obj._mention_count
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(EntityMention)
+class EntityMentionAdmin(admin.ModelAdmin):
+    list_display = ("entity", "episode", "short_context", "created_at")
+    list_filter = ("entity__entity_type",)
+    search_fields = ("entity__name", "episode__title")
+    readonly_fields = ("entity", "episode", "context", "created_at")
+
+    @admin.display(description="Context")
+    def short_context(self, obj):
+        if len(obj.context) > 80:
+            return format_html("{}&hellip;", obj.context[:80])
+        return obj.context
+
+    def has_add_permission(self, request):
+        return False

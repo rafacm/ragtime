@@ -114,7 +114,7 @@ def extract_entities(episode_id: int) -> None:
         )
 
         episode.entities_json = entities
-        episode.status = Episode.Status.DEDUPLICATING
+        episode.status = Episode.Status.RESOLVING
         episode.save(
             update_fields=["status", "entities_json", "updated_at"]
         )

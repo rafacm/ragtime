@@ -39,7 +39,7 @@ class Episode(models.Model):
         TRANSCRIBING = "transcribing"
         SUMMARIZING = "summarizing"
         EXTRACTING = "extracting"
-        DEDUPLICATING = "deduplicating"
+        RESOLVING = "resolving"
         EMBEDDING = "embedding"
         READY = "ready"
         FAILED = "failed"
