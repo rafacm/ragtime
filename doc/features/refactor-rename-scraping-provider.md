@@ -12,6 +12,10 @@ The scraping provider used generic `RAGTIME_LLM_*` env vars and a `get_llm_provi
 - **`episodes/tests/test_scraper.py`** — Updated `@override_settings` to use `RAGTIME_SCRAPING_*` and all `@patch` decorators to reference `get_scraping_provider`.
 - **`README.md`** — Updated env var documentation and Features & Fixes table entry.
 
+## Key parameters
+
+None — this is a rename-only refactor with no new parameters or changed defaults.
+
 ## Verification
 
 ```bash
