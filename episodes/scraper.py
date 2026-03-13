@@ -4,7 +4,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .models import Episode
-from .providers.factory import get_llm_provider
+from .providers.factory import get_scraping_provider
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ def scrape_episode(episode_id: int) -> None:
             return
 
         # Extract metadata via LLM
-        provider = get_llm_provider()
+        provider = get_scraping_provider()
         result = provider.structured_extract(
             system_prompt=SCRAPE_SYSTEM_PROMPT,
             user_content=episode.scraped_html,

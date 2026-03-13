@@ -146,9 +146,9 @@ Q_CLUSTER = {
 }
 
 # RAGtime provider configuration
-RAGTIME_LLM_PROVIDER = os.getenv('RAGTIME_LLM_PROVIDER', 'openai')
-RAGTIME_LLM_API_KEY = os.getenv('RAGTIME_LLM_API_KEY', '')
-RAGTIME_LLM_MODEL = os.getenv('RAGTIME_LLM_MODEL', 'gpt-4.1-mini')
+RAGTIME_SCRAPING_PROVIDER = os.getenv('RAGTIME_SCRAPING_PROVIDER', 'openai')
+RAGTIME_SCRAPING_API_KEY = os.getenv('RAGTIME_SCRAPING_API_KEY', '')
+RAGTIME_SCRAPING_MODEL = os.getenv('RAGTIME_SCRAPING_MODEL', 'gpt-4.1-mini')
 
 # Audio processing
 RAGTIME_MAX_AUDIO_SIZE = 25 * 1024 * 1024  # 25MB — Whisper API limit
