@@ -139,7 +139,18 @@ def scrape_episode(episode_id: int) -> None:
                 "Episode %s: incomplete metadata, needs review", episode_id
             )
 
-        episode.save()
+        episode.save(
+            update_fields=[
+                "status",
+                "title",
+                "description",
+                "image_url",
+                "language",
+                "audio_url",
+                "published_at",
+                "updated_at",
+            ]
+        )
 
     except Exception:
         logger.exception("Failed to scrape episode %s", episode_id)

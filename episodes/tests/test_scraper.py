@@ -170,6 +170,25 @@ class ScrapeEpisodeTests(TestCase):
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
 
+    @patch("episodes.signals.async_task")
+    @patch("episodes.scraper.get_scraping_provider")
+    @patch("episodes.scraper.fetch_html")
+    def test_success_queues_download_task(self, mock_fetch, mock_provider_factory, mock_async):
+        """LLM extraction path triggers download task via signal."""
+        mock_fetch.return_value = self.SAMPLE_HTML
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = self.LLM_COMPLETE_RESPONSE
+        mock_provider_factory.return_value = mock_provider
+
+        episode = Episode.objects.create(url="https://example.com/ep/6")
+        mock_async.reset_mock()
+
+        scrape_episode(episode.pk)
+
+        mock_async.assert_called_with(
+            "episodes.downloader.download_episode", episode.pk
+        )
+
     def test_nonexistent_episode(self):
         # Should not raise, just log error
         scrape_episode(99999)
