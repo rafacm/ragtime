@@ -5,6 +5,7 @@ import yaml
 
 from .languages import ISO_639_LANGUAGE_NAMES, ISO_639_RE
 from .models import Episode
+from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_extraction_provider
 
 logger = logging.getLogger(__name__)
@@ -97,10 +98,13 @@ def extract_entities(episode_id: int) -> None:
         )
         return
 
+    start_step(episode, Episode.Status.EXTRACTING)
+
     if not episode.transcript:
         episode.error_message = "No transcript to extract entities from"
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
+        fail_step(episode, Episode.Status.EXTRACTING, "No transcript to extract entities from")
         return
 
     try:
@@ -114,6 +118,7 @@ def extract_entities(episode_id: int) -> None:
         )
 
         episode.entities_json = entities
+        complete_step(episode, Episode.Status.EXTRACTING)
         episode.status = Episode.Status.RESOLVING
         episode.save(
             update_fields=["status", "entities_json", "updated_at"]
@@ -123,3 +128,4 @@ def extract_entities(episode_id: int) -> None:
         episode.error_message = str(exc)
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
+        fail_step(episode, Episode.Status.EXTRACTING, str(exc))

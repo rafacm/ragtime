@@ -4,6 +4,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .models import Episode
+from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_scraping_provider
 
 logger = logging.getLogger(__name__)
@@ -99,6 +100,7 @@ def scrape_episode(episode_id: int) -> None:
 
     episode.status = Episode.Status.SCRAPING
     episode.save(update_fields=["status", "updated_at"])
+    start_step(episode, Episode.Status.SCRAPING)
 
     try:
         # Fetch and clean HTML if not already stored
@@ -109,6 +111,7 @@ def scrape_episode(episode_id: int) -> None:
 
         # If user already filled all required fields (reprocess after needs_review)
         if _has_required_fields(episode):
+            complete_step(episode, Episode.Status.SCRAPING)
             episode.status = Episode.Status.DOWNLOADING
             episode.save(update_fields=["status", "updated_at"])
             return
@@ -132,6 +135,7 @@ def scrape_episode(episode_id: int) -> None:
 
         # Check completeness
         if _has_required_fields(episode):
+            complete_step(episode, Episode.Status.SCRAPING)
             episode.status = Episode.Status.DOWNLOADING
         else:
             episode.status = Episode.Status.NEEDS_REVIEW
@@ -152,7 +156,8 @@ def scrape_episode(episode_id: int) -> None:
             ]
         )
 
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to scrape episode %s", episode_id)
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "updated_at"])
+        fail_step(episode, Episode.Status.SCRAPING, str(exc))

@@ -3,6 +3,7 @@ import logging
 from django.db import transaction
 
 from .models import Entity, EntityMention, Episode
+from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_resolution_provider
 
 logger = logging.getLogger(__name__)
@@ -76,10 +77,13 @@ def resolve_entities(episode_id: int) -> None:
         )
         return
 
+    start_step(episode, Episode.Status.RESOLVING)
+
     if not episode.entities_json:
         episode.error_message = "No entities to resolve"
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
+        fail_step(episode, Episode.Status.RESOLVING, "No entities to resolve")
         return
 
     try:
@@ -151,6 +155,7 @@ def resolve_entities(episode_id: int) -> None:
                             context=context,
                         )
 
+        complete_step(episode, Episode.Status.RESOLVING)
         episode.status = Episode.Status.EMBEDDING
         episode.save(update_fields=["status", "updated_at"])
     except Exception as exc:
@@ -158,3 +163,4 @@ def resolve_entities(episode_id: int) -> None:
         episode.error_message = str(exc)
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
+        fail_step(episode, Episode.Status.RESOLVING, str(exc))

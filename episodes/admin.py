@@ -1,9 +1,17 @@
 from django.contrib import admin
 from django.db.models import Count
+from django.template.response import TemplateResponse
 from django.utils.html import format_html
-from django_q.tasks import async_task
 
-from .models import Entity, EntityMention, Episode
+from .models import (
+    PIPELINE_STEPS,
+    Entity,
+    EntityMention,
+    Episode,
+    ProcessingRun,
+    ProcessingStep,
+)
+from .processing import create_run
 
 
 class EntityMentionInlineForEpisode(admin.TabularInline):
@@ -30,6 +38,20 @@ class EntityMentionInlineForEntity(admin.TabularInline):
         return False
 
 
+class ProcessingRunInlineForEpisode(admin.TabularInline):
+    model = ProcessingRun
+    extra = 0
+    readonly_fields = ("status", "started_at", "finished_at", "resumed_from_step")
+    fields = ("status", "started_at", "finished_at", "resumed_from_step")
+    show_change_link = True
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Episode)
 class EpisodeAdmin(admin.ModelAdmin):
     list_display = ("url", "title", "language", "status", "created_at")
@@ -45,7 +67,7 @@ class EpisodeAdmin(admin.ModelAdmin):
         "entities_json",
     )
     actions = ["reprocess"]
-    inlines = [EntityMentionInlineForEpisode]
+    inlines = [EntityMentionInlineForEpisode, ProcessingRunInlineForEpisode]
 
     METADATA_FIELDS = (
         "title",
@@ -122,15 +144,69 @@ class EpisodeAdmin(admin.ModelAdmin):
         ]
         return fieldsets
 
-    @admin.action(description="Reprocess selected episodes")
+    @admin.action(description="Reprocess selected episodes\u2026")
     def reprocess(self, request, queryset):
+        if "from_step" in request.POST:
+            return self._execute_reprocess(request, queryset)
+        return self._show_reprocess_page(request, queryset)
+
+    def _get_last_failed_step(self, episode):
+        last_run = episode.processing_runs.filter(
+            status=ProcessingRun.Status.FAILED
+        ).first()
+        if not last_run:
+            return None
+        failed_step = last_run.steps.filter(
+            status=ProcessingStep.Status.FAILED
+        ).first()
+        return failed_step.step_name if failed_step else None
+
+    def _show_reprocess_page(self, request, queryset):
+        episodes = list(queryset)
+        # Annotate each episode with its last failed step for display
+        default_step = Episode.Status.SCRAPING
+        for ep in episodes:
+            ep.last_failed_step = self._get_last_failed_step(ep)
+
+        # If all selected episodes share the same failed step, default to it
+        failed_steps = [ep.last_failed_step for ep in episodes if ep.last_failed_step]
+        if failed_steps and len(set(failed_steps)) == 1:
+            default_step = failed_steps[0]
+
+        step_choices = [(s.value, s.label) for s in PIPELINE_STEPS]
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Reprocess episodes",
+            "episodes": episodes,
+            "step_choices": step_choices,
+            "default_step": default_step,
+            "opts": self.model._meta,
+        }
+        return TemplateResponse(
+            request,
+            "admin/episodes/episode/reprocess.html",
+            context,
+        )
+
+    def _execute_reprocess(self, request, queryset):
+        from_step = request.POST["from_step"]
+        episode_ids = request.POST.getlist("episode_ids")
+        episodes = Episode.objects.filter(pk__in=episode_ids)
+
         count = 0
-        for episode in queryset:
-            episode.status = Episode.Status.SCRAPING
-            episode.save(update_fields=["status", "updated_at"])
-            async_task("episodes.scraper.scrape_episode", episode.pk)
+        for episode in episodes:
+            resume_from = "" if from_step == Episode.Status.SCRAPING else from_step
+            create_run(episode, resume_from=resume_from)
+            episode.status = from_step
+            episode.error_message = ""
+            episode.save(update_fields=["status", "error_message", "updated_at"])
             count += 1
-        self.message_user(request, f"Queued {count} episode(s) for reprocessing.")
+
+        self.message_user(
+            request,
+            f"Queued {count} episode(s) for reprocessing from '{from_step}'.",
+        )
 
 
 @admin.register(Entity)
@@ -165,6 +241,35 @@ class EntityMentionAdmin(admin.ModelAdmin):
         if len(obj.context) > 80:
             return format_html("{}&hellip;", obj.context[:80])
         return obj.context
+
+    def has_add_permission(self, request):
+        return False
+
+
+class ProcessingStepInline(admin.TabularInline):
+    model = ProcessingStep
+    extra = 0
+    readonly_fields = ("step_name", "status", "started_at", "finished_at", "error_message")
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ProcessingRun)
+class ProcessingRunAdmin(admin.ModelAdmin):
+    list_display = ("episode_run", "status", "started_at", "finished_at", "resumed_from_step")
+    list_filter = ("status",)
+    readonly_fields = (
+        "episode", "status", "started_at", "finished_at", "resumed_from_step",
+    )
+    inlines = [ProcessingStepInline]
+
+    @admin.display(description="Episode (Run)", ordering="episode__title")
+    def episode_run(self, obj):
+        return f"{obj.episode} ({obj.pk})"
 
     def has_add_permission(self, request):
         return False

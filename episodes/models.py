@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 
 class Episode(models.Model):
@@ -96,3 +97,74 @@ class EntityMention(models.Model):
 
     def __str__(self):
         return f"{self.entity.name} in {self.episode}"
+
+
+PIPELINE_STEPS = [
+    Episode.Status.SCRAPING,
+    Episode.Status.DOWNLOADING,
+    Episode.Status.RESIZING,
+    Episode.Status.TRANSCRIBING,
+    Episode.Status.SUMMARIZING,
+    Episode.Status.EXTRACTING,
+    Episode.Status.RESOLVING,
+    Episode.Status.EMBEDDING,
+]
+
+
+class ProcessingRun(models.Model):
+    class Status(models.TextChoices):
+        RUNNING = "running"
+        COMPLETED = "completed"
+        FAILED = "failed"
+
+    episode = models.ForeignKey(
+        Episode, on_delete=models.CASCADE, related_name="processing_runs"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.RUNNING,
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    resumed_from_step = models.CharField(max_length=20, blank=True, default="")
+
+    class Meta:
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        return f"Run {self.pk} for {self.episode} ({self.status})"
+
+
+class ProcessingStep(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending"
+        RUNNING = "running"
+        COMPLETED = "completed"
+        FAILED = "failed"
+        SKIPPED = "skipped"
+
+    run = models.ForeignKey(
+        ProcessingRun, on_delete=models.CASCADE, related_name="steps"
+    )
+    step_name = models.CharField(max_length=20)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True, default="")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["run", "step_name"],
+                name="unique_run_step_name",
+            ),
+        ]
+        ordering = ["pk"]
+
+    def __str__(self):
+        return f"{self.step_name} ({self.status})"

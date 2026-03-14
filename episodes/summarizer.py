@@ -2,6 +2,7 @@ import logging
 
 from .languages import ISO_639_LANGUAGE_NAMES, ISO_639_RE
 from .models import Episode
+from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_summarization_provider
 
 logger = logging.getLogger(__name__)
@@ -43,10 +44,13 @@ def summarize_episode(episode_id: int) -> None:
         )
         return
 
+    start_step(episode, Episode.Status.SUMMARIZING)
+
     if not episode.transcript:
         episode.error_message = "No transcript to summarize"
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
+        fail_step(episode, Episode.Status.SUMMARIZING, "No transcript to summarize")
         return
 
     try:
@@ -58,6 +62,7 @@ def summarize_episode(episode_id: int) -> None:
         )
 
         episode.summary_generated = summary
+        complete_step(episode, Episode.Status.SUMMARIZING)
         episode.status = Episode.Status.EXTRACTING
         episode.save(
             update_fields=["status", "summary_generated", "updated_at"]
@@ -67,3 +72,4 @@ def summarize_episode(episode_id: int) -> None:
         episode.error_message = str(exc)
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
+        fail_step(episode, Episode.Status.SUMMARIZING, str(exc))
