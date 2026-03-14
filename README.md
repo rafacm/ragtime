@@ -118,9 +118,9 @@ uv run python manage.py runserver
 
 ### Configuration
 
-Set the following environment variables (or use a `.env` file).
-You can also run `uv run python manage.py configure` to launch an interactive setup wizard for all `RAGTIME_*` env vars:
+🪄 You can run `uv run python manage.py configure` to launch an interactive setup wizard for all `RAGTIME_*` env vars.
 
+✍️ Alternatively, you can manually set the following environment variables (or use a `.env` file):
 - `RAGTIME_SCRAPING_PROVIDER` — Scraping LLM provider (default: `openai`)
 - `RAGTIME_SCRAPING_API_KEY` — API key for the scraping LLM provider
 - `RAGTIME_SCRAPING_MODEL` — Scraping LLM model name (default: `gpt-4.1-mini`)
@@ -142,7 +142,7 @@ You can also run `uv run python manage.py configure` to launch an interactive se
 - `RAGTIME_CHROMA_PORT` — ChromaDB server port (default: `8000`)
 - `RAGTIME_CHROMA_COLLECTION` — ChromaDB collection name (default: `ragtime`)
 
-## Features & Fixes
+## Implemented Features & Fixes
 
 | Date | Description | Details |
 |------|-------------|---------|
