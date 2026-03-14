@@ -121,27 +121,7 @@ uv run python manage.py runserver
 
 🪄 You can run `uv run python manage.py configure` to launch an interactive setup wizard for all `RAGTIME_*` env vars.
 
-✍️ Alternatively, you can manually set the following environment variables (or use a `.env` file):
-- `RAGTIME_SCRAPING_PROVIDER` — Scraping LLM provider (default: `openai`)
-- `RAGTIME_SCRAPING_API_KEY` — API key for the scraping LLM provider
-- `RAGTIME_SCRAPING_MODEL` — Scraping LLM model name (default: `gpt-4.1-mini`)
-- `RAGTIME_SUMMARIZATION_PROVIDER` — Summarization LLM provider (default: `openai`)
-- `RAGTIME_SUMMARIZATION_API_KEY` — API key for the summarization provider
-- `RAGTIME_SUMMARIZATION_MODEL` — Summarization model name (default: `gpt-4.1-mini`)
-- `RAGTIME_EXTRACTION_PROVIDER` — Entity extraction LLM provider (default: `openai`)
-- `RAGTIME_EXTRACTION_API_KEY` — API key for the entity extraction provider
-- `RAGTIME_EXTRACTION_MODEL` — Entity extraction model name (default: `gpt-4.1-mini`)
-- `RAGTIME_RESOLUTION_PROVIDER` — Entity resolution LLM provider (default: `openai`)
-- `RAGTIME_RESOLUTION_API_KEY` — API key for the entity resolution provider
-- `RAGTIME_RESOLUTION_MODEL` — Entity resolution model name (default: `gpt-4.1-mini`)
-- `RAGTIME_TRANSCRIPTION_PROVIDER` — Transcription backend (`whisper_api`, `whisper_local`, etc.)
-- `RAGTIME_TRANSCRIPTION_API_KEY` — API key for transcription (if using API)
-- `RAGTIME_EMBEDDING_PROVIDER` — Embedding provider
-- `RAGTIME_EMBEDDING_API_KEY` — API key for embeddings (if using API)
-- `RAGTIME_VECTOR_STORE` — Vector store backend (`chroma`, etc.)
-- `RAGTIME_CHROMA_HOST` — ChromaDB server host (default: `localhost`, omit for embedded/local mode)
-- `RAGTIME_CHROMA_PORT` — ChromaDB server port (default: `8000`)
-- `RAGTIME_CHROMA_COLLECTION` — ChromaDB collection name (default: `ragtime`)
+✍️ Alternatively, copy [`.env.sample`](.env.sample) to `.env` and fill in your values.
 
 ## Changelog
 
