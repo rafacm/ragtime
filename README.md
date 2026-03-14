@@ -52,24 +52,15 @@ Any step failure marks the episode as `failed`.
 
 ## Extracted Entities
 
-Step 8 extracts the following jazz entity types from each episode transcript. Entity types are defined in [`episodes/entity_types.yaml`](episodes/entity_types.yaml) and can be customized.
+Step 8 extracts jazz entity types from each episode transcript. Entity types are stored in the database and managed via Django admin.
 
-| Key | Name | Description | Examples |
-|-----|------|-------------|----------|
-| `artist` | Artist | Individual musicians or singers | Miles Davis, Alice Coltrane |
-| `band` | Band | Organized groups or ensembles | The Jazz Messengers, Snarky Puppy |
-| `album` | Album | Specific studio or live record releases | Kind of Blue, A Love Supreme |
-| `composition` | Composition | Specific songs, standards, or tunes | Take Five, Giant Steps, Summertime |
-| `venue` | Venue | Physical clubs, theaters, or festivals | Village Vanguard, Newport Jazz Festival |
-| `recording_session` | Recording Session | A specific date/time/place of a recording | The Blackhawk Sessions, 1959 Sessions |
-| `label` | Label | The record company/publisher | Blue Note, Impulse!, ECM |
-| `year` | Year | The specific calendar year mentioned | 1959, 1942, 2024 |
-| `era` | Era | Broad historical periods or movements | The Swing Era, Prohibition, Post-Bop |
-| `city` | City | The specific metropolitan area | New Orleans, Paris, Tokyo |
-| `country` | Country | The nation of origin or performance | USA, Brazil, Ethiopia, France |
-| `sub_genre` | Sub-genre | Specific stylistic categories within Jazz | Hard Bop, Fusion, Modal, Free Jazz |
-| `instrument` | Instrument | The tool used to create the music | Trumpet, Fender Rhodes, Double Bass |
-| `role` | Role | The artist's function in that moment | Bandleader, Sideman, Arranger, Producer |
+An initial set of 14 entity types (artist, band, album, composition, venue, recording session, label, year, era, city, country, sub-genre, instrument, role) is defined in [`episodes/initial_entity_types.yaml`](episodes/initial_entity_types.yaml). Load them with:
+
+```bash
+uv run python manage.py load_entity_types
+```
+
+New entity types can be added through Django admin. Existing types can be deactivated (set `is_active = False`) to exclude them from future extractions without deleting historical data. Types that have existing entities cannot be deleted (protected by referential integrity).
 
 ## Tech Stack
 
@@ -113,7 +104,8 @@ git clone <repo-url>
 cd ragtime
 uv sync
 uv run python manage.py migrate
-uv run python manage.py configure   # Interactive setup wizard for RAGTIME_* env vars
+uv run python manage.py load_entity_types   # Seed initial entity types
+uv run python manage.py configure            # Interactive setup wizard for RAGTIME_* env vars
 uv run python manage.py runserver
 ```
 

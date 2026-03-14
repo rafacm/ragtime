@@ -1,11 +1,32 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import yaml
 from django.test import TestCase, override_settings
 
-from episodes.models import Episode
+from episodes.models import EntityType, Episode
+
+_YAML_PATH = Path(__file__).resolve().parent.parent / "initial_entity_types.yaml"
+
+
+def _seed_entity_types():
+    """Create EntityType rows from the YAML seed file."""
+    with open(_YAML_PATH) as f:
+        for et in yaml.safe_load(f):
+            EntityType.objects.get_or_create(
+                key=et["key"],
+                defaults={
+                    "name": et["name"],
+                    "description": et.get("description", ""),
+                    "examples": et.get("examples", []),
+                },
+            )
 
 
 class ExtractorBuildPromptTests(TestCase):
+    def setUp(self):
+        _seed_entity_types()
+
     def test_build_system_prompt_with_language(self):
         from episodes.extractor import build_system_prompt
 
@@ -28,10 +49,21 @@ class ExtractorBuildPromptTests(TestCase):
         self.assertNotIn("Ignore", prompt)
         self.assertIn("Extract entity names as they appear", prompt)
 
+    def test_inactive_types_excluded(self):
+        from episodes.extractor import build_system_prompt
+
+        EntityType.objects.filter(key="role").update(is_active=False)
+        prompt = build_system_prompt("")
+        self.assertNotIn("Role", prompt)
+        self.assertIn("Artist", prompt)
+
 
 class ExtractorBuildSchemaTests(TestCase):
+    def setUp(self):
+        _seed_entity_types()
+
     def test_build_response_schema_structure(self):
-        from episodes.extractor import ENTITY_TYPES, build_response_schema
+        from episodes.extractor import build_response_schema
 
         schema = build_response_schema()
         self.assertEqual(schema["name"], "episode_entities")
@@ -41,10 +73,10 @@ class ExtractorBuildSchemaTests(TestCase):
         self.assertEqual(inner["type"], "object")
         self.assertFalse(inner["additionalProperties"])
 
-        # All entity type keys present
-        for et in ENTITY_TYPES:
-            self.assertIn(et["key"], inner["properties"])
-            self.assertIn(et["key"], inner["required"])
+        # All active entity type keys present
+        for et in EntityType.objects.filter(is_active=True):
+            self.assertIn(et.key, inner["properties"])
+            self.assertIn(et.key, inner["required"])
 
         # Check one property structure
         artist_prop = inner["properties"]["artist"]
@@ -91,6 +123,9 @@ class ExtractEntitiesTests(TestCase):
         ],
         "role": None,
     }
+
+    def setUp(self):
+        _seed_entity_types()
 
     def _create_episode(self, **kwargs):
         with patch("episodes.signals.async_task"):

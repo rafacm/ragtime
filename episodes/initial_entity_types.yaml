@@ -1,69 +1,109 @@
 - key: artist
   name: Artist
   description: Individual musicians or singers.
-  examples: Miles Davis, Alice Coltrane
+  examples:
+    - Miles Davis
+    - Alice Coltrane
 
 - key: band
   name: Band
   description: Organized groups or ensembles.
-  examples: The Jazz Messengers, Snarky Puppy
+  examples:
+    - The Jazz Messengers
+    - Snarky Puppy
 
 - key: album
   name: Album
   description: Specific studio or live record releases.
-  examples: Kind of Blue, A Love Supreme
+  examples:
+    - Kind of Blue
+    - A Love Supreme
 
 - key: composition
   name: Composition
   description: Specific songs, standards, or tunes.
-  examples: Take Five, Giant Steps, Summertime
+  examples:
+    - Take Five
+    - Giant Steps
+    - Summertime
 
 - key: venue
   name: Venue
   description: Physical clubs, theaters, or festivals.
-  examples: Village Vanguard, Newport Jazz Festival
+  examples:
+    - Village Vanguard
+    - Newport Jazz Festival
 
 - key: recording_session
   name: Recording Session
   description: A specific date/time/place of a recording.
-  examples: The Blackhawk Sessions, 1959 Sessions
+  examples:
+    - The Blackhawk Sessions
+    - 1959 Sessions
 
 - key: label
   name: Label
   description: The record company/publisher.
-  examples: Blue Note, Impulse!, ECM
+  examples:
+    - Blue Note
+    - "Impulse!"
+    - ECM
 
 - key: year
   name: Year
   description: The specific calendar year mentioned.
-  examples: 1959, 1942, 2024
+  examples:
+    - "1959"
+    - "1942"
+    - "2024"
 
 - key: era
   name: Era
   description: Broad historical periods or movements.
-  examples: The Swing Era, Prohibition, Post-Bop
+  examples:
+    - The Swing Era
+    - Prohibition
+    - Post-Bop
 
 - key: city
   name: City
   description: The specific metropolitan area.
-  examples: New Orleans, Paris, Tokyo
+  examples:
+    - New Orleans
+    - Paris
+    - Tokyo
 
 - key: country
   name: Country
   description: The nation of origin or performance.
-  examples: USA, Brazil, Ethiopia, France
+  examples:
+    - USA
+    - Brazil
+    - Ethiopia
+    - France
 
 - key: sub_genre
   name: Sub-genre
   description: Specific stylistic categories within Jazz.
-  examples: Hard Bop, Fusion, Modal, Free Jazz
+  examples:
+    - Hard Bop
+    - Fusion
+    - Modal
+    - Free Jazz
 
 - key: instrument
   name: Instrument
   description: The tool used to create the music.
-  examples: Trumpet, Fender Rhodes, Double Bass
+  examples:
+    - Trumpet
+    - Fender Rhodes
+    - Double Bass
 
 - key: role
   name: Role
   description: The artist's function in that moment.
-  examples: Bandleader, Sideman, Arranger, Producer
+  examples:
+    - Bandleader
+    - Sideman
+    - Arranger
+    - Producer
