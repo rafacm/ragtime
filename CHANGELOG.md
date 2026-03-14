@@ -2,6 +2,7 @@
 
 | Date | Description | Details |
 |------|-------------|---------|
+| 2026-03-14 | Move Entity Types from YAML to Database — DB-backed EntityType model with Django admin UI, PROTECT deletion, is_active flag, comma-separated examples input, `load_entity_types` management command | [plan](doc/plans/entity-types-to-db.md), [feature](doc/features/entity-types-to-db.md), [planning session](doc/sessions/2026-03-14-entity-types-to-db-planning-session.md), [implementation session](doc/sessions/2026-03-14-entity-types-to-db-implementation-session.md) |
 | 2026-03-14 | Processing Status Tracking — per-step tracking with ProcessingRun/ProcessingStep models, retry from failure point, unified reprocess action with intermediate page | [plan](doc/plans/processing-status-tracking.md), [feature](doc/features/processing-status-tracking.md), [session transcript](doc/sessions/2026-03-14-processing-status-tracking.md) |
 | 2026-03-14 | Fix: Move "Name" to first column in Entity admin list — makes Name the clickable link to the detail page | [PR](https://github.com/rafacm/ragtime/pull/31) |
 | 2026-03-14 | Fix: Download task never queued after LLM extraction — scraper's bare `save()` missed `update_fields`, so the post_save signal never dispatched the download task | [PR](https://github.com/rafacm/ragtime/pull/27) |
