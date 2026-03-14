@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.db.models import Count
 from django.template.response import TemplateResponse
 from django.utils.html import format_html
+from django_q.tasks import async_task
 
 from .models import (
     PIPELINE_STEPS,
@@ -201,6 +202,11 @@ class EpisodeAdmin(admin.ModelAdmin):
             episode.status = from_step
             episode.error_message = ""
             episode.save(update_fields=["status", "error_message", "updated_at"])
+            # Scraping is the pipeline entry point — the scraper sets its own
+            # status internally, so it can't be dispatched via the signal
+            # (that would loop). All other steps are dispatched by the signal.
+            if from_step == Episode.Status.SCRAPING:
+                async_task("episodes.scraper.scrape_episode", episode.pk)
             count += 1
 
         self.message_user(
