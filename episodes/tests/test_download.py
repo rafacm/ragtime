@@ -1,4 +1,5 @@
-from unittest.mock import MagicMock, patch
+import subprocess
+from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 
@@ -13,19 +14,19 @@ class DownloadEpisodeTests(TestCase):
         with patch("episodes.signals.async_task"):
             return Episode.objects.create(**kwargs)
 
-    @patch("episodes.downloader.httpx.stream")
-    def test_success_small_file(self, mock_stream):
+    @patch("episodes.downloader.subprocess.run")
+    def test_success_small_file(self, mock_run):
         """Download ≤ 25MB → status transcribing."""
         from episodes.downloader import download_episode
 
-        # Mock streaming response with small content
         audio_data = b"fake-mp3-data" * 100  # small file
-        mock_response = MagicMock()
-        mock_response.raise_for_status = MagicMock()
-        mock_response.iter_bytes.return_value = [audio_data]
-        mock_response.__enter__ = MagicMock(return_value=mock_response)
-        mock_response.__exit__ = MagicMock(return_value=False)
-        mock_stream.return_value = mock_response
+
+        def write_fake_audio(cmd, **kwargs):
+            # cmd is ["wget", "-q", "-O", tmp_path, url]
+            with open(cmd[3], "wb") as f:
+                f.write(audio_data)
+
+        mock_run.side_effect = write_fake_audio
 
         episode = self._create_episode(
             url="https://example.com/ep/dl-1",
@@ -40,19 +41,19 @@ class DownloadEpisodeTests(TestCase):
         self.assertEqual(episode.status, Episode.Status.TRANSCRIBING)
         self.assertTrue(episode.audio_file)
 
-    @patch("episodes.downloader.httpx.stream")
+    @patch("episodes.downloader.subprocess.run")
     @override_settings(RAGTIME_MAX_AUDIO_SIZE=100)  # 100 bytes limit
-    def test_large_file_triggers_resize(self, mock_stream):
+    def test_large_file_triggers_resize(self, mock_run):
         """Download > max size → status resizing."""
         from episodes.downloader import download_episode
 
         audio_data = b"x" * 200  # exceeds 100 byte limit
-        mock_response = MagicMock()
-        mock_response.raise_for_status = MagicMock()
-        mock_response.iter_bytes.return_value = [audio_data]
-        mock_response.__enter__ = MagicMock(return_value=mock_response)
-        mock_response.__exit__ = MagicMock(return_value=False)
-        mock_stream.return_value = mock_response
+
+        def write_fake_audio(cmd, **kwargs):
+            with open(cmd[3], "wb") as f:
+                f.write(audio_data)
+
+        mock_run.side_effect = write_fake_audio
 
         episode = self._create_episode(
             url="https://example.com/ep/dl-2",
@@ -66,12 +67,12 @@ class DownloadEpisodeTests(TestCase):
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.RESIZING)
 
-    @patch("episodes.downloader.httpx.stream")
-    def test_http_error_sets_failed(self, mock_stream):
-        """HTTP error → status failed with error_message."""
+    @patch("episodes.downloader.subprocess.run")
+    def test_wget_error_sets_failed(self, mock_run):
+        """wget error → status failed with error_message."""
         from episodes.downloader import download_episode
 
-        mock_stream.side_effect = Exception("Connection refused")
+        mock_run.side_effect = subprocess.CalledProcessError(8, "wget")
 
         episode = self._create_episode(
             url="https://example.com/ep/dl-3",
@@ -84,7 +85,7 @@ class DownloadEpisodeTests(TestCase):
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
-        self.assertIn("Connection refused", episode.error_message)
+        self.assertIn("wget", episode.error_message)
 
     def test_nonexistent_episode(self):
         """Non-existent episode ID → no crash."""

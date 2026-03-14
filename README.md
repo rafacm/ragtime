@@ -101,9 +101,10 @@ Scott responds in the user's language, regardless of the source episode's langua
 
 ### Prerequisites
 
-- Python 3.13+
-- uv
-- ffmpeg (for audio downsampling)
+- [Python 3.13+](https://www.python.org/downloads/)
+- [uv](https://docs.astral.sh/uv/)
+- [ffmpeg](https://ffmpeg.org/) (for audio downsampling)
+- [wget](https://www.gnu.org/software/wget/) (for audio downloading)
 
 ### Installation
 
