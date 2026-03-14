@@ -1,7 +1,8 @@
 import logging
+import os
+import subprocess
 import tempfile
 
-import httpx
 from django.conf import settings
 from django.core.files import File
 
@@ -9,8 +10,7 @@ from .models import Episode
 
 logger = logging.getLogger(__name__)
 
-DOWNLOAD_TIMEOUT = 600  # 10 minutes for large audio files
-CHUNK_SIZE = 64 * 1024  # 64KB chunks
+DOWNLOAD_TIMEOUT = 60  # 1 minute
 
 
 def download_episode(episode_id: int) -> None:
@@ -29,18 +29,15 @@ def download_episode(episode_id: int) -> None:
         return
 
     try:
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-            with httpx.stream(
-                "GET",
-                episode.audio_url,
-                follow_redirects=True,
-                timeout=DOWNLOAD_TIMEOUT,
-                headers={"User-Agent": "RAGtime/0.1 (podcast audio downloader)"},
-            ) as response:
-                response.raise_for_status()
-                for chunk in response.iter_bytes(chunk_size=CHUNK_SIZE):
-                    tmp.write(chunk)
-            tmp_path = tmp.name
+        tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+        tmp_path = tmp.name
+        tmp.close()
+
+        subprocess.run(
+            ["wget", "-q", "-O", tmp_path, episode.audio_url],
+            check=True,
+            timeout=DOWNLOAD_TIMEOUT,
+        )
 
         # Save to FileField
         filename = f"{episode.pk}.mp3"
@@ -69,8 +66,6 @@ def download_episode(episode_id: int) -> None:
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
     finally:
-        import os
-
         try:
             os.unlink(tmp_path)
         except (OSError, UnboundLocalError):
