@@ -55,7 +55,17 @@ When creating PRs, use the rebase strategy. Squash and merge-commit strategies a
 
 ## Documentation
 
-The detailed implementation plans for a given feature should be rendered as Markdown and saved to `doc/plans/`, one Markdown file per plan.
+### Planning phase
+
+When a plan is accepted, save it to `doc/plans/`, one Markdown file per plan.
+
+Save the planning session transcript to `doc/sessions/` with a filename ending in `-planning-session.md`. Each transcript must include:
+
+- **Session ID** — the Claude Code session ID (UUID), at the top of the file.
+- **Summary** — a short `## Summary` describing what was planned.
+- **Detailed conversation** — record the actual conversation as a sequence of `### User` and `### Assistant` sections using verbatim text. Include the assistant's reasoning steps (e.g. what it explored, what alternatives it considered, why it chose a particular approach).
+
+### Implementation phase
 
 Feature documentation lives in `doc/features/`, one Markdown file per feature or significant change. Each document should include:
 
@@ -65,20 +75,16 @@ Feature documentation lives in `doc/features/`, one Markdown file per feature or
 - **Verification** — how to test the change on-device (deploy command + expected behaviour).
 - **Files modified** — list of touched files with a one-line summary of each change.
 
+Save the implementation session transcript to `doc/sessions/` with a filename ending in `-implementation-session.md`. Same format as the planning transcript (session ID, summary, detailed conversation with reasoning steps).
+
 Keep prose concise. Prefer tables and lists over long paragraphs. Use code blocks for CLI commands and signal-flow diagrams.
 
-Whenever a `RAGTIME_*` environment variable is added, changed, or removed, update the Configuration section of `README.md` accordingly, including default values.
+See `doc/sessions/2026-03-10-ci-github-actions.md` as the reference format for transcripts.
 
-Add an entry for each feature or fix at the top of the table in `CHANGELOG.md` (newest first) with the date the feature was implemented, a short description and a "Details" column with links to the plan document, the feature document and the session conversation.
+### Changelog & env vars
 
-Session transcripts live in `doc/sessions/`, one Markdown file per feature. A feature typically spans multiple Claude Code sessions (e.g. planning, implementation, review) — the transcript must cover **all** of them.
+Whenever a `RAGTIME_*` environment variable is added, changed, or removed, update `.env.sample` and the configuration wizard (`core/management/commands/configure.py`) accordingly.
 
-Each transcript must include:
+Add an entry for each feature or fix at the top of the table in `CHANGELOG.md` (newest first) with the date the feature was implemented, a short description and a "Details" column with links to the plan document, the feature document, and both session transcripts.
 
-- **Session IDs** — list every Claude Code session ID that contributed to the feature, in a `## Sessions` section at the top.
-- **Summary** — a short `## Summary` describing what was accomplished across all sessions.
-- **Detailed conversation** — record the actual conversation as a sequence of `### User` and `### Assistant` sections. Summarise what the user asked and what the assistant did in each turn — do not paraphrase into phases or bullet-point summaries. Include the assistant's reasoning steps (e.g. what it explored, what alternatives it considered, why it chose a particular approach). When the conversation spans multiple sessions, separate them with a `## Session N` heading that includes the session ID.
-
-See `doc/sessions/2026-03-10-ci-github-actions.md` as the reference format.
-
-The commit for a given feature MUST contain the corresponding Markdown files for the plan, the feature documentation and the session.
+The commit for a given feature MUST contain the plan, the feature documentation, and both session transcripts (planning and implementation).
