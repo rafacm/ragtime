@@ -14,12 +14,14 @@ class DownloadEpisodeTests(TestCase):
         with patch("episodes.signals.async_task"):
             return Episode.objects.create(**kwargs)
 
+    @patch("episodes.downloader.MP3")
     @patch("episodes.downloader.subprocess.run")
-    def test_success_small_file(self, mock_run):
+    def test_success_small_file(self, mock_run, mock_mp3):
         """Download ≤ 25MB → status transcribing."""
         from episodes.downloader import download_episode
 
         audio_data = b"fake-mp3-data" * 100  # small file
+        mock_mp3.return_value.info.length = 3661.5
 
         def write_fake_audio(cmd, **kwargs):
             # cmd is ["wget", "-q", "-O", tmp_path, url]
@@ -40,14 +42,17 @@ class DownloadEpisodeTests(TestCase):
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.TRANSCRIBING)
         self.assertTrue(episode.audio_file)
+        self.assertEqual(episode.duration, 3661)
 
+    @patch("episodes.downloader.MP3")
     @patch("episodes.downloader.subprocess.run")
     @override_settings(RAGTIME_MAX_AUDIO_SIZE=100)  # 100 bytes limit
-    def test_large_file_triggers_resize(self, mock_run):
+    def test_large_file_triggers_resize(self, mock_run, mock_mp3):
         """Download > max size → status resizing."""
         from episodes.downloader import download_episode
 
         audio_data = b"x" * 200  # exceeds 100 byte limit
+        mock_mp3.return_value.info.length = 120.0
 
         def write_fake_audio(cmd, **kwargs):
             with open(cmd[3], "wb") as f:
