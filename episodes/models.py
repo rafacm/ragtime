@@ -133,7 +133,7 @@ class ProcessingRun(models.Model):
         ordering = ["-started_at"]
 
     def __str__(self):
-        return f"Run {self.pk} for {self.episode} ({self.status})"
+        return f"Run {self.pk}"
 
 
 class ProcessingStep(models.Model):

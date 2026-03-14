@@ -45,7 +45,7 @@ class ProcessingRunInlineForEpisode(admin.TabularInline):
     readonly_fields = ("run_number", "status", "started_at", "finished_at", "resumed_from_step")
     fields = ("run_number", "status", "started_at", "finished_at", "resumed_from_step")
 
-    @admin.display(description="Run number")
+    @admin.display(description="Run ID")
     def run_number(self, obj):
         from django.urls import reverse
 
