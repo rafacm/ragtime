@@ -163,6 +163,7 @@ uv run python manage.py runserver
 | 2026-03-13 | Step 9: Resolve Entities — LLM-based entity resolution against existing DB records with fuzzy matching, canonical naming, and cross-language support | [plan](doc/plans/step-09-resolve-entities.md), [feature](doc/features/step-09-resolve-entities.md), [session transcript](doc/sessions/2026-03-13-step-09-resolve-entities.md) |
 | 2026-03-14 | Fix: Download task never queued after LLM extraction — scraper's bare `save()` missed `update_fields`, so the post_save signal never dispatched the download task | [PR](https://github.com/rafacm/ragtime/pull/27) |
 | 2026-03-14 | Replace httpx MP3 download with wget — avoids User-Agent blocking by podcast websites, adds wget to prerequisites | [PR](https://github.com/rafacm/ragtime/pull/28) |
+| 2026-03-14 | Fix: Move "Name" to first column in Entity admin list — makes Name the clickable link to the detail page | [PR](https://github.com/rafacm/ragtime/pull/31) |
 
 ## Built with AI
 
