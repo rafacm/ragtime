@@ -97,3 +97,17 @@ All 79 tests passing.
 
 ### User
 Asked to update feature doc, session transcript, and create a PR.
+
+### Assistant
+Updated the session transcript with the full conversation so far. Updated the feature doc to include the fixture file in Files Modified. Committed all changes and pushed to `feature/step-09-resolve-entities`. Created PR #25 on GitHub.
+
+### User
+Reported two test failures when running `uv run python manage.py test --verbosity 2`: `test_rerun_preserves_non_ragtime_lines` and `test_shared_mode_wizard` in `core/tests/test_configure.py`.
+
+### Assistant
+Ran the tests and confirmed both failures. The configure wizard tests provided mock `input.side_effect` lists that didn't include a response for the new Resolution model prompt added by this feature. Both tests used shared mode which prompts for a model per LLM subsystem — adding Resolution meant one extra `input` call.
+
+Fixed both tests by adding `"gpt-4.1-mini"` (Resolution model) to the `side_effect` lists, and added an assertion that `RAGTIME_RESOLUTION_API_KEY` gets the shared key in `test_shared_mode_wizard`. All 102 tests passing. Committed and pushed the fix.
+
+### User
+Asked to update the session transcript to include the configure test fix.
