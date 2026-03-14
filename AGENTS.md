@@ -31,7 +31,7 @@ Use `uv` for everything — never `pip install` directly.
 
 **Provider abstraction:** LLM, transcription, and embedding backends are pluggable via abstract base classes in `episodes/providers/base.py` with a factory in `episodes/providers/factory.py`. Configured through `RAGTIME_*` environment variables.
 
-**12-step pipeline** (`episodes/pipeline.py`): submit → dedup → scrape → download → resize → transcribe → summarize → extract → resolve → chunk → embed → ready. Each step updates the episode status. Failures set status to `failed`. Runs async via Django Q2.
+**12-step pipeline** (`episodes/pipeline.py`): submit → dedup → scrape → download → resize → transcribe → summarize → chunk → extract → resolve → embed → ready. Each step updates the episode status. Failures set status to `failed`. Runs async via Django Q2.
 
 **Entity resolution:** After extraction, entities (artists, bands, albums, venues, sessions, labels, years) are resolved against existing DB records using LLM-based fuzzy matching to prevent duplicates.
 

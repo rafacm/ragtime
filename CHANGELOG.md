@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Step 8: Chunk Transcript — split Whisper transcript into overlapping chunks by segment boundaries, with own `chunking` status and reordered pipeline placement before extraction — [plan](doc/plans/step-08-chunk.md), [feature](doc/features/step-08-chunk.md)
 - Processing Status Tracking — per-step tracking with ProcessingRun/ProcessingStep models, retry from failure point, unified reprocess action with intermediate page — [plan](doc/plans/processing-status-tracking.md), [feature](doc/features/processing-status-tracking.md), [session](doc/sessions/2026-03-14-processing-status-tracking.md)
 - Episode Duration — extract MP3 duration via mutagen after download, display as HH:MM:SS in admin, reorder list columns to lead with Title — [plan](doc/plans/episode-duration.md), [feature](doc/features/episode-duration.md), [planning session](doc/sessions/2026-03-14-episode-duration-planning-session.md), [implementation session](doc/sessions/2026-03-14-episode-duration-implementation-session.md)
 
