@@ -252,7 +252,6 @@ class CommaSeparatedListField(forms.CharField):
 
 class EntityTypeForm(forms.ModelForm):
     examples = CommaSeparatedListField(
-        required=False,
         help_text="Comma-separated list of examples, e.g. Miles Davis, Alice Coltrane",
     )
 
