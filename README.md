@@ -160,6 +160,7 @@ uv run python manage.py runserver
 | 2026-03-13 | Refactor: Rename RAGTIME_LLM_* → RAGTIME_SCRAPING_* — align scraping provider naming with RAGTIME_\<PURPOSE\>_* convention | [plan](doc/plans/refactor-rename-scraping-provider.md), [feature](doc/features/refactor-rename-scraping-provider.md), [session transcript](doc/sessions/2026-03-13-rename-scraping-provider.md) |
 | 2026-03-13 | `manage.py configure` — Interactive setup wizard for RAGTIME_* environment variables with shared credentials, secret masking, and `--show` flag | [plan](doc/plans/manage-py-configure.md), [feature](doc/features/manage-py-configure.md), [session transcript](doc/sessions/2026-03-13-manage-py-configure.md) |
 | 2026-03-13 | Step 9: Resolve Entities — LLM-based entity resolution against existing DB records with fuzzy matching, canonical naming, and cross-language support | [plan](doc/plans/step-09-resolve-entities.md), [feature](doc/features/step-09-resolve-entities.md), [session transcript](doc/sessions/2026-03-13-step-09-resolve-entities.md) |
+| 2026-03-14 | Fix: Download task never queued after LLM extraction — scraper's bare `save()` missed `update_fields`, so the post_save signal never dispatched the download task | [PR](https://github.com/rafacm/ragtime/pull/27) |
 
 ## Built with AI
 
