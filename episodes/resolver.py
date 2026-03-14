@@ -140,7 +140,7 @@ def resolve_entities(episode_id: int) -> None:
                         if matched_id is not None and matched_id in existing_by_id:
                             entity = existing_by_id[matched_id]
                         else:
-                            entity = Entity.objects.create(
+                            entity, _created = Entity.objects.get_or_create(
                                 entity_type=entity_type,
                                 name=match["canonical_name"],
                             )

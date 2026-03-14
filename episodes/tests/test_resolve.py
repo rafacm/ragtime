@@ -242,6 +242,52 @@ class ResolveEntitiesTests(TestCase):
         self.assertEqual(Entity.objects.count(), 0)
         self.assertEqual(EntityMention.objects.count(), 0)
 
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_unmatched_canonical_name_already_exists(self, mock_factory):
+        """LLM returns matched_entity_id=None but canonical_name already exists → reuse entity."""
+        from episodes.resolver import resolve_entities
+
+        existing = Entity.objects.create(
+            entity_type="artist", name="Django Reinhardt"
+        )
+
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = {
+            "matches": [
+                {
+                    "extracted_name": "Django Reinhardt",
+                    "canonical_name": "Django Reinhardt",
+                    "matched_entity_id": None,  # LLM didn't match
+                },
+            ],
+        }
+        mock_factory.return_value = mock_provider
+
+        entities_json = {
+            "artist": [
+                {"name": "Django Reinhardt", "context": "jazz guitarist"},
+            ],
+        }
+
+        episode = self._create_episode(
+            url="https://example.com/ep/res-dup",
+            status=Episode.Status.RESOLVING,
+            entities_json=entities_json,
+        )
+
+        with patch("episodes.signals.async_task"):
+            resolve_entities(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.EMBEDDING)
+
+        # Should reuse existing entity, not crash
+        self.assertEqual(
+            Entity.objects.filter(entity_type="artist").count(), 1
+        )
+        mention = EntityMention.objects.get(episode=episode)
+        self.assertEqual(mention.entity, existing)
+
     def test_missing_entities_json(self):
         """Null entities_json → FAILED."""
         from episodes.resolver import resolve_entities
