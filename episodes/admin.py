@@ -270,7 +270,7 @@ class ProcessingStepInline(admin.TabularInline):
 
 @admin.register(ProcessingRun)
 class ProcessingRunAdmin(admin.ModelAdmin):
-    list_display = ("episode_run", "status", "started_at", "finished_at", "resumed_from_step")
+    list_display = ("episode_run", "status", "current_step", "started_at", "finished_at", "resumed_from_step")
     list_filter = ("status",)
     readonly_fields = (
         "episode", "status", "started_at", "finished_at", "resumed_from_step",
@@ -280,6 +280,11 @@ class ProcessingRunAdmin(admin.ModelAdmin):
     @admin.display(description="Episode (Run)", ordering="episode__title")
     def episode_run(self, obj):
         return f"{obj.episode} ({obj.pk})"
+
+    @admin.display(description="Current step")
+    def current_step(self, obj):
+        step = obj.steps.filter(status=ProcessingStep.Status.RUNNING).first()
+        return step.step_name if step else "\u2014"
 
     def has_add_permission(self, request):
         return False
