@@ -1,0 +1,51 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Reprocess episodes{% endblock %}
+
+{% block content %}
+<form method="post" action="{% url 'admin:episodes_episode_changelist' %}">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="reprocess">
+  {% for ep in episodes %}
+  <input type="hidden" name="_selected_action" value="{{ ep.pk }}">
+  {% endfor %}
+
+  <p>Select the pipeline step to start from. Steps before the selected one will be skipped.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Episode</th>
+        <th>Current status</th>
+        <th>Last failed step</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ep in episodes %}
+      <tr>
+        <td>{{ ep.title|default:ep.url }}</td>
+        <td>{{ ep.get_status_display }}</td>
+        <td>{{ ep.last_failed_step|default:"&mdash;" }}</td>
+        <input type="hidden" name="episode_ids" value="{{ ep.pk }}">
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <fieldset>
+    <div class="form-row">
+      <label for="id_from_step">Reprocess from step:</label>
+      <select name="from_step" id="id_from_step">
+        {% for value, label in step_choices %}
+        <option value="{{ value }}" {% if value == default_step %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </fieldset>
+
+  <br>
+  <input type="submit" value="Reprocess {{ episodes|length }} episode{{ episodes|length|pluralize }}">
+  <a href="{% url 'admin:episodes_episode_changelist' %}">Cancel</a>
+</form>
+{% endblock %}

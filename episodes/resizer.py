@@ -7,6 +7,7 @@ from django.conf import settings
 from django.core.files import File
 
 from .models import Episode
+from .processing import complete_step, fail_step, start_step
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +29,13 @@ def resize_episode(episode_id: int) -> None:
         )
         return
 
+    start_step(episode, Episode.Status.RESIZING)
+
     if not episode.audio_file:
         episode.error_message = "No audio file to resize"
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
+        fail_step(episode, Episode.Status.RESIZING, "No audio file to resize")
         return
 
     output_path = None
@@ -41,6 +45,7 @@ def resize_episode(episode_id: int) -> None:
             episode.error_message = "ffmpeg is not installed or not on PATH"
             episode.status = Episode.Status.FAILED
             episode.save(update_fields=["status", "error_message", "updated_at"])
+            fail_step(episode, Episode.Status.RESIZING, episode.error_message)
             return
 
         input_path = episode.audio_file.path
@@ -71,6 +76,7 @@ def resize_episode(episode_id: int) -> None:
             episode.error_message = f"ffmpeg failed (exit {result.returncode}): {stderr[:500]}"
             episode.status = Episode.Status.FAILED
             episode.save(update_fields=["status", "error_message", "updated_at"])
+            fail_step(episode, Episode.Status.RESIZING, episode.error_message)
             return
 
         # Check output size
@@ -86,6 +92,7 @@ def resize_episode(episode_id: int) -> None:
             )
             episode.status = Episode.Status.FAILED
             episode.save(update_fields=["status", "error_message", "updated_at"])
+            fail_step(episode, Episode.Status.RESIZING, episode.error_message)
             return
 
         # Replace original file with resized version
@@ -93,6 +100,7 @@ def resize_episode(episode_id: int) -> None:
         with open(output_path, "rb") as f:
             episode.audio_file.save(filename, File(f), save=False)
 
+        complete_step(episode, Episode.Status.RESIZING)
         episode.status = Episode.Status.TRANSCRIBING
         episode.save(update_fields=["status", "audio_file", "updated_at"])
 
@@ -108,12 +116,14 @@ def resize_episode(episode_id: int) -> None:
         episode.error_message = "ffmpeg timed out during audio resize"
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
+        fail_step(episode, Episode.Status.RESIZING, episode.error_message)
 
     except Exception as exc:
         logger.exception("Failed to resize episode %s", episode_id)
         episode.error_message = str(exc)
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
+        fail_step(episode, Episode.Status.RESIZING, str(exc))
 
     finally:
         import os

@@ -1,6 +1,7 @@
 import logging
 
 from .models import Episode
+from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_transcription_provider
 
 logger = logging.getLogger(__name__)
@@ -21,10 +22,13 @@ def transcribe_episode(episode_id: int) -> None:
         )
         return
 
+    start_step(episode, Episode.Status.TRANSCRIBING)
+
     if not episode.audio_file:
         episode.error_message = "No audio file to transcribe"
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
+        fail_step(episode, Episode.Status.TRANSCRIBING, "No audio file to transcribe")
         return
 
     try:
@@ -34,6 +38,7 @@ def transcribe_episode(episode_id: int) -> None:
 
         episode.transcript_json = result
         episode.transcript = result.get("text", "")
+        complete_step(episode, Episode.Status.TRANSCRIBING)
         episode.status = Episode.Status.SUMMARIZING
         episode.save(
             update_fields=[
@@ -48,3 +53,4 @@ def transcribe_episode(episode_id: int) -> None:
         episode.error_message = str(exc)
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
+        fail_step(episode, Episode.Status.TRANSCRIBING, str(exc))

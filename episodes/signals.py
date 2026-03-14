@@ -3,11 +3,13 @@ from django.dispatch import receiver
 from django_q.tasks import async_task
 
 from .models import Episode
+from .processing import create_run
 
 
 @receiver(post_save, sender=Episode)
 def queue_next_step(sender, instance, created, **kwargs):
     if created and instance.status == Episode.Status.PENDING:
+        create_run(instance)
         async_task("episodes.scraper.scrape_episode", instance.pk)
         return
 
@@ -18,7 +20,9 @@ def queue_next_step(sender, instance, created, **kwargs):
     if not update_fields or "status" not in update_fields:
         return
 
-    if instance.status == Episode.Status.DOWNLOADING:
+    if instance.status == Episode.Status.SCRAPING:
+        async_task("episodes.scraper.scrape_episode", instance.pk)
+    elif instance.status == Episode.Status.DOWNLOADING:
         async_task("episodes.downloader.download_episode", instance.pk)
     elif instance.status == Episode.Status.RESIZING:
         async_task("episodes.resizer.resize_episode", instance.pk)

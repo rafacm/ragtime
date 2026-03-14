@@ -32,26 +32,48 @@ class EpisodeAdminTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
     @patch("episodes.signals.async_task")
-    def test_reprocess_action(self, mock_async):
+    def test_reprocess_action_shows_intermediate_page(self, mock_async):
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-2",
             status=Episode.Status.NEEDS_REVIEW,
         )
         mock_async.reset_mock()
 
-        with patch("episodes.admin.async_task") as mock_admin_async:
-            response = self.client.post(
-                "/admin/episodes/episode/",
-                {
-                    "action": "reprocess",
-                    "_selected_action": [episode.pk],
-                },
-                follow=True,
-            )
-            self.assertEqual(response.status_code, 200)
-            mock_admin_async.assert_called_once_with(
-                "episodes.scraper.scrape_episode", episode.pk
-            )
+        # First POST shows the intermediate page
+        response = self.client.post(
+            "/admin/episodes/episode/",
+            {
+                "action": "reprocess",
+                "_selected_action": [episode.pk],
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Reprocess from step")
+        self.assertContains(response, str(episode.pk))
+
+    @patch("episodes.signals.async_task")
+    def test_reprocess_action_executes(self, mock_async):
+        episode = Episode.objects.create(
+            url="https://example.com/ep/admin-2b",
+            status=Episode.Status.NEEDS_REVIEW,
+        )
+        mock_async.reset_mock()
+
+        # Submit the intermediate page with from_step
+        response = self.client.post(
+            "/admin/episodes/episode/",
+            {
+                "action": "reprocess",
+                "_selected_action": [episode.pk],
+                "episode_ids": [episode.pk],
+                "from_step": Episode.Status.SCRAPING,
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        mock_async.assert_called_with(
+            "episodes.scraper.scrape_episode", episode.pk
+        )
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.SCRAPING)
