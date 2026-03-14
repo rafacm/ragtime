@@ -20,9 +20,7 @@ def queue_next_step(sender, instance, created, **kwargs):
     if not update_fields or "status" not in update_fields:
         return
 
-    if instance.status == Episode.Status.SCRAPING:
-        async_task("episodes.scraper.scrape_episode", instance.pk)
-    elif instance.status == Episode.Status.DOWNLOADING:
+    if instance.status == Episode.Status.DOWNLOADING:
         async_task("episodes.downloader.download_episode", instance.pk)
     elif instance.status == Episode.Status.RESIZING:
         async_task("episodes.resizer.resize_episode", instance.pk)

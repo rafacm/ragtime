@@ -60,20 +60,21 @@ class EpisodeAdminTests(TestCase):
         mock_async.reset_mock()
 
         # Submit the intermediate page with from_step
-        response = self.client.post(
-            "/admin/episodes/episode/",
-            {
-                "action": "reprocess",
-                "_selected_action": [episode.pk],
-                "episode_ids": [episode.pk],
-                "from_step": Episode.Status.SCRAPING,
-            },
-            follow=True,
-        )
-        self.assertEqual(response.status_code, 200)
-        mock_async.assert_called_with(
-            "episodes.scraper.scrape_episode", episode.pk
-        )
+        with patch("episodes.admin.async_task") as mock_admin_async:
+            response = self.client.post(
+                "/admin/episodes/episode/",
+                {
+                    "action": "reprocess",
+                    "_selected_action": [episode.pk],
+                    "episode_ids": [episode.pk],
+                    "from_step": Episode.Status.SCRAPING,
+                },
+                follow=True,
+            )
+            self.assertEqual(response.status_code, 200)
+            mock_admin_async.assert_called_once_with(
+                "episodes.scraper.scrape_episode", episode.pk
+            )
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.SCRAPING)
