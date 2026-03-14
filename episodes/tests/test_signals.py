@@ -98,6 +98,20 @@ class SummarizeSignalTests(TestCase):
         )
 
 
+class ChunkSignalTests(TestCase):
+    @patch("episodes.signals.async_task")
+    def test_status_change_to_chunking_queues_chunk(self, mock_async):
+        episode = Episode.objects.create(url="https://example.com/ep/sig-chk-1")
+        mock_async.reset_mock()
+
+        episode.status = Episode.Status.CHUNKING
+        episode.save(update_fields=["status", "updated_at"])
+
+        mock_async.assert_called_once_with(
+            "episodes.chunker.chunk_episode", episode.pk
+        )
+
+
 class ExtractSignalTests(TestCase):
     @patch("episodes.signals.async_task")
     def test_status_change_to_extracting_queues_extract(self, mock_async):

@@ -7,6 +7,7 @@ from django_q.tasks import async_task
 
 from .models import (
     PIPELINE_STEPS,
+    Chunk,
     Entity,
     EntityMention,
     EntityType,
@@ -15,6 +16,21 @@ from .models import (
     ProcessingStep,
 )
 from .processing import create_run
+
+
+class ChunkInlineForEpisode(admin.TabularInline):
+    model = Chunk
+    extra = 0
+    classes = ("collapse",)
+    verbose_name_plural = "Chunks"
+    readonly_fields = ("index", "text", "start_time", "end_time", "segment_start", "segment_end")
+    fields = ("index", "start_time", "end_time", "text")
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 class EntityMentionInlineForEpisode(admin.TabularInline):
@@ -84,7 +100,12 @@ class EpisodeAdmin(admin.ModelAdmin):
     def get_inlines(self, request, obj=None):
         if obj is None:
             return []
-        return [EntityMentionInlineForEpisode, ProcessingRunInlineForEpisode]
+        inlines = [ProcessingRunInlineForEpisode]
+        if obj.chunks.exists():
+            inlines.insert(0, ChunkInlineForEpisode)
+        if obj.entity_mentions.exists():
+            inlines.append(EntityMentionInlineForEpisode)
+        return inlines
 
     def get_readonly_fields(self, request, obj=None):
         readonly = list(super().get_readonly_fields(request, obj))

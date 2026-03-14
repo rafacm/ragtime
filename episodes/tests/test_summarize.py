@@ -55,7 +55,7 @@ class SummarizeEpisodeTests(TestCase):
             summarize_episode(episode.pk)
 
         episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.EXTRACTING)
+        self.assertEqual(episode.status, Episode.Status.CHUNKING)
         self.assertEqual(episode.summary_generated, "A summary of the episode.")
 
     def test_episode_not_found(self):

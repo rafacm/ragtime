@@ -11,6 +11,7 @@ class Episode(models.Model):
         RESIZING = "resizing"
         TRANSCRIBING = "transcribing"
         SUMMARIZING = "summarizing"
+        CHUNKING = "chunking"
         EXTRACTING = "extracting"
         RESOLVING = "resolving"
         EMBEDDING = "embedding"
@@ -130,12 +131,35 @@ class EntityMention(models.Model):
         return f"{self.entity.name} in {self.episode}"
 
 
+class Chunk(models.Model):
+    episode = models.ForeignKey(Episode, on_delete=models.CASCADE, related_name="chunks")
+    index = models.PositiveIntegerField()
+    text = models.TextField()
+    start_time = models.FloatField()
+    end_time = models.FloatField()
+    segment_start = models.PositiveIntegerField()
+    segment_end = models.PositiveIntegerField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["episode", "index"],
+                name="unique_episode_chunk_index",
+            ),
+        ]
+        ordering = ["index"]
+
+    def __str__(self):
+        return f"Chunk {self.index} of {self.episode}"
+
+
 PIPELINE_STEPS = [
     Episode.Status.SCRAPING,
     Episode.Status.DOWNLOADING,
     Episode.Status.RESIZING,
     Episode.Status.TRANSCRIBING,
     Episode.Status.SUMMARIZING,
+    Episode.Status.CHUNKING,
     Episode.Status.EXTRACTING,
     Episode.Status.RESOLVING,
     Episode.Status.EMBEDDING,

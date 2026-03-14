@@ -42,9 +42,9 @@ Each episode goes through the following steps, with status tracked throughout:
 | 5. Resize | If audio > 25MB, downsample with ffmpeg | `downloading` |
 | 6. Transcribe | Whisper transcription with detected language, segment + word timestamps | `transcribing` |
 | 7. Summarize | LLM-generated episode summary | `summarizing` |
-| 8. Extract | LLM-based entity extraction (artists, albums, venues, etc.) | `extracting` |
-| 9. Resolve | LLM-based entity resolution against existing entities in DB | `resolving` |
-| 10. Chunk | Split transcript by Whisper segments | `embedding` |
+| 8. Chunk | Split transcript by Whisper segments | `chunking` |
+| 9. Extract | LLM-based entity extraction (artists, albums, venues, etc.) | `extracting` |
+| 10. Resolve | LLM-based entity resolution against existing entities in DB | `resolving` |
 | 11. Embed | Generate multilingual embeddings and store in ChromaDB | `embedding` |
 | 12. Ready | Episode available for Scott to reference | `ready` |
 
@@ -52,7 +52,7 @@ Any step failure marks the episode as `failed`.
 
 ## Extracted Entities
 
-Step 8 extracts jazz entity types from each episode transcript. Entity types are stored in the database and managed via Django admin.
+Step 9 extracts jazz entity types from each episode transcript. Entity types are stored in the database and managed via Django admin.
 
 An initial set of 14 entity types (artist, band, album, composition, venue, recording session, label, year, era, city, country, sub-genre, instrument, role) is defined in [`episodes/initial_entity_types.yaml`](episodes/initial_entity_types.yaml). Load them with:
 

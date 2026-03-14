@@ -63,7 +63,7 @@ def summarize_episode(episode_id: int) -> None:
 
         episode.summary_generated = summary
         complete_step(episode, Episode.Status.SUMMARIZING)
-        episode.status = Episode.Status.EXTRACTING
+        episode.status = Episode.Status.CHUNKING
         episode.save(
             update_fields=["status", "summary_generated", "updated_at"]
         )
