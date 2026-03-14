@@ -135,7 +135,7 @@ class EpisodeAdmin(admin.ModelAdmin):
 
 @admin.register(Entity)
 class EntityAdmin(admin.ModelAdmin):
-    list_display = ("entity_type", "name", "mention_count", "created_at")
+    list_display = ("name", "entity_type", "mention_count", "created_at")
     list_filter = ("entity_type",)
     search_fields = ("name",)
     readonly_fields = ("entity_type", "name", "created_at", "updated_at")
