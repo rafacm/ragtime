@@ -111,17 +111,13 @@ uv run python manage.py runserver
 
 ### Configuration
 
-🪄 You can run `uv run python manage.py configure` to launch an interactive setup wizard for all `RAGTIME_*` env vars.
+You can run `uv run python manage.py configure` to launch an interactive setup wizard for all `RAGTIME_*` env vars.
 
-✍️ Alternatively, copy [`.env.sample`](.env.sample) to `.env` and fill in your values.
+Alternatively, copy [`.env.sample`](.env.sample) to `.env` and fill in your values.
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features and fixes.
-
-## Built with AI
-
-This project was developed with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and reviewed by [Codex](https://openai.com/index/introducing-codex/).
+This project was developed with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and reviewed by [Codex](https://openai.com/index/introducing-codex/). See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixes, implementation plans, feature documentation and session transcripts.
 
 ## License
 
