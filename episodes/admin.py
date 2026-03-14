@@ -68,7 +68,6 @@ class EpisodeAdmin(admin.ModelAdmin):
         "entities_json",
     )
     actions = ["reprocess"]
-    inlines = [EntityMentionInlineForEpisode, ProcessingRunInlineForEpisode]
 
     METADATA_FIELDS = (
         "title",
@@ -78,6 +77,11 @@ class EpisodeAdmin(admin.ModelAdmin):
         "language",
         "audio_url",
     )
+
+    def get_inlines(self, request, obj=None):
+        if obj is None:
+            return []
+        return [EntityMentionInlineForEpisode, ProcessingRunInlineForEpisode]
 
     def get_readonly_fields(self, request, obj=None):
         readonly = list(super().get_readonly_fields(request, obj))
