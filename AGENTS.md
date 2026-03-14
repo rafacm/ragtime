@@ -85,6 +85,6 @@ See `doc/sessions/2026-03-10-ci-github-actions.md` as the reference format for t
 
 Whenever a `RAGTIME_*` environment variable is added, changed, or removed, update `.env.sample` and the configuration wizard (`core/management/commands/configure.py`) accordingly.
 
-Add an entry for each feature or fix at the top of the table in `CHANGELOG.md` (newest first) with the date the feature was implemented, a short description and a "Details" column with links to the plan document, the feature document, and both session transcripts.
+`CHANGELOG.md` follows the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. Add an entry under the `[Unreleased]` section in the appropriate category (**Added**, **Changed**, **Deprecated**, **Removed**, **Fixed**, **Security**). Each entry includes the date, a short description, and links to the plan document, the feature document, and both session transcripts. Newest entries first within each category.
 
 The commit for a given feature MUST contain the plan, the feature documentation, and both session transcripts (planning and implementation).
