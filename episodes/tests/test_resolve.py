@@ -2,16 +2,36 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import yaml
 from django.test import TestCase, override_settings
 
-from episodes.models import Entity, EntityMention, Episode
+from episodes.models import Entity, EntityMention, EntityType, Episode
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
+_YAML_PATH = Path(__file__).resolve().parent.parent / "initial_entity_types.yaml"
 
 
 def _load_fixture(name):
     with open(_FIXTURES_DIR / name) as f:
         return json.load(f)
+
+
+def _seed_entity_types():
+    """Create EntityType rows from the YAML seed file."""
+    with open(_YAML_PATH) as f:
+        for et in yaml.safe_load(f):
+            EntityType.objects.get_or_create(
+                key=et["key"],
+                defaults={
+                    "name": et["name"],
+                    "description": et.get("description", ""),
+                    "examples": et.get("examples", []),
+                },
+            )
+
+
+def _get_entity_type(key):
+    return EntityType.objects.get(key=key)
 
 
 @override_settings(
@@ -25,6 +45,9 @@ class ResolveEntitiesTests(TestCase):
     SAMPLE_ENTITIES = _load_fixture(
         "wdr-giant-steps-django-reinhardt-episode-extracted-entities.json"
     )
+
+    def setUp(self):
+        _seed_entity_types()
 
     def _create_episode(self, **kwargs):
         with patch("episodes.signals.async_task"):
@@ -63,8 +86,9 @@ class ResolveEntitiesTests(TestCase):
         from episodes.resolver import resolve_entities
 
         # Pre-create an existing entity
+        artist_type = _get_entity_type("artist")
         existing = Entity.objects.create(
-            entity_type="artist", name="Miles Davis"
+            entity_type=artist_type, name="Miles Davis"
         )
 
         mock_provider = MagicMock()
@@ -99,7 +123,7 @@ class ResolveEntitiesTests(TestCase):
 
         # Still only 1 artist entity
         self.assertEqual(
-            Entity.objects.filter(entity_type="artist").count(), 1
+            Entity.objects.filter(entity_type=artist_type).count(), 1
         )
         # But a mention was created
         mention = EntityMention.objects.get(episode=episode)
@@ -111,8 +135,9 @@ class ResolveEntitiesTests(TestCase):
         """Some matches, some new."""
         from episodes.resolver import resolve_entities
 
+        artist_type = _get_entity_type("artist")
         existing = Entity.objects.create(
-            entity_type="artist", name="Miles Davis"
+            entity_type=artist_type, name="Miles Davis"
         )
 
         mock_provider = MagicMock()
@@ -153,7 +178,7 @@ class ResolveEntitiesTests(TestCase):
 
         # 2 artist entities: existing Miles + new Coltrane
         self.assertEqual(
-            Entity.objects.filter(entity_type="artist").count(), 2
+            Entity.objects.filter(entity_type=artist_type).count(), 2
         )
         self.assertEqual(EntityMention.objects.filter(episode=episode).count(), 2)
 
@@ -177,11 +202,13 @@ class ResolveEntitiesTests(TestCase):
             entities_json=entities_json,
         )
 
+        instrument_type = _get_entity_type("instrument")
+
         # First episode — no existing entities, so created directly with extracted name
         with patch("episodes.signals.async_task"):
             resolve_entities(episode.pk)
 
-        entity = Entity.objects.get(entity_type="instrument")
+        entity = Entity.objects.get(entity_type=instrument_type)
         self.assertEqual(entity.name, "Saxophon")
 
         # Second episode with existing entity — LLM resolves to canonical name
@@ -210,7 +237,7 @@ class ResolveEntitiesTests(TestCase):
 
         # Still only 1 instrument entity (matched)
         self.assertEqual(
-            Entity.objects.filter(entity_type="instrument").count(), 1
+            Entity.objects.filter(entity_type=instrument_type).count(), 1
         )
         # 2 mentions across 2 episodes
         self.assertEqual(EntityMention.objects.filter(entity=entity).count(), 2)
@@ -247,8 +274,9 @@ class ResolveEntitiesTests(TestCase):
         """LLM returns matched_entity_id=None but canonical_name already exists → reuse entity."""
         from episodes.resolver import resolve_entities
 
+        artist_type = _get_entity_type("artist")
         existing = Entity.objects.create(
-            entity_type="artist", name="Django Reinhardt"
+            entity_type=artist_type, name="Django Reinhardt"
         )
 
         mock_provider = MagicMock()
@@ -283,7 +311,7 @@ class ResolveEntitiesTests(TestCase):
 
         # Should reuse existing entity, not crash
         self.assertEqual(
-            Entity.objects.filter(entity_type="artist").count(), 1
+            Entity.objects.filter(entity_type=artist_type).count(), 1
         )
         mention = EntityMention.objects.get(episode=episode)
         self.assertEqual(mention.entity, existing)
@@ -331,7 +359,8 @@ class ResolveEntitiesTests(TestCase):
         from episodes.resolver import resolve_entities
 
         # Pre-create an existing entity so LLM call happens
-        Entity.objects.create(entity_type="artist", name="Miles Davis")
+        artist_type = _get_entity_type("artist")
+        Entity.objects.create(entity_type=artist_type, name="Miles Davis")
 
         mock_provider = MagicMock()
         mock_provider.structured_extract.side_effect = Exception("API error")
@@ -381,11 +410,12 @@ class ResolveEntitiesTests(TestCase):
         # Build mock responses for second run: every entity matches its existing record
         def mock_structured_extract(system_prompt, user_content, response_schema):
             # Parse entity type from system prompt
-            for entity_type, entities in self.SAMPLE_ENTITIES.items():
+            for entity_type_key, entities in self.SAMPLE_ENTITIES.items():
                 if entities is None:
                     continue
-                if f"type '{entity_type}'" in system_prompt:
-                    existing = Entity.objects.filter(entity_type=entity_type)
+                if f"type '{entity_type_key}'" in system_prompt:
+                    et = _get_entity_type(entity_type_key)
+                    existing = Entity.objects.filter(entity_type=et)
                     existing_by_name = {e.name: e.pk for e in existing}
                     matches = []
                     for extracted in entities:
@@ -417,3 +447,30 @@ class ResolveEntitiesTests(TestCase):
         self.assertEqual(Entity.objects.count(), 59)
         # Still 59 mentions (old ones deleted, new ones created)
         self.assertEqual(EntityMention.objects.filter(episode=episode).count(), 59)
+
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_unknown_entity_type_skipped(self, mock_factory):
+        """Entity types not in DB are skipped with a warning."""
+        from episodes.resolver import resolve_entities
+
+        mock_provider = MagicMock()
+        mock_factory.return_value = mock_provider
+
+        entities_json = {
+            "nonexistent_type": [
+                {"name": "Something", "context": "test"},
+            ],
+        }
+
+        episode = self._create_episode(
+            url="https://example.com/ep/res-unknown",
+            status=Episode.Status.RESOLVING,
+            entities_json=entities_json,
+        )
+
+        with patch("episodes.signals.async_task"):
+            resolve_entities(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.EMBEDDING)
+        self.assertEqual(Entity.objects.count(), 0)

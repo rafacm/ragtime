@@ -2,7 +2,7 @@ import logging
 
 from django.db import transaction
 
-from .models import Entity, EntityMention, Episode
+from .models import Entity, EntityMention, EntityType, Episode
 from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_resolution_provider
 
@@ -38,13 +38,13 @@ RESOLUTION_RESPONSE_SCHEMA = {
 }
 
 
-def _build_system_prompt(entity_type, existing_entities):
+def _build_system_prompt(entity_type_name, existing_entities):
     candidates = "\n".join(
         f"- ID {e.pk}: {e.name}" for e in existing_entities
     )
     return (
         "You are an entity resolution expert specializing in jazz music.\n"
-        f"You are resolving entities of type '{entity_type}'.\n\n"
+        f"You are resolving entities of type '{entity_type_name}'.\n\n"
         "Given a list of extracted entity names from a podcast episode and a list of "
         "existing canonical entities in the database, determine which extracted names "
         "match existing entities and which are new.\n\n"
@@ -93,8 +93,18 @@ def resolve_entities(episode_id: int) -> None:
             # Delete existing mentions for idempotent reprocessing
             EntityMention.objects.filter(episode=episode).delete()
 
-            for entity_type, entities in episode.entities_json.items():
+            for entity_type_key, entities in episode.entities_json.items():
                 if entities is None:
+                    continue
+
+                try:
+                    entity_type = EntityType.objects.get(key=entity_type_key)
+                except EntityType.DoesNotExist:
+                    logger.warning(
+                        "Unknown entity type '%s' in episode %s — skipping",
+                        entity_type_key,
+                        episode_id,
+                    )
                     continue
 
                 existing = list(
@@ -119,7 +129,7 @@ def resolve_entities(episode_id: int) -> None:
                         e["name"] for e in entities
                     )
                     system_prompt = _build_system_prompt(
-                        entity_type, existing
+                        entity_type_key, existing
                     )
                     result = provider.structured_extract(
                         system_prompt=system_prompt,

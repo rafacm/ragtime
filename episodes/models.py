@@ -58,8 +58,26 @@ class Episode(models.Model):
         return self.title or self.url
 
 
+class EntityType(models.Model):
+    key = models.CharField(max_length=30, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, default="")
+    examples = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class Entity(models.Model):
-    entity_type = models.CharField(max_length=30, db_index=True)
+    entity_type = models.ForeignKey(
+        EntityType, on_delete=models.PROTECT, related_name="entities"
+    )
     name = models.CharField(max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

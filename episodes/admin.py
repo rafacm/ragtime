@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 from django.db.models import Count
 from django.template.response import TemplateResponse
@@ -8,6 +9,7 @@ from .models import (
     PIPELINE_STEPS,
     Entity,
     EntityMention,
+    EntityType,
     Episode,
     ProcessingRun,
     ProcessingStep,
@@ -219,10 +221,73 @@ class EpisodeAdmin(admin.ModelAdmin):
         )
 
 
+class EntityInlineForEntityType(admin.TabularInline):
+    model = Entity
+    extra = 0
+    fields = ("name", "created_at")
+    readonly_fields = ("name", "created_at")
+    show_change_link = True
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class CommaSeparatedListField(forms.CharField):
+    widget = forms.TextInput(attrs={"class": "vLargeTextField"})
+
+    def prepare_value(self, value):
+        if isinstance(value, list):
+            return ", ".join(str(v) for v in value)
+        return value or ""
+
+    def clean(self, value):
+        value = super().clean(value)
+        if not value:
+            return []
+        return [item.strip() for item in value.split(",") if item.strip()]
+
+
+class EntityTypeForm(forms.ModelForm):
+    examples = CommaSeparatedListField(
+        required=False,
+        help_text="Comma-separated list of examples, e.g. Miles Davis, Alice Coltrane",
+    )
+
+    class Meta:
+        model = EntityType
+        fields = "__all__"
+
+
+@admin.register(EntityType)
+class EntityTypeAdmin(admin.ModelAdmin):
+    form = EntityTypeForm
+    list_display = ("name", "key", "is_active", "entity_count")
+    list_filter = ("is_active",)
+    search_fields = ("name", "key")
+    fields = ("key", "name", "description", "examples", "is_active", "created_at", "updated_at")
+    inlines = [EntityInlineForEntityType]
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is not None:
+            return ("key", "created_at", "updated_at")
+        return ("created_at", "updated_at")
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate(_entity_count=Count("entities"))
+
+    @admin.display(description="Entities", ordering="_entity_count")
+    def entity_count(self, obj):
+        return obj._entity_count
+
+
 @admin.register(Entity)
 class EntityAdmin(admin.ModelAdmin):
     list_display = ("name", "entity_type", "mention_count", "created_at")
-    list_filter = ("entity_type",)
+    list_filter = ("entity_type__name",)
     search_fields = ("name",)
     readonly_fields = ("entity_type", "name", "created_at", "updated_at")
     inlines = [EntityMentionInlineForEntity]
@@ -242,7 +307,7 @@ class EntityAdmin(admin.ModelAdmin):
 @admin.register(EntityMention)
 class EntityMentionAdmin(admin.ModelAdmin):
     list_display = ("entity", "episode", "short_context", "created_at")
-    list_filter = ("entity__entity_type",)
+    list_filter = ("entity__entity_type__name",)
     search_fields = ("entity__name", "episode__title")
     readonly_fields = ("entity", "episode", "context", "created_at")
 
