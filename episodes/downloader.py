@@ -5,6 +5,7 @@ import tempfile
 
 from django.conf import settings
 from django.core.files import File
+from mutagen.mp3 import MP3
 
 from .models import Episode
 from .processing import complete_step, fail_step, skip_step, start_step
@@ -47,6 +48,10 @@ def download_episode(episode_id: int) -> None:
         with open(tmp_path, "rb") as f:
             episode.audio_file.save(filename, File(f), save=False)
 
+        # Extract duration from downloaded MP3
+        audio = MP3(episode.audio_file.path)
+        episode.duration = int(audio.info.length)
+
         # Check file size against Whisper API limit
         file_size = episode.audio_file.size
         max_size = getattr(settings, "RAGTIME_MAX_AUDIO_SIZE", 25 * 1024 * 1024)
@@ -64,7 +69,7 @@ def download_episode(episode_id: int) -> None:
                 file_size / (1024 * 1024),
             )
 
-        episode.save(update_fields=["status", "audio_file", "updated_at"])
+        episode.save(update_fields=["status", "audio_file", "duration", "updated_at"])
 
     except Exception as exc:
         logger.exception("Failed to download episode %s", episode_id)

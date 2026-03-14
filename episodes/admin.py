@@ -57,12 +57,13 @@ class ProcessingRunInlineForEpisode(admin.TabularInline):
 
 @admin.register(Episode)
 class EpisodeAdmin(admin.ModelAdmin):
-    list_display = ("url", "title", "language", "status", "created_at")
+    list_display = ("title", "url", "language", "formatted_duration", "status", "created_at", "updated_at")
     list_filter = ("status", "language")
     readonly_fields = (
         "created_at",
         "updated_at",
         "audio_file",
+        "duration",
         "error_message",
         "transcript",
         "transcript_json",
@@ -112,7 +113,7 @@ class EpisodeAdmin(admin.ModelAdmin):
             ),
         ]
         if obj.audio_file:
-            fieldsets.append(("Files", {"fields": ("audio_file",)}))
+            fieldsets.append(("Files", {"fields": ("audio_file", "duration")}))
         if obj.transcript:
             fieldsets.append(("Transcript", {"fields": ("transcript",)}))
         if obj.summary_generated:
@@ -150,6 +151,16 @@ class EpisodeAdmin(admin.ModelAdmin):
             ),
         ]
         return fieldsets
+
+    @admin.display(description="Duration", ordering="duration")
+    def formatted_duration(self, obj):
+        if obj.duration is None:
+            return "\u2014"
+        hours, remainder = divmod(obj.duration, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours:
+            return f"{hours}:{minutes:02d}:{seconds:02d}"
+        return f"{minutes}:{seconds:02d}"
 
     @admin.action(description="Reprocess selected episodes\u2026")
     def reprocess(self, request, queryset):

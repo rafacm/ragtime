@@ -34,6 +34,7 @@ class Episode(models.Model):
 
     # Audio file (populated by downloader)
     audio_file = models.FileField(upload_to="episodes/", blank=True)
+    duration = models.PositiveIntegerField(null=True, blank=True)
 
     # Stored cleaned HTML for debugging/re-processing
     scraped_html = models.TextField(blank=True, default="")
