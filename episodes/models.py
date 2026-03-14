@@ -59,10 +59,22 @@ class Episode(models.Model):
 
 
 class EntityType(models.Model):
-    key = models.CharField(max_length=30, unique=True)
-    name = models.CharField(max_length=100)
-    description = models.TextField(blank=True, default="")
-    examples = models.JSONField(default=list, blank=True)
+    key = models.CharField(
+        max_length=30,
+        unique=True,
+        help_text="Unique snake_case identifier, e.g. recording_session",
+    )
+    name = models.CharField(
+        max_length=100,
+        help_text="Human-readable label, e.g. Recording Session",
+    )
+    description = models.TextField(
+        help_text="What this entity type represents, e.g. A specific date/time/place of a recording.",
+    )
+    examples = models.JSONField(
+        default=list,
+        help_text="Example entities of this type, e.g. The Blackhawk Sessions, 1959 Sessions",
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
