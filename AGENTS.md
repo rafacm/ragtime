@@ -69,7 +69,7 @@ Keep prose concise. Prefer tables and lists over long paragraphs. Use code block
 
 Whenever a `RAGTIME_*` environment variable is added, changed, or removed, update the Configuration section of `README.md` accordingly, including default values.
 
-Add an entry for each feature or fix in the `Features & Fixes` section of `README.md` with the date the feature was implemented, a short description and a "Details" column with links to the plan document, the feature document and the session conversation.
+Add an entry for each feature or fix at the top of the table in `CHANGELOG.md` (newest first) with the date the feature was implemented, a short description and a "Details" column with links to the plan document, the feature document and the session conversation.
 
 Session transcripts live in `doc/sessions/`, one Markdown file per feature. A feature typically spans multiple Claude Code sessions (e.g. planning, implementation, review) — the transcript must cover **all** of them.
 
