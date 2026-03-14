@@ -42,15 +42,9 @@ class EntityMentionInlineForEntity(admin.TabularInline):
 class ProcessingRunInlineForEpisode(admin.TabularInline):
     model = ProcessingRun
     extra = 0
-    readonly_fields = ("run_number", "status", "started_at", "finished_at", "resumed_from_step")
-    fields = ("run_number", "status", "started_at", "finished_at", "resumed_from_step")
-
-    @admin.display(description="Run ID")
-    def run_number(self, obj):
-        from django.urls import reverse
-
-        url = reverse("admin:episodes_processingrun_change", args=[obj.pk])
-        return format_html('<a href="{}">{}</a>', url, obj.pk)
+    readonly_fields = ("status", "started_at", "finished_at", "resumed_from_step")
+    fields = ("status", "started_at", "finished_at", "resumed_from_step")
+    show_change_link = True
 
     def has_add_permission(self, request, obj=None):
         return False
