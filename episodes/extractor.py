@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 _BASE_SYSTEM_PROMPT = (
     "You are an expert entity extractor specializing in jazz music podcasts.\n"
-    "Given a podcast transcript, extract all mentioned entities organized by type.\n\n"
+    "Given a transcript excerpt, extract all mentioned entities organized by type.\n\n"
     "Entity types to extract:\n"
 )
 
@@ -97,29 +97,33 @@ def extract_entities(episode_id: int) -> None:
 
     start_step(episode, Episode.Status.EXTRACTING)
 
-    if not episode.transcript:
-        episode.error_message = "No transcript to extract entities from"
+    chunks = list(episode.chunks.order_by("index"))
+    if not chunks:
+        episode.error_message = "No chunks to extract entities from"
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
-        fail_step(episode, Episode.Status.EXTRACTING, "No transcript to extract entities from")
+        fail_step(episode, Episode.Status.EXTRACTING, "No chunks to extract entities from")
         return
 
     try:
         provider = get_extraction_provider()
         system_prompt = build_system_prompt(episode.language)
         schema = build_response_schema()
-        entities = provider.structured_extract(
-            system_prompt=system_prompt,
-            user_content=episode.transcript,
-            response_schema=schema,
-        )
 
-        episode.entities_json = entities
+        for chunk in chunks:
+            entities = provider.structured_extract(
+                system_prompt=system_prompt,
+                user_content=chunk.text,
+                response_schema=schema,
+            )
+            chunk.entities_json = entities
+
+        from .models import Chunk
+        Chunk.objects.bulk_update(chunks, ["entities_json"])
+
         complete_step(episode, Episode.Status.EXTRACTING)
         episode.status = Episode.Status.RESOLVING
-        episode.save(
-            update_fields=["status", "entities_json", "updated_at"]
-        )
+        episode.save(update_fields=["status", "updated_at"])
     except Exception as exc:
         logger.exception("Failed to extract entities for episode %s", episode_id)
         episode.error_message = str(exc)
