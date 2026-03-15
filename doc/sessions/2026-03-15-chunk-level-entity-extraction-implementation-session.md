@@ -32,7 +32,7 @@ Read all critical files: `episodes/models.py`, `episodes/extractor.py`, `episode
 **Resolver changes (`episodes/resolver.py`):**
 - Added `_aggregate_entities_from_chunks()` to collect `{type_key: {name: [(chunk, context), ...]}}` across all chunks
 - Changed resolution to use aggregated unique names per type (same LLM call count as before)
-- Creates `EntityMention` per (entity, chunk) pair using `bulk_create(ignore_conflicts=True)`
+- Creates `EntityMention` per (entity, chunk) pair using `bulk_create` (de-duplicated by chunk in `_aggregate_entities_from_chunks()`)
 - Changed "no entities" from failure to success — transitions to EMBEDDING
 
 **Admin changes (`episodes/admin.py`):**
@@ -97,5 +97,21 @@ When no chunks/entities exist, stale `EntityMention` rows from a previous run su
 **Comment 5 — Per-name DB round-trips (`resolver.py:127-138`):**
 One `Entity.objects.create()` + one `bulk_create()` per name.
 **Fix:** Batched all `EntityMention` objects per entity type into a single `bulk_create`. `Entity.objects.create()` per name kept because SQLite doesn't support `bulk_create` returning IDs.
+
+All 102 tests pass after fixes.
+
+### PR Review — Copilot, second round (3 comments)
+
+**Comment 6 — False positive "has entities" check (`resolver.py:107`):**
+`any(chunk.entities_json for chunk in chunks)` treats all-null dicts as truthy, entering the resolution path unnecessarily.
+**Fix:** Moved `_aggregate_entities_from_chunks()` before the early-return check; early-return now uses `if not aggregated:`. Added `mock_factory.assert_not_called()` assertion to `test_null_types_skipped`.
+
+**Comment 7 — Stale `episode.entities_json` (`extractor.py:125`):**
+Extraction no longer writes to `episode.entities_json`, leaving stale data from previous runs.
+**Fix:** Clear `episode.entities_json = None` on successful extraction.
+
+**Comment 8 — Stale docs mentioning `ignore_conflicts` (`implementation-session.md:35`):**
+Session transcript still referenced `bulk_create(ignore_conflicts=True)` after it was removed.
+**Fix:** Updated to reflect current implementation.
 
 All 102 tests pass after fixes.

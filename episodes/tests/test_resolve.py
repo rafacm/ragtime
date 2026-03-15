@@ -362,7 +362,7 @@ class ResolveEntitiesTests(TestCase):
 
     @patch("episodes.resolver.get_resolution_provider")
     def test_null_types_skipped(self, mock_factory):
-        """Entity types with null value are skipped."""
+        """Entity types with null value are skipped — no provider call needed."""
         from episodes.resolver import resolve_entities
 
         mock_provider = MagicMock()
@@ -386,6 +386,8 @@ class ResolveEntitiesTests(TestCase):
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
         self.assertEqual(Entity.objects.count(), 0)
         self.assertEqual(EntityMention.objects.count(), 0)
+        # All-null dict should early-return without calling the provider
+        mock_factory.assert_not_called()
 
     @patch("episodes.resolver.get_resolution_provider")
     def test_unmatched_canonical_name_already_exists(self, mock_factory):
