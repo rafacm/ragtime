@@ -79,8 +79,6 @@ Generate multilingual embeddings for transcript chunks and store in ChromaDB.
 
 Episode fully processed and available for Scott to query.
 
-Any step failure marks the episode as `failed`.
-
 ## Tech Stack
 
 - **Runtime**: Python 3.13
