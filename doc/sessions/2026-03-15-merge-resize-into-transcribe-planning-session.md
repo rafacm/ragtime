@@ -16,7 +16,7 @@ Let's review the following steps: download, resize and transcribe. Somewhere in 
 
 ### Assistant
 
-Read `episodes/pipeline.py` to understand the pipeline structure. Searched for duration/length extraction functions across the `episodes` directory. Read `episodes/downloader.py`, `episodes/resizer.py`, and `episodes/transcriber.py` in full. Then searched the `Status` enum and related constants in `episodes/models.py`, searched pipeline orchestration patterns, task registration, and signal dispatch for `resize_episode`, `download_episode`, and `transcribe_episode`.
+Read `episodes/models.py` (for `PIPELINE_STEPS`) and `episodes/signals.py` (for dispatch) to understand the pipeline structure. Searched for duration/length extraction functions across the `episodes` directory. Read `episodes/downloader.py`, `episodes/resizer.py`, and `episodes/transcriber.py` in full. Then searched the `Status` enum and related constants in `episodes/models.py`, searched pipeline orchestration patterns, task registration, and signal dispatch for `resize_episode`, `download_episode`, and `transcribe_episode`.
 
 With that full picture in hand, produced the following analysis:
 

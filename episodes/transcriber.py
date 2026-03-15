@@ -13,7 +13,7 @@ from .providers.factory import get_transcription_provider
 
 logger = logging.getLogger(__name__)
 
-FFMPEG_TIMEOUT = 600  # 10 minutes
+FFMPEG_TIMEOUT = 300  # 5 minutes — must fit within Q_CLUSTER['timeout']
 
 
 def _resize_if_needed(episode):
@@ -46,7 +46,8 @@ def _resize_if_needed(episode):
                     "-y",
                     output_path,
                 ],
-                capture_output=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 timeout=FFMPEG_TIMEOUT,
             )
         except subprocess.TimeoutExpired:
@@ -63,7 +64,7 @@ def _resize_if_needed(episode):
         output_size = os.path.getsize(output_path)
         if output_size > max_size:
             raise RuntimeError(
-                f"Audio file exceeds {max_size / (1024 * 1024):.0f}MB limit after resizing "
+                f"Audio file exceeds {max_size / (1024 * 1024):.1f}MB limit after resizing "
                 f"({output_size / (1024 * 1024):.1f}MB)"
             )
 

@@ -140,8 +140,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 Q_CLUSTER = {
     'name': 'ragtime',
     'workers': 2,
-    'timeout': 300,
-    'retry': 600,
+    'timeout': 900,
+    'retry': 1200,
     'orm': 'default',
     'save_limit': 250,
     'ack_failures': True,

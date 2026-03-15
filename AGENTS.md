@@ -31,7 +31,7 @@ Use `uv` for everything — never `pip install` directly.
 
 **Provider abstraction:** LLM, transcription, and embedding backends are pluggable via abstract base classes in `episodes/providers/base.py` with a factory in `episodes/providers/factory.py`. Configured through `RAGTIME_*` environment variables.
 
-**10-step pipeline** (`episodes/pipeline.py`): submit → scrape → download → transcribe → summarize → chunk → extract → resolve → embed → ready. Each step updates the episode status. Failures set status to `failed`. Runs async via Django Q2.
+**10-step pipeline** (steps defined in `episodes/models.py:PIPELINE_STEPS`, dispatched by `episodes/signals.py`): submit → scrape → download → transcribe → summarize → chunk → extract → resolve → embed → ready. Each step updates the episode status. Failures set status to `failed`. Runs async via Django Q2.
 
 > **Keep in sync:** When adding, removing, or changing a pipeline step, update the "Processing Pipeline" section in `README.md` (each step is a `####` subsection with its status and description).
 
@@ -99,3 +99,18 @@ The commit for a given feature MUST contain the plan, the feature documentation,
 ## PR Creation
 
 When creating PRs, ensure the PR includes: plan document, feature doc, session transcripts (planning + implementation), and changelog entry. Review the Documentation section above for full requirements before creating the PR.
+
+## GitHub API (`gh`)
+
+When using `gh api` to interact with GitHub:
+
+- **Shell escaping:** Always wrap request bodies containing backticks or special characters in a `$(cat <<'EOF' ... EOF)` heredoc. Bare backticks in `-f body="..."` will be interpreted by zsh as command substitution.
+- **Replying to PR review comments:** POST to the pull's comments endpoint with `in_reply_to`:
+  ```bash
+  gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments \
+    -f body="reply text" \
+    -F in_reply_to=COMMENT_ID
+  ```
+  There is no `/replies` sub-endpoint on individual comments — that returns 404.
+- **Fetching PR review comments:** Use `gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments` (not `/reviews`).
+- **Fetching PR general comments:** Use `gh api repos/OWNER/REPO/issues/PR_NUMBER/comments` (PRs are issues).
