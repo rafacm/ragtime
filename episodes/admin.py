@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import admin
 from django.db.models import Count
 from django.template.response import TemplateResponse
+from django.urls import reverse
 from django.utils.html import format_html
 from django_q.tasks import async_task
 
@@ -25,6 +26,20 @@ class ChunkInlineForEpisode(admin.TabularInline):
     verbose_name_plural = "Chunks"
     readonly_fields = ("index", "text", "start_time", "end_time", "segment_start", "segment_end")
     fields = ("index", "start_time", "end_time", "text")
+    show_change_link = True
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class EntityMentionInlineForChunk(admin.TabularInline):
+    model = EntityMention
+    extra = 0
+    fields = ("entity", "context", "created_at")
+    readonly_fields = ("entity", "context", "created_at")
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -36,7 +51,7 @@ class ChunkInlineForEpisode(admin.TabularInline):
 class EntityMentionInlineForEpisode(admin.TabularInline):
     model = EntityMention
     extra = 0
-    readonly_fields = ("entity", "context", "created_at")
+    readonly_fields = ("entity", "chunk", "context", "created_at")
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -48,7 +63,7 @@ class EntityMentionInlineForEpisode(admin.TabularInline):
 class EntityMentionInlineForEntity(admin.TabularInline):
     model = EntityMention
     extra = 0
-    readonly_fields = ("episode", "context", "created_at")
+    readonly_fields = ("episode", "chunk", "context", "created_at")
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -253,6 +268,63 @@ class EpisodeAdmin(admin.ModelAdmin):
         )
 
 
+@admin.register(Chunk)
+class ChunkAdmin(admin.ModelAdmin):
+    list_display = ("episode_link", "index", "formatted_time_range", "short_text", "has_entities")
+    list_filter = ("episode__title",)
+    search_fields = ("text", "episode__title")
+    readonly_fields = (
+        "episode", "index", "text", "start_time", "end_time",
+        "segment_start", "segment_end", "entities_json",
+    )
+
+    def get_inlines(self, request, obj=None):
+        if obj is not None and obj.entity_mentions.exists():
+            return [EntityMentionInlineForChunk]
+        return []
+
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = [
+            (None, {"fields": ("episode", "index", "start_time", "end_time")}),
+            ("Content", {"fields": ("text",)}),
+            ("Segments", {"classes": ("collapse",), "fields": ("segment_start", "segment_end")}),
+        ]
+        if obj and obj.entities_json:
+            fieldsets.append((
+                "Extracted Entities",
+                {"classes": ("collapse",), "fields": ("entities_json",)},
+            ))
+        return fieldsets
+
+    @admin.display(description="Episode", ordering="episode__title")
+    def episode_link(self, obj):
+        url = reverse("admin:episodes_episode_change", args=[obj.episode_id])
+        return format_html('<a href="{}">{}</a>', url, obj.episode)
+
+    @admin.display(description="Time range", ordering="start_time")
+    def formatted_time_range(self, obj):
+        def fmt(seconds):
+            m, s = divmod(int(seconds), 60)
+            return f"{m}:{s:02d}"
+        return f"{fmt(obj.start_time)} – {fmt(obj.end_time)}"
+
+    @admin.display(description="Text")
+    def short_text(self, obj):
+        if len(obj.text) > 100:
+            return format_html("{}&hellip;", obj.text[:100])
+        return obj.text
+
+    @admin.display(description="Entities", boolean=True)
+    def has_entities(self, obj):
+        return bool(obj.entities_json)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 class EntityInlineForEntityType(admin.TabularInline):
     model = Entity
     extra = 0
@@ -337,10 +409,20 @@ class EntityAdmin(admin.ModelAdmin):
 
 @admin.register(EntityMention)
 class EntityMentionAdmin(admin.ModelAdmin):
-    list_display = ("entity", "episode", "short_context", "created_at")
+    list_display = ("entity", "episode_link", "chunk_link", "short_context", "created_at")
     list_filter = ("entity__entity_type__name",)
     search_fields = ("entity__name", "episode__title")
-    readonly_fields = ("entity", "episode", "context", "created_at")
+    readonly_fields = ("entity", "episode", "chunk", "context", "created_at")
+
+    @admin.display(description="Episode", ordering="episode__title")
+    def episode_link(self, obj):
+        url = reverse("admin:episodes_episode_change", args=[obj.episode_id])
+        return format_html('<a href="{}">{}</a>', url, obj.episode)
+
+    @admin.display(description="Chunk", ordering="chunk__index")
+    def chunk_link(self, obj):
+        url = reverse("admin:episodes_chunk_change", args=[obj.chunk_id])
+        return format_html('<a href="{}">{}</a>', url, obj.chunk)
 
     @admin.display(description="Context")
     def short_context(self, obj):

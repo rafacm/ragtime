@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import yaml
 from django.test import TestCase, override_settings
 
-from episodes.models import EntityType, Episode
+from episodes.models import Chunk, EntityType, Episode
 
 _YAML_PATH = Path(__file__).resolve().parent.parent / "initial_entity_types.yaml"
 
@@ -56,6 +56,12 @@ class ExtractorBuildPromptTests(TestCase):
         prompt = build_system_prompt("")
         self.assertNotIn("Role", prompt)
         self.assertIn("Artist", prompt)
+
+    def test_system_prompt_says_excerpt(self):
+        from episodes.extractor import build_system_prompt
+
+        prompt = build_system_prompt("")
+        self.assertIn("transcript excerpt", prompt)
 
 
 class ExtractorBuildSchemaTests(TestCase):
@@ -131,6 +137,20 @@ class ExtractEntitiesTests(TestCase):
         with patch("episodes.signals.async_task"):
             return Episode.objects.create(**kwargs)
 
+    def _create_chunks(self, episode, texts):
+        chunks = []
+        for i, text in enumerate(texts):
+            chunks.append(Chunk.objects.create(
+                episode=episode,
+                index=i,
+                text=text,
+                start_time=i * 30.0,
+                end_time=(i + 1) * 30.0,
+                segment_start=i * 10,
+                segment_end=(i + 1) * 10,
+            ))
+        return chunks
+
     @patch("episodes.extractor.get_extraction_provider")
     def test_success(self, mock_factory):
         from episodes.extractor import extract_entities
@@ -144,16 +164,41 @@ class ExtractEntitiesTests(TestCase):
             status=Episode.Status.EXTRACTING,
             transcript="Miles Davis played trumpet on Kind of Blue in 1959.",
         )
+        self._create_chunks(episode, ["Miles Davis played trumpet.", "Kind of Blue in 1959."])
 
         with patch("episodes.signals.async_task"):
             extract_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.RESOLVING)
-        self.assertEqual(episode.entities_json, self.SAMPLE_ENTITIES)
+
+        # Each chunk should have entities_json populated
+        for chunk in episode.chunks.all():
+            self.assertEqual(chunk.entities_json, self.SAMPLE_ENTITIES)
 
     @patch("episodes.extractor.get_extraction_provider")
-    def test_calls_provider_with_correct_args(self, mock_factory):
+    def test_n_chunks_n_llm_calls(self, mock_factory):
+        """N chunks should produce N LLM calls."""
+        from episodes.extractor import extract_entities
+
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = self.SAMPLE_ENTITIES
+        mock_factory.return_value = mock_provider
+
+        episode = self._create_episode(
+            url="https://example.com/ep/ext-ncalls",
+            status=Episode.Status.EXTRACTING,
+            transcript="Some transcript.",
+        )
+        self._create_chunks(episode, ["chunk 1", "chunk 2", "chunk 3"])
+
+        with patch("episodes.signals.async_task"):
+            extract_entities(episode.pk)
+
+        self.assertEqual(mock_provider.structured_extract.call_count, 3)
+
+    @patch("episodes.extractor.get_extraction_provider")
+    def test_calls_provider_with_chunk_text(self, mock_factory):
         from episodes.extractor import extract_entities
 
         mock_provider = MagicMock()
@@ -166,6 +211,7 @@ class ExtractEntitiesTests(TestCase):
             transcript="Some transcript.",
             language="fr",
         )
+        self._create_chunks(episode, ["Chunk text here."])
 
         with patch("episodes.signals.async_task"):
             extract_entities(episode.pk)
@@ -173,16 +219,16 @@ class ExtractEntitiesTests(TestCase):
         mock_provider.structured_extract.assert_called_once()
         _, kwargs = mock_provider.structured_extract.call_args
         self.assertIn("French", kwargs["system_prompt"])
-        self.assertEqual(kwargs["user_content"], "Some transcript.")
+        self.assertEqual(kwargs["user_content"], "Chunk text here.")
         self.assertIn("schema", kwargs["response_schema"])
 
-    def test_missing_transcript(self):
+    def test_no_chunks(self):
         from episodes.extractor import extract_entities
 
         episode = self._create_episode(
             url="https://example.com/ep/ext-2",
             status=Episode.Status.EXTRACTING,
-            transcript="",
+            transcript="Some transcript but no chunks.",
         )
 
         with patch("episodes.signals.async_task"):
@@ -190,7 +236,7 @@ class ExtractEntitiesTests(TestCase):
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
-        self.assertIn("No transcript", episode.error_message)
+        self.assertIn("No chunks", episode.error_message)
 
     def test_wrong_status(self):
         from episodes.extractor import extract_entities
@@ -223,6 +269,7 @@ class ExtractEntitiesTests(TestCase):
             status=Episode.Status.EXTRACTING,
             transcript="Some transcript.",
         )
+        self._create_chunks(episode, ["Some transcript."])
 
         with patch("episodes.signals.async_task"):
             extract_entities(episode.pk)

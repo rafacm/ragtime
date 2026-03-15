@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Adaptive Audio Resize Tiers — select the gentlest ffmpeg settings that fit under the Whisper API size limit based on episode duration, instead of always using the most aggressive compression — [plan](doc/plans/adaptive-audio-resize-tiers.md), [feature](doc/features/adaptive-audio-resize-tiers.md), [planning session](doc/sessions/2026-03-15-adaptive-audio-resize-tiers-planning-session.md), [implementation session](doc/sessions/2026-03-15-adaptive-audio-resize-tiers-implementation-session.md)
 
+- Chunk-level Entity Extraction — extract entities per chunk instead of per episode, linking each entity mention to the specific chunk (and timestamp) where it appeared. Resolution aggregates unique names across chunks before resolving — [plan](doc/plans/chunk-level-entity-extraction.md), [feature](doc/features/chunk-level-entity-extraction.md), [planning session](doc/sessions/2026-03-15-chunk-level-entity-extraction-planning-session.md), [implementation session](doc/sessions/2026-03-15-chunk-level-entity-extraction-implementation-session.md)
+
 ### Changed
 
 - Merge Resize into Transcribe — absorb ffmpeg downsampling into the transcribe step, reducing the pipeline from 11 to 10 steps. Resize was a transcription provider implementation detail, not a meaningful domain event — [plan](doc/plans/merge-resize-into-transcribe.md), [feature](doc/features/merge-resize-into-transcribe.md), [planning session](doc/sessions/2026-03-15-merge-resize-into-transcribe-planning-session.md), [implementation session](doc/sessions/2026-03-15-merge-resize-into-transcribe-implementation-session.md)

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import yaml
 from django.test import TestCase, override_settings
 
-from episodes.models import Entity, EntityMention, EntityType, Episode
+from episodes.models import Chunk, Entity, EntityMention, EntityType, Episode
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 _YAML_PATH = Path(__file__).resolve().parent.parent / "initial_entity_types.yaml"
@@ -53,6 +53,18 @@ class ResolveEntitiesTests(TestCase):
         with patch("episodes.signals.async_task"):
             return Episode.objects.create(**kwargs)
 
+    def _create_chunk(self, episode, index=0, entities_json=None, text="chunk text"):
+        return Chunk.objects.create(
+            episode=episode,
+            index=index,
+            text=text,
+            start_time=index * 30.0,
+            end_time=(index + 1) * 30.0,
+            segment_start=index * 10,
+            segment_end=(index + 1) * 10,
+            entities_json=entities_json,
+        )
+
     @patch("episodes.resolver.get_resolution_provider")
     def test_resolve_new_entities(self, mock_factory):
         """No existing DB entities — all created as new, no LLM call."""
@@ -64,8 +76,8 @@ class ResolveEntitiesTests(TestCase):
         episode = self._create_episode(
             url="https://example.com/ep/res-1",
             status=Episode.Status.RESOLVING,
-            entities_json=self.SAMPLE_ENTITIES,
         )
+        self._create_chunk(episode, index=0, entities_json=self.SAMPLE_ENTITIES)
 
         with patch("episodes.signals.async_task"):
             resolve_entities(episode.pk)
@@ -79,6 +91,10 @@ class ResolveEntitiesTests(TestCase):
         # 59 entities from fixture (3 null types: album, recording_session, label)
         self.assertEqual(Entity.objects.count(), 59)
         self.assertEqual(EntityMention.objects.filter(episode=episode).count(), 59)
+
+        # All mentions have chunk FK set
+        for mention in EntityMention.objects.filter(episode=episode):
+            self.assertIsNotNone(mention.chunk_id)
 
     @patch("episodes.resolver.get_resolution_provider")
     def test_resolve_matches_existing(self, mock_factory):
@@ -112,8 +128,8 @@ class ResolveEntitiesTests(TestCase):
         episode = self._create_episode(
             url="https://example.com/ep/res-2",
             status=Episode.Status.RESOLVING,
-            entities_json=entities_json,
         )
+        chunk = self._create_chunk(episode, index=0, entities_json=entities_json)
 
         with patch("episodes.signals.async_task"):
             resolve_entities(episode.pk)
@@ -125,9 +141,10 @@ class ResolveEntitiesTests(TestCase):
         self.assertEqual(
             Entity.objects.filter(entity_type=artist_type).count(), 1
         )
-        # But a mention was created
+        # Mention was created with chunk FK
         mention = EntityMention.objects.get(episode=episode)
         self.assertEqual(mention.entity, existing)
+        self.assertEqual(mention.chunk, chunk)
         self.assertEqual(mention.context, "trumpet player")
 
     @patch("episodes.resolver.get_resolution_provider")
@@ -167,8 +184,8 @@ class ResolveEntitiesTests(TestCase):
         episode = self._create_episode(
             url="https://example.com/ep/res-3",
             status=Episode.Status.RESOLVING,
-            entities_json=entities_json,
         )
+        self._create_chunk(episode, index=0, entities_json=entities_json)
 
         with patch("episodes.signals.async_task"):
             resolve_entities(episode.pk)
@@ -181,6 +198,107 @@ class ResolveEntitiesTests(TestCase):
             Entity.objects.filter(entity_type=artist_type).count(), 2
         )
         self.assertEqual(EntityMention.objects.filter(episode=episode).count(), 2)
+
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_same_entity_in_multiple_chunks(self, mock_factory):
+        """Same entity in multiple chunks creates multiple mentions."""
+        from episodes.resolver import resolve_entities
+
+        mock_provider = MagicMock()
+        mock_factory.return_value = mock_provider
+
+        entities_chunk1 = {
+            "artist": [
+                {"name": "Miles Davis", "context": "early career"},
+            ],
+        }
+        entities_chunk2 = {
+            "artist": [
+                {"name": "Miles Davis", "context": "later work"},
+            ],
+        }
+
+        episode = self._create_episode(
+            url="https://example.com/ep/res-multi",
+            status=Episode.Status.RESOLVING,
+        )
+        chunk1 = self._create_chunk(episode, index=0, entities_json=entities_chunk1)
+        chunk2 = self._create_chunk(episode, index=1, entities_json=entities_chunk2)
+
+        with patch("episodes.signals.async_task"):
+            resolve_entities(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.EMBEDDING)
+
+        # 1 entity, but 2 mentions (one per chunk)
+        self.assertEqual(Entity.objects.count(), 1)
+        mentions = EntityMention.objects.filter(episode=episode).order_by("chunk__index")
+        self.assertEqual(mentions.count(), 2)
+        self.assertEqual(mentions[0].chunk, chunk1)
+        self.assertEqual(mentions[0].context, "early career")
+        self.assertEqual(mentions[1].chunk, chunk2)
+        self.assertEqual(mentions[1].context, "later work")
+
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_aggregation_one_resolution_call(self, mock_factory):
+        """Multiple chunks with same entity type → one resolution call with unique names."""
+        from episodes.resolver import resolve_entities
+
+        artist_type = _get_entity_type("artist")
+        existing = Entity.objects.create(
+            entity_type=artist_type, name="Miles Davis"
+        )
+
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = {
+            "matches": [
+                {
+                    "extracted_name": "Miles Davis",
+                    "canonical_name": "Miles Davis",
+                    "matched_entity_id": existing.pk,
+                },
+                {
+                    "extracted_name": "John Coltrane",
+                    "canonical_name": "John Coltrane",
+                    "matched_entity_id": None,
+                },
+            ],
+        }
+        mock_factory.return_value = mock_provider
+
+        entities_chunk1 = {
+            "artist": [
+                {"name": "Miles Davis", "context": "trumpet"},
+            ],
+        }
+        entities_chunk2 = {
+            "artist": [
+                {"name": "Miles Davis", "context": "bandleader"},
+                {"name": "John Coltrane", "context": "saxophone"},
+            ],
+        }
+
+        episode = self._create_episode(
+            url="https://example.com/ep/res-agg",
+            status=Episode.Status.RESOLVING,
+        )
+        self._create_chunk(episode, index=0, entities_json=entities_chunk1)
+        self._create_chunk(episode, index=1, entities_json=entities_chunk2)
+
+        with patch("episodes.signals.async_task"):
+            resolve_entities(episode.pk)
+
+        # Only 1 LLM call (one entity type: artist)
+        self.assertEqual(mock_provider.structured_extract.call_count, 1)
+
+        # Unique names sent to resolution
+        call_kwargs = mock_provider.structured_extract.call_args[1]
+        self.assertIn("Miles Davis", call_kwargs["user_content"])
+        self.assertIn("John Coltrane", call_kwargs["user_content"])
+
+        # 3 mentions total: Miles in chunk0, Miles in chunk1, Coltrane in chunk1
+        self.assertEqual(EntityMention.objects.filter(episode=episode).count(), 3)
 
     @patch("episodes.resolver.get_resolution_provider")
     def test_resolve_canonical_name(self, mock_factory):
@@ -199,8 +317,8 @@ class ResolveEntitiesTests(TestCase):
         episode = self._create_episode(
             url="https://example.com/ep/res-4",
             status=Episode.Status.RESOLVING,
-            entities_json=entities_json,
         )
+        self._create_chunk(episode, index=0, entities_json=entities_json)
 
         instrument_type = _get_entity_type("instrument")
 
@@ -225,12 +343,12 @@ class ResolveEntitiesTests(TestCase):
         episode2 = self._create_episode(
             url="https://example.com/ep/res-4b",
             status=Episode.Status.RESOLVING,
-            entities_json={
-                "instrument": [
-                    {"name": "Saxophone", "context": "English spelling"},
-                ],
-            },
         )
+        self._create_chunk(episode2, index=0, entities_json={
+            "instrument": [
+                {"name": "Saxophone", "context": "English spelling"},
+            ],
+        })
 
         with patch("episodes.signals.async_task"):
             resolve_entities(episode2.pk)
@@ -258,8 +376,8 @@ class ResolveEntitiesTests(TestCase):
         episode = self._create_episode(
             url="https://example.com/ep/res-5",
             status=Episode.Status.RESOLVING,
-            entities_json=entities_json,
         )
+        self._create_chunk(episode, index=0, entities_json=entities_json)
 
         with patch("episodes.signals.async_task"):
             resolve_entities(episode.pk)
@@ -300,8 +418,8 @@ class ResolveEntitiesTests(TestCase):
         episode = self._create_episode(
             url="https://example.com/ep/res-dup",
             status=Episode.Status.RESOLVING,
-            entities_json=entities_json,
         )
+        self._create_chunk(episode, index=0, entities_json=entities_json)
 
         with patch("episodes.signals.async_task"):
             resolve_entities(episode.pk)
@@ -316,22 +434,21 @@ class ResolveEntitiesTests(TestCase):
         mention = EntityMention.objects.get(episode=episode)
         self.assertEqual(mention.entity, existing)
 
-    def test_missing_entities_json(self):
-        """Null entities_json → FAILED."""
+    def test_no_entities_in_any_chunk_succeeds(self):
+        """No entities in any chunk → success (transition to EMBEDDING)."""
         from episodes.resolver import resolve_entities
 
         episode = self._create_episode(
-            url="https://example.com/ep/res-6",
+            url="https://example.com/ep/res-empty",
             status=Episode.Status.RESOLVING,
-            entities_json=None,
         )
+        self._create_chunk(episode, index=0, entities_json=None)
 
         with patch("episodes.signals.async_task"):
             resolve_entities(episode.pk)
 
         episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.FAILED)
-        self.assertIn("No entities", episode.error_message)
+        self.assertEqual(episode.status, Episode.Status.EMBEDDING)
 
     def test_wrong_status(self):
         """Not RESOLVING → no-op."""
@@ -375,8 +492,8 @@ class ResolveEntitiesTests(TestCase):
         episode = self._create_episode(
             url="https://example.com/ep/res-8",
             status=Episode.Status.RESOLVING,
-            entities_json=entities_json,
         )
+        self._create_chunk(episode, index=0, entities_json=entities_json)
 
         with patch("episodes.signals.async_task"):
             resolve_entities(episode.pk)
@@ -396,8 +513,8 @@ class ResolveEntitiesTests(TestCase):
         episode = self._create_episode(
             url="https://example.com/ep/res-9",
             status=Episode.Status.RESOLVING,
-            entities_json=self.SAMPLE_ENTITIES,
         )
+        self._create_chunk(episode, index=0, entities_json=self.SAMPLE_ENTITIES)
 
         # First run — no existing entities, creates all 59 as new (no LLM call)
         with patch("episodes.signals.async_task"):
@@ -409,7 +526,6 @@ class ResolveEntitiesTests(TestCase):
 
         # Build mock responses for second run: every entity matches its existing record
         def mock_structured_extract(system_prompt, user_content, response_schema):
-            # Parse entity type from system prompt
             for entity_type_key, entities in self.SAMPLE_ENTITIES.items():
                 if entities is None:
                     continue
@@ -465,8 +581,8 @@ class ResolveEntitiesTests(TestCase):
         episode = self._create_episode(
             url="https://example.com/ep/res-unknown",
             status=Episode.Status.RESOLVING,
-            entities_json=entities_json,
         )
+        self._create_chunk(episode, index=0, entities_json=entities_json)
 
         with patch("episodes.signals.async_task"):
             resolve_entities(episode.pk)

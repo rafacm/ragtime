@@ -115,14 +115,17 @@ class EntityMention(models.Model):
     episode = models.ForeignKey(
         Episode, on_delete=models.CASCADE, related_name="entity_mentions"
     )
+    chunk = models.ForeignKey(
+        "Chunk", on_delete=models.CASCADE, related_name="entity_mentions"
+    )
     context = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["entity", "episode", "context"],
-                name="unique_entity_episode_context",
+                fields=["entity", "chunk"],
+                name="unique_entity_chunk",
             ),
         ]
 
@@ -138,6 +141,7 @@ class Chunk(models.Model):
     end_time = models.FloatField()
     segment_start = models.PositiveIntegerField()
     segment_end = models.PositiveIntegerField()
+    entities_json = models.JSONField(blank=True, null=True)
 
     class Meta:
         constraints = [
