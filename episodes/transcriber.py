@@ -35,19 +35,24 @@ def _resize_if_needed(episode):
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
             output_path = tmp.name
 
-        result = subprocess.run(
-            [
-                "ffmpeg",
-                "-i", input_path,
-                "-ac", "1",
-                "-ar", "22050",
-                "-b:a", "64k",
-                "-y",
-                output_path,
-            ],
-            capture_output=True,
-            timeout=FFMPEG_TIMEOUT,
-        )
+        try:
+            result = subprocess.run(
+                [
+                    "ffmpeg",
+                    "-i", input_path,
+                    "-ac", "1",
+                    "-ar", "22050",
+                    "-b:a", "64k",
+                    "-y",
+                    output_path,
+                ],
+                capture_output=True,
+                timeout=FFMPEG_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(
+                f"ffmpeg timed out during audio resize ({FFMPEG_TIMEOUT}s)"
+            )
 
         if result.returncode != 0:
             stderr = result.stderr.decode(errors="replace")
@@ -58,7 +63,7 @@ def _resize_if_needed(episode):
         output_size = os.path.getsize(output_path)
         if output_size > max_size:
             raise RuntimeError(
-                f"Audio file exceeds 25MB after resizing "
+                f"Audio file exceeds {max_size / (1024 * 1024):.0f}MB limit after resizing "
                 f"({output_size / (1024 * 1024):.1f}MB)"
             )
 
@@ -103,6 +108,8 @@ def transcribe_episode(episode_id: int) -> None:
 
     try:
         resized = _resize_if_needed(episode)
+        if resized:
+            episode.save(update_fields=["audio_file", "updated_at"])
 
         provider = get_transcription_provider()
         language = episode.language or None
@@ -112,11 +119,9 @@ def transcribe_episode(episode_id: int) -> None:
         episode.transcript = result.get("text", "")
         complete_step(episode, Episode.Status.TRANSCRIBING)
         episode.status = Episode.Status.SUMMARIZING
-
-        update_fields = ["status", "transcript", "transcript_json", "updated_at"]
-        if resized:
-            update_fields.append("audio_file")
-        episode.save(update_fields=update_fields)
+        episode.save(
+            update_fields=["status", "transcript", "transcript_json", "updated_at"]
+        )
     except Exception as exc:
         logger.exception("Failed to transcribe episode %s", episode_id)
         episode.error_message = str(exc)
