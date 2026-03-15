@@ -59,13 +59,24 @@ LLM-generated episode summary in the episode's detected language.
 
 Split transcript into ~150-word chunks along Whisper segment boundaries, with 1-segment overlap.
 
-#### 7. 🔍 Extract (status: `extracting`)
+#### 7. 🔍 Extract entities (status: `extracting`)
 
-LLM-based entity extraction runs **per chunk**, linking each entity mention to the specific chunk (and thus timestamp) where it appeared. Entity types (artist, band, album, composition, venue, recording session, label, year, era, city, country, sub-genre, instrument, role) are stored in the database and managed via Django admin. An initial set of 14 types is defined in [`episodes/initial_entity_types.yaml`](episodes/initial_entity_types.yaml) — load them with `uv run python manage.py load_entity_types`. New types can be added through Django admin; existing types can be deactivated (set `is_active = False`) to exclude them from future extractions without deleting historical data. Types that have existing entities cannot be deleted (protected by referential integrity). Raw extraction results are stored in `Chunk.entities_json`.
+LLM-based entity extraction runs **per chunk**, linking each entity mention to the specific chunk (and thus timestamp) where it appeared. Entity types (artist, band, album, composition, venue, recording session, label, year, era, city, country, sub-genre, instrument, role) are stored in the database and managed via Django admin. Each entity type has a **Wikidata class Q-ID** (e.g., Q639669 for "musician") for candidate lookup during resolution. An initial set of 14 types is defined in [`episodes/initial_entity_types.yaml`](episodes/initial_entity_types.yaml) — load them with:
 
-#### 8. 🧩 Resolve (status: `resolving`)
+```
+uv run python manage.py load_entity_types
+```
 
-Aggregates unique entity names across all chunks, then resolves once per entity type against existing DB records using LLM-based fuzzy matching to prevent duplicates. Creates canonical entity records and `EntityMention` records per (entity, chunk) pair, preserving provenance.
+New types can be added through Django admin; existing types can be deactivated (set `is_active = False`) to exclude them from future extractions without deleting historical data. Types that have existing entities cannot be deleted (protected by referential integrity). Raw extraction results are stored in `Chunk.entities_json`.
+
+#### 8. 🧩 Resolve entities (status: `resolving`)
+
+Aggregates unique entity names across all chunks, then resolves once per entity type against existing DB records using LLM-based fuzzy matching to prevent duplicates. During resolution, **Wikidata candidate lookup** searches for matching entities by name and type, presenting candidates (with Q-IDs and descriptions) to the LLM for confirmation. The LLM picks the best Wikidata match or returns null if none apply. Matched entities receive a `wikidata_id` for canonical identification. Creates canonical entity records and `EntityMention` records per (entity, chunk) pair, preserving provenance. Search Wikidata from the CLI with:
+
+```
+uv run python manage.py lookup_entity "Miles Davis"
+uv run python manage.py lookup_entity --type artist "Miles Davis"
+```
 
 #### 9. 📐 Embed (status: `embedding`)
 

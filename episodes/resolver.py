@@ -23,11 +23,13 @@ RESOLUTION_RESPONSE_SCHEMA = {
                         "extracted_name": {"type": "string"},
                         "canonical_name": {"type": "string"},
                         "matched_entity_id": {"type": ["integer", "null"]},
+                        "wikidata_id": {"type": ["string", "null"]},
                     },
                     "required": [
                         "extracted_name",
                         "canonical_name",
                         "matched_entity_id",
+                        "wikidata_id",
                     ],
                     "additionalProperties": False,
                 },
@@ -39,10 +41,56 @@ RESOLUTION_RESPONSE_SCHEMA = {
 }
 
 
-def _build_system_prompt(entity_type_name, existing_entities):
-    candidates = "\n".join(
-        f"- ID {e.pk}: {e.name}" for e in existing_entities
+def _fetch_wikidata_candidates(names, entity_type):
+    """Fetch Wikidata candidates for a list of entity names.
+
+    Returns {name: [{qid, label, description}, ...]} or empty dict on failure.
+    """
+    try:
+        from .wikidata import find_candidates
+    except Exception:
+        logger.warning("Could not import wikidata module — skipping candidate lookup")
+        return {}
+
+    entity_type_qid = entity_type.wikidata_id
+    if not entity_type_qid:
+        return {}
+
+    candidates_by_name = {}
+    for name in names:
+        try:
+            candidates = find_candidates(name, entity_type_qid)
+            if candidates:
+                candidates_by_name[name] = candidates
+        except Exception:
+            logger.warning(
+                "Wikidata lookup failed for '%s' — continuing without candidates",
+                name,
+            )
+    return candidates_by_name
+
+
+def _build_system_prompt(entity_type_name, existing_entities, wikidata_candidates=None):
+    db_candidates = "\n".join(
+        f"- ID {e.pk}: {e.name}" + (f" [wikidata:{e.wikidata_id}]" if e.wikidata_id else "")
+        for e in existing_entities
     )
+
+    wikidata_section = ""
+    if wikidata_candidates:
+        lines = []
+        for name, candidates in wikidata_candidates.items():
+            candidate_strs = ", ".join(
+                f"{c['qid']} ({c['label']}: {c['description']})" if c['description']
+                else f"{c['qid']} ({c['label']})"
+                for c in candidates
+            )
+            lines.append(f"- \"{name}\": {candidate_strs}")
+        wikidata_section = (
+            "\n\nWikidata candidates (pick the best match or return null for wikidata_id):\n"
+            + "\n".join(lines)
+        )
+
     return (
         "You are an entity resolution expert specializing in jazz music.\n"
         f"You are resolving entities of type '{entity_type_name}'.\n\n"
@@ -57,9 +105,12 @@ def _build_system_prompt(entity_type_name, existing_entities):
         "or null if it's new\n"
         "- For new entities, return the best canonical name (most commonly recognized "
         "form, e.g., 'Saxophone' over 'Saxophon')\n"
-        "- For matched entities, canonical_name is ignored (the existing name is kept)\n\n"
+        "- For matched entities, canonical_name is ignored (the existing name is kept)\n"
+        "- For wikidata_id: pick the Q-ID from the Wikidata candidates that best matches "
+        "the entity, or return null if none match or no candidates are available\n\n"
         "Existing entities in the database:\n"
-        f"{candidates}"
+        f"{db_candidates}"
+        f"{wikidata_section}"
     )
 
 
@@ -137,26 +188,72 @@ def resolve_entities(episode_id: int) -> None:
                 )
 
                 if not existing:
-                    # No existing entities — create all as new (no LLM call)
-                    all_mentions = []
-                    for name in unique_names:
-                        entity = Entity.objects.create(
-                            entity_type=entity_type,
-                            name=name,
+                    # No existing entities — fetch Wikidata candidates for new entities
+                    wikidata_candidates = _fetch_wikidata_candidates(
+                        unique_names, entity_type
+                    )
+
+                    if wikidata_candidates:
+                        # Use LLM to pick best Wikidata Q-IDs for new entities
+                        system_prompt = _build_system_prompt(
+                            entity_type_key, [], wikidata_candidates
                         )
-                        for chunk, context in names_dict[name]:
-                            all_mentions.append(EntityMention(
-                                entity=entity,
-                                episode=episode,
-                                chunk=chunk,
-                                context=context,
-                            ))
-                    EntityMention.objects.bulk_create(all_mentions)
+                        extracted_names = ", ".join(unique_names)
+                        result = provider.structured_extract(
+                            system_prompt=system_prompt,
+                            user_content=f"Extracted entities to resolve: {extracted_names}",
+                            response_schema=RESOLUTION_RESPONSE_SCHEMA,
+                        )
+
+                        all_mentions = []
+                        for match in result["matches"]:
+                            extracted_name = match["extracted_name"]
+                            wikidata_id = match.get("wikidata_id") or ""
+                            canonical_name = match.get("canonical_name") or extracted_name
+
+                            entity, _created = Entity.objects.get_or_create(
+                                entity_type=entity_type,
+                                name=canonical_name,
+                                defaults={"wikidata_id": wikidata_id},
+                            )
+                            if not _created and wikidata_id and not entity.wikidata_id:
+                                entity.wikidata_id = wikidata_id
+                                entity.save(update_fields=["wikidata_id", "updated_at"])
+
+                            for chunk, context in names_dict.get(extracted_name, []):
+                                all_mentions.append(EntityMention(
+                                    entity=entity,
+                                    episode=episode,
+                                    chunk=chunk,
+                                    context=context,
+                                ))
+                        EntityMention.objects.bulk_create(all_mentions)
+                    else:
+                        # No Wikidata candidates — create all as new (no LLM call)
+                        all_mentions = []
+                        for name in unique_names:
+                            entity = Entity.objects.create(
+                                entity_type=entity_type,
+                                name=name,
+                            )
+                            for chunk, context in names_dict[name]:
+                                all_mentions.append(EntityMention(
+                                    entity=entity,
+                                    episode=episode,
+                                    chunk=chunk,
+                                    context=context,
+                                ))
+                        EntityMention.objects.bulk_create(all_mentions)
                 else:
+                    # Fetch Wikidata candidates for resolution
+                    wikidata_candidates = _fetch_wikidata_candidates(
+                        unique_names, entity_type
+                    )
+
                     # LLM resolution against existing entities
                     extracted_names = ", ".join(unique_names)
                     system_prompt = _build_system_prompt(
-                        entity_type_key, existing
+                        entity_type_key, existing, wikidata_candidates
                     )
                     result = provider.structured_extract(
                         system_prompt=system_prompt,
@@ -170,8 +267,31 @@ def resolve_entities(episode_id: int) -> None:
                     for match in result["matches"]:
                         matched_id = match["matched_entity_id"]
                         extracted_name = match["extracted_name"]
+                        wikidata_id = match.get("wikidata_id") or ""
 
-                        if matched_id is not None and matched_id in existing_by_id:
+                        if wikidata_id:
+                            # Try to find existing entity by wikidata_id
+                            wikidata_match = Entity.objects.filter(
+                                entity_type=entity_type,
+                                wikidata_id=wikidata_id,
+                            ).first()
+                            if wikidata_match:
+                                entity = wikidata_match
+                            elif matched_id is not None and matched_id in existing_by_id:
+                                entity = existing_by_id[matched_id]
+                                if not entity.wikidata_id:
+                                    entity.wikidata_id = wikidata_id
+                                    entity.save(update_fields=["wikidata_id", "updated_at"])
+                            else:
+                                entity, _created = Entity.objects.get_or_create(
+                                    entity_type=entity_type,
+                                    name=match["canonical_name"],
+                                    defaults={"wikidata_id": wikidata_id},
+                                )
+                                if not _created and not entity.wikidata_id:
+                                    entity.wikidata_id = wikidata_id
+                                    entity.save(update_fields=["wikidata_id", "updated_at"])
+                        elif matched_id is not None and matched_id in existing_by_id:
                             entity = existing_by_id[matched_id]
                         else:
                             entity, _created = Entity.objects.get_or_create(

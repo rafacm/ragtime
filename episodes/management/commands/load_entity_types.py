@@ -22,6 +22,7 @@ class Command(BaseCommand):
                 key=et["key"],
                 defaults={
                     "name": et["name"],
+                    "wikidata_id": et.get("wikidata_id", ""),
                     "description": et.get("description", ""),
                     "examples": et.get("examples", []),
                 },
