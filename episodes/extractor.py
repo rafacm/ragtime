@@ -1,7 +1,7 @@
 import logging
 
 from .languages import ISO_639_LANGUAGE_NAMES, ISO_639_RE
-from .models import EntityType, Episode
+from .models import Chunk, EntityType, Episode
 from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_extraction_provider
 
@@ -118,7 +118,6 @@ def extract_entities(episode_id: int) -> None:
             )
             chunk.entities_json = entities
 
-        from .models import Chunk
         Chunk.objects.bulk_update(chunks, ["entities_json"])
 
         complete_step(episode, Episode.Status.EXTRACTING)
