@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - Restructure README Processing Pipeline from table to numbered emoji list, fold Extracted Entities section into Step 9 — [PR](https://github.com/rafacm/ragtime/pull/43)
+- Convert README pipeline section from numbered list to `###` subsections, fix 6 step descriptions to match implementation — [plan](doc/plans/readme-pipeline-subsections.md), [feature](doc/features/readme-pipeline-subsections.md), [planning session](doc/sessions/2026-03-15-readme-pipeline-subsections-planning-session.md), [implementation session](doc/sessions/2026-03-15-readme-pipeline-subsections-implementation-session.md)
 
 ## 2026-03-14
 
