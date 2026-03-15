@@ -37,7 +37,7 @@ Each episode goes through the following steps, with status tracked throughout:
 2. 🔁 **Dedup** (status: `pending`): Check if episode URL already exists.
 3. 🕷️ **Scrape** (status: `scraping`): Extract metadata (title, description, date, image) + detect language.
 4. ⬇️ **Download** (status: `downloading`): Find and download the audio file.
-5. 🔊 **Resize** (status: `downloading`): If audio > 25MB, downsample with ffmpeg.
+5. 🔊 **Resize** (status: `resizing`): If audio > 25MB, downsample with ffmpeg.
 6. 🎙️ **Transcribe** (status: `transcribing`): Whisper transcription with detected language, segment + word timestamps.
 7. 📋 **Summarize** (status: `summarizing`): LLM-generated episode summary.
 8. ✂️ **Chunk** (status: `chunking`): Split transcript by Whisper segments.
