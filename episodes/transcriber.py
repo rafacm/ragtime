@@ -15,6 +15,34 @@ logger = logging.getLogger(__name__)
 
 FFMPEG_TIMEOUT = 300  # 5 minutes — must fit within Q_CLUSTER['timeout']
 
+# Tiers ordered from highest to lowest quality.
+# Each tuple: (channels, sample_rate, bitrate_str, bitrate_bps)
+RESIZE_TIERS = (
+    (1, 44100, "128k", 128_000),
+    (1, 32000, "96k", 96_000),
+    (1, 22050, "64k", 64_000),
+    (1, 16000, "48k", 48_000),
+    (1, 16000, "32k", 32_000),
+)
+
+RESIZE_SAFETY_MARGIN = 1.10  # 10% overhead for MP3 container/framing
+
+
+def _select_resize_tier(duration_seconds, max_size_bytes):
+    """Pick the gentlest resize tier whose estimated output fits under max_size_bytes.
+
+    Returns the tier index (into RESIZE_TIERS) or None if no tier fits.
+    """
+    if duration_seconds is None:
+        return len(RESIZE_TIERS) - 1
+
+    for i, (_channels, _sr, _br_str, bitrate_bps) in enumerate(RESIZE_TIERS):
+        estimated = (bitrate_bps / 8) * duration_seconds * RESIZE_SAFETY_MARGIN
+        if estimated <= max_size_bytes:
+            return i
+
+    return None
+
 
 def _resize_if_needed(episode):
     """Downsample audio with ffmpeg if it exceeds the max file size.
@@ -28,6 +56,19 @@ def _resize_if_needed(episode):
     if not shutil.which("ffmpeg"):
         raise RuntimeError("ffmpeg is not installed or not on PATH")
 
+    tier_idx = _select_resize_tier(
+        getattr(episode, "duration", None), max_size
+    )
+    if tier_idx is None:
+        # No tier fits the estimate — try the most aggressive as last resort.
+        tier_idx = len(RESIZE_TIERS) - 1
+
+    channels, sample_rate, bitrate_str, _ = RESIZE_TIERS[tier_idx]
+    logger.info(
+        "Episode %s: resize tier %d selected (ac=%d ar=%d b:a=%s)",
+        episode.pk, tier_idx, channels, sample_rate, bitrate_str,
+    )
+
     input_path = episode.audio_file.path
     output_path = None
 
@@ -40,9 +81,9 @@ def _resize_if_needed(episode):
                 [
                     "ffmpeg",
                     "-i", input_path,
-                    "-ac", "1",
-                    "-ar", "22050",
-                    "-b:a", "64k",
+                    "-ac", str(channels),
+                    "-ar", str(sample_rate),
+                    "-b:a", bitrate_str,
                     "-y",
                     output_path,
                 ],

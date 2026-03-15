@@ -319,3 +319,109 @@ class ResizeWithinTranscribeTests(TestCase):
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
         self.assertIn("ffmpeg failed", episode.error_message)
+
+    @patch("episodes.transcriber.get_transcription_provider")
+    @patch("episodes.transcriber.subprocess.run")
+    @patch("episodes.transcriber.shutil.which", return_value="/usr/bin/ffmpeg")
+    @override_settings(RAGTIME_MAX_AUDIO_SIZE=25 * 1024 * 1024)
+    def test_duration_selects_gentle_tier(self, mock_which, mock_run, mock_factory):
+        """Episode with short duration selects high-quality tier."""
+        from episodes.transcriber import transcribe_episode
+
+        mock_provider = MagicMock()
+        mock_provider.transcribe.return_value = SAMPLE_WHISPER_RESPONSE
+        mock_factory.return_value = mock_provider
+
+        def fake_ffmpeg(args, **kw):
+            output_path = args[-1]
+            with open(output_path, "wb") as f:
+                f.write(b"x" * 100)  # small enough
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = fake_ffmpeg
+
+        episode = self._create_episode_with_audio(
+            audio_size=26 * 1024 * 1024,
+            url="https://example.com/ep/rtr-6",
+            status=Episode.Status.TRANSCRIBING,
+            duration=600,  # 10 minutes — should pick tier 0 (128k)
+        )
+
+        with patch("episodes.signals.async_task"):
+            transcribe_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.SUMMARIZING)
+        ffmpeg_args = mock_run.call_args[0][0]
+        self.assertIn("128k", ffmpeg_args)
+        self.assertIn("44100", ffmpeg_args)
+
+    @patch("episodes.transcriber.get_transcription_provider")
+    @patch("episodes.transcriber.subprocess.run")
+    @patch("episodes.transcriber.shutil.which", return_value="/usr/bin/ffmpeg")
+    @override_settings(RAGTIME_MAX_AUDIO_SIZE=50)
+    def test_no_duration_uses_most_aggressive(self, mock_which, mock_run, mock_factory):
+        """Episode without duration falls back to tier 4 (32k)."""
+        from episodes.transcriber import transcribe_episode
+
+        mock_provider = MagicMock()
+        mock_provider.transcribe.return_value = SAMPLE_WHISPER_RESPONSE
+        mock_factory.return_value = mock_provider
+
+        def fake_ffmpeg(args, **kw):
+            output_path = args[-1]
+            with open(output_path, "wb") as f:
+                f.write(b"small" * 5)
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = fake_ffmpeg
+
+        episode = self._create_episode_with_audio(
+            audio_size=200,
+            url="https://example.com/ep/rtr-7",
+            status=Episode.Status.TRANSCRIBING,
+            # no duration set
+        )
+
+        with patch("episodes.signals.async_task"):
+            transcribe_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.SUMMARIZING)
+        ffmpeg_args = mock_run.call_args[0][0]
+        self.assertIn("32k", ffmpeg_args)
+        self.assertIn("16000", ffmpeg_args)
+
+
+class ResizeTierSelectionTests(TestCase):
+    """Pure unit tests for _select_resize_tier."""
+
+    def test_short_episode_picks_tier_0(self):
+        from episodes.transcriber import _select_resize_tier
+
+        # 600s at 128kbps * 1.10 = ~10.56MB, well under 25MB
+        max_size = 25 * 1024 * 1024
+        self.assertEqual(_select_resize_tier(600, max_size), 0)
+
+    def test_medium_episode_picks_lower_tier(self):
+        from episodes.transcriber import _select_resize_tier
+
+        # 3600s at 128kbps * 1.10 = ~63.4MB > 25MB → not tier 0
+        # 3600s at 96kbps * 1.10 = ~47.5MB > 25MB → not tier 1
+        # 3600s at 64kbps * 1.10 = ~31.7MB > 25MB → not tier 2
+        # 3600s at 48kbps * 1.10 = ~23.8MB < 25MB → tier 3
+        max_size = 25 * 1024 * 1024
+        self.assertEqual(_select_resize_tier(3600, max_size), 3)
+
+    def test_very_long_episode_returns_none(self):
+        from episodes.transcriber import _select_resize_tier
+
+        # 20000s at 32kbps * 1.10 = ~88MB > 25MB → no tier fits
+        max_size = 25 * 1024 * 1024
+        self.assertIsNone(_select_resize_tier(20000, max_size))
+
+    def test_none_duration_returns_last_tier(self):
+        from episodes.transcriber import _select_resize_tier
+
+        max_size = 25 * 1024 * 1024
+        self.assertEqual(_select_resize_tier(None, max_size), 4)
