@@ -33,34 +33,20 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 
 Each episode goes through the following steps, with status tracked throughout:
 
-| Step | Description | Status |
-|------|-------------|--------|
-| 1. Submit | User submits an episode page URL | `pending` |
-| 2. Dedup | Check if episode URL already exists | `pending` |
-| 3. Scrape | Extract metadata (title, description, date, image) + detect language | `scraping` |
-| 4. Download | Find and download the audio file | `downloading` |
-| 5. Resize | If audio > 25MB, downsample with ffmpeg | `downloading` |
-| 6. Transcribe | Whisper transcription with detected language, segment + word timestamps | `transcribing` |
-| 7. Summarize | LLM-generated episode summary | `summarizing` |
-| 8. Chunk | Split transcript by Whisper segments | `chunking` |
-| 9. Extract | LLM-based entity extraction (artists, albums, venues, etc.) | `extracting` |
-| 10. Resolve | LLM-based entity resolution against existing entities in DB | `resolving` |
-| 11. Embed | Generate multilingual embeddings and store in ChromaDB | `embedding` |
-| 12. Ready | Episode available for Scott to reference | `ready` |
+1. 📥 **Submit** (status: `pending`): User submits an episode page URL.
+2. 🔁 **Dedup** (status: `pending`): Check if episode URL already exists.
+3. 🕷️ **Scrape** (status: `scraping`): Extract metadata (title, description, date, image) + detect language.
+4. ⬇️ **Download** (status: `downloading`): Find and download the audio file.
+5. 🔊 **Resize** (status: `downloading`): If audio > 25MB, downsample with ffmpeg.
+6. 🎙️ **Transcribe** (status: `transcribing`): Whisper transcription with detected language, segment + word timestamps.
+7. 📋 **Summarize** (status: `summarizing`): LLM-generated episode summary.
+8. ✂️ **Chunk** (status: `chunking`): Split transcript by Whisper segments.
+9. 🔍 **Extract** (status: `extracting`): LLM-based entity extraction. Entity types (artist, band, album, composition, venue, recording session, label, year, era, city, country, sub-genre, instrument, role) are stored in the database and managed via Django admin. An initial set of 14 types is defined in [`episodes/initial_entity_types.yaml`](episodes/initial_entity_types.yaml) — load them with `uv run python manage.py load_entity_types`. New types can be added through Django admin; existing types can be deactivated (set `is_active = False`) to exclude them from future extractions without deleting historical data. Types that have existing entities cannot be deleted (protected by referential integrity).
+10. 🧩 **Resolve** (status: `resolving`): LLM-based entity resolution against existing entities in DB.
+11. 📐 **Embed** (status: `embedding`): Generate multilingual embeddings and store in ChromaDB.
+12. ✅ **Ready** (status: `ready`): Episode available for Scott to reference.
 
 Any step failure marks the episode as `failed`.
-
-## Extracted Entities
-
-Step 9 extracts jazz entity types from each episode transcript. Entity types are stored in the database and managed via Django admin.
-
-An initial set of 14 entity types (artist, band, album, composition, venue, recording session, label, year, era, city, country, sub-genre, instrument, role) is defined in [`episodes/initial_entity_types.yaml`](episodes/initial_entity_types.yaml). Load them with:
-
-```bash
-uv run python manage.py load_entity_types
-```
-
-New entity types can be added through Django admin. Existing types can be deactivated (set `is_active = False`) to exclude them from future extractions without deleting historical data. Types that have existing entities cannot be deleted (protected by referential integrity).
 
 ## Tech Stack
 
