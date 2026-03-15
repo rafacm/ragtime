@@ -49,7 +49,7 @@ Download the audio file and extract duration.
 
 #### 4. 🎙️ Transcribe (status: `transcribing`)
 
-If audio exceeds 25 MB, downsample with ffmpeg first. Whisper transcription with detected language, producing segment and word-level timestamps.
+If audio exceeds the file-size limit (default 25 MB), downsample with ffmpeg first. Whisper transcription with detected language, producing segment and word-level timestamps.
 
 #### 5. 📋 Summarize (status: `summarizing`)
 
