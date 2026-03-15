@@ -8,8 +8,8 @@ The audio resize step always applied the most aggressive ffmpeg settings (mono/2
 
 | File | Change |
 |------|--------|
-| `episodes/transcriber.py` | Added `RESIZE_TIERS` (5 tiers from 128k to 32k), `RESIZE_SAFETY_MARGIN`, `_select_resize_tier()` function; updated `_resize_if_needed` to use dynamic tier selection with info logging |
-| `episodes/tests/test_transcribe.py` | Added `ResizeTierSelectionTests` (4 unit tests for tier selection logic) and 2 integration tests for duration-based and fallback tier selection |
+| `episodes/transcriber.py` | Added `RESIZE_TIERS` (5 tiers from 128k to 32k), `RESIZE_SAFETY_MARGIN`, `_select_resize_tier()` function; updated `_resize_if_needed` to use dynamic tier selection with retry loop and info logging; added `-hide_banner -loglevel error` to ffmpeg args |
+| `episodes/tests/test_transcribe.py` | Added `ResizeTierSelectionTests` (4 unit tests for tier selection logic) and 3 integration tests for duration-based tier selection, retry on oversize, and fallback |
 
 ## Key Parameters
 
@@ -25,15 +25,16 @@ The audio resize step always applied the most aggressive ffmpeg settings (mono/2
 uv run python manage.py test episodes.tests.test_transcribe
 ```
 
-All 18 tests pass. New tests verify:
+All 19 tests pass. New tests verify:
 - Short episode (600s) selects tier 0 (128k)
 - Medium episode (3600s) selects tier 3 (48k)
 - Very long episode (20000s) where no tier fits returns `None`
 - `None` duration returns tier 4
-- Integration: episode with `duration=600` gets 128k ffmpeg args
+- Integration: episode with `duration=10` gets 128k ffmpeg args
 - Integration: episode without duration gets 32k ffmpeg args
+- Integration: retry with next tier when first tier output exceeds limit
 
 ## Files Modified
 
-- `episodes/transcriber.py` — Added tier constants, `_select_resize_tier()`, updated `_resize_if_needed` to use adaptive tiers
-- `episodes/tests/test_transcribe.py` — Added `ResizeTierSelectionTests` class and 2 new integration tests
+- `episodes/transcriber.py` — Added tier constants, `_select_resize_tier()`, updated `_resize_if_needed` to use adaptive tiers with retry loop and `-hide_banner -loglevel error` ffmpeg flags
+- `episodes/tests/test_transcribe.py` — Added `ResizeTierSelectionTests` class and 3 new integration tests

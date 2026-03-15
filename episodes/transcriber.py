@@ -32,6 +32,7 @@ def _select_resize_tier(duration_seconds, max_size_bytes):
     """Pick the gentlest resize tier whose estimated output fits under max_size_bytes.
 
     Returns the tier index (into RESIZE_TIERS) or None if no tier fits.
+    If duration_seconds is None, returns the last (most aggressive) tier.
     """
     if duration_seconds is None:
         return len(RESIZE_TIERS) - 1
@@ -83,6 +84,7 @@ def _resize_if_needed(episode):
                 result = subprocess.run(
                     [
                         "ffmpeg",
+                        "-hide_banner", "-loglevel", "error",
                         "-i", input_path,
                         "-ac", str(channels),
                         "-ar", str(sample_rate),
