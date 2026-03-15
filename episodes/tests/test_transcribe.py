@@ -323,9 +323,9 @@ class ResizeWithinTranscribeTests(TestCase):
     @patch("episodes.transcriber.get_transcription_provider")
     @patch("episodes.transcriber.subprocess.run")
     @patch("episodes.transcriber.shutil.which", return_value="/usr/bin/ffmpeg")
-    @override_settings(RAGTIME_MAX_AUDIO_SIZE=100)
+    @override_settings(RAGTIME_MAX_AUDIO_SIZE=200_000)
     def test_duration_selects_gentle_tier(self, mock_which, mock_run, mock_factory):
-        """Episode with short duration selects high-quality tier."""
+        """Episode with short duration selects high-quality tier (128k)."""
         from episodes.transcriber import transcribe_episode
 
         mock_provider = MagicMock()
@@ -335,16 +335,17 @@ class ResizeWithinTranscribeTests(TestCase):
         def fake_ffmpeg(args, **kw):
             output_path = args[-1]
             with open(output_path, "wb") as f:
-                f.write(b"x" * 50)  # under 100 limit
+                f.write(b"x" * 100)
             return MagicMock(returncode=0)
 
         mock_run.side_effect = fake_ffmpeg
 
+        # 10s at 128kbps * 1.10 = 176,000 bytes, under 200,000 limit → tier 0
         episode = self._create_episode_with_audio(
-            audio_size=200,
+            audio_size=300_000,
             url="https://example.com/ep/rtr-6",
             status=Episode.Status.TRANSCRIBING,
-            duration=0.0005,  # tiny duration — tier 0 estimate fits under 100 bytes
+            duration=10,
         )
 
         with patch("episodes.signals.async_task"):
@@ -359,7 +360,7 @@ class ResizeWithinTranscribeTests(TestCase):
     @patch("episodes.transcriber.get_transcription_provider")
     @patch("episodes.transcriber.subprocess.run")
     @patch("episodes.transcriber.shutil.which", return_value="/usr/bin/ffmpeg")
-    @override_settings(RAGTIME_MAX_AUDIO_SIZE=100)
+    @override_settings(RAGTIME_MAX_AUDIO_SIZE=200_000)
     def test_retry_with_lower_tier_on_oversize(self, mock_which, mock_run, mock_factory):
         """First tier output too large → retries with next tier until it fits."""
         from episodes.transcriber import transcribe_episode
@@ -376,16 +377,17 @@ class ResizeWithinTranscribeTests(TestCase):
             output_path = args[-1]
             with open(output_path, "wb") as f:
                 # First call: still too large; second call: fits
-                f.write(b"x" * (200 if call_count == 1 else 50))
+                f.write(b"x" * (300_000 if call_count == 1 else 100))
             return MagicMock(returncode=0)
 
         mock_run.side_effect = fake_ffmpeg
 
+        # 10s at 128kbps * 1.10 = 176,000 bytes → starts at tier 0
         episode = self._create_episode_with_audio(
-            audio_size=200,
+            audio_size=300_000,
             url="https://example.com/ep/rtr-8",
             status=Episode.Status.TRANSCRIBING,
-            duration=0.0005,  # tiny duration — starts at tier 0
+            duration=10,
         )
 
         with patch("episodes.signals.async_task"):
