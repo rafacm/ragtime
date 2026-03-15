@@ -49,6 +49,11 @@ Use `uv` for everything — never `pip install` directly.
 
 ## Branching
 
+Before beginning any new work, always:
+1. Verify we are on the `main` branch (`git branch --show-current`) and switch to it if not
+2. Pull latest changes (`git pull --rebase`)
+3. If there are any issues with the two points above, stop and ask for guidance before proceeding.
+
 All new features and fixes must be implemented in a dedicated branch off `main`. Never commit directly to `main`. Use a descriptive branch name (e.g., `feature/transcribe-step`, `fix/dedup-race-condition`). Once the work is complete, open a pull request to merge back into `main`.
 
 When creating PRs, use the rebase strategy. Squash and merge-commit strategies are not allowed on this repository.
@@ -88,3 +93,7 @@ Whenever a `RAGTIME_*` environment variable is added, changed, or removed, updat
 `CHANGELOG.md` follows the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format, using dates (`## YYYY-MM-DD`) as section headers instead of version numbers. Under each date, group entries by category (`### Added`, `### Changed`, `### Deprecated`, `### Removed`, `### Fixed`, `### Security`). Each entry includes a short description and links to the plan document, the feature document, and both session transcripts. Newest dates first; add to an existing date section if one already exists for today.
 
 The commit for a given feature MUST contain the plan, the feature documentation, and both session transcripts (planning and implementation).
+
+## PR Creation
+
+When creating PRs, ensure the PR includes: changelog entry, session transcripts (planning + implementation), and feature doc. Review the Documentation section above for full requirements before creating the PR.
