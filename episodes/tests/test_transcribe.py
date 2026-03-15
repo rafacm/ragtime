@@ -273,7 +273,7 @@ class ResizeWithinTranscribeTests(TestCase):
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
-        self.assertIn("exceeds 25MB after resizing", episode.error_message)
+        self.assertIn("limit after resizing", episode.error_message)
 
     @patch("episodes.transcriber.get_transcription_provider")
     @patch("episodes.transcriber.shutil.which", return_value=None)
