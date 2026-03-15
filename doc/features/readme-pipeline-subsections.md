@@ -2,7 +2,7 @@
 
 ## Problem
 
-The README's "Processing Pipeline" section used a numbered list with one-line descriptions. Six of the eleven step descriptions had drifted from the actual implementation, and the flat list format couldn't accommodate detailed content like entity type management without looking disproportionate.
+The README's "Processing Pipeline" section used a numbered list with one-line descriptions. Seven of the eleven step descriptions had drifted from the actual implementation, and the flat list format couldn't accommodate detailed content like entity type management without looking disproportionate.
 
 ## Changes
 
@@ -24,6 +24,10 @@ Converted the numbered list into `###` subsections — one per pipeline step —
 | Embed | Added "for transcript chunks" |
 | Ready | Minor rewording |
 
+## Key parameters
+
+N/A — documentation-only change, no tunable constants.
+
 ## Verification
 
 - Visual review of rendered markdown confirms correct heading levels and formatting
@@ -33,4 +37,4 @@ Converted the numbered list into `###` subsections — one per pipeline step —
 
 | File | Change |
 |------|--------|
-| `README.md` | Replaced pipeline numbered list with `###` subsections, fixed 6 step descriptions |
+| `README.md` | Replaced pipeline numbered list with `###` subsections, fixed 7 step descriptions |

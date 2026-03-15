@@ -5,7 +5,7 @@
 
 ## Summary
 
-Reviewed every pipeline step description in the README against the actual implementation, identified 6 mismatches and a format limitation, and produced a plan to convert the numbered list to `###` subsections with corrected descriptions.
+Reviewed every pipeline step description in the README against the actual implementation, identified 7 mismatches and a format limitation, and produced a plan to convert the numbered list to `###` subsections with corrected descriptions.
 
 ## Conversation
 
@@ -21,7 +21,7 @@ Review the "Processing Pipeline" section in the README. For each of the steps, r
 ### Assistant
 Explored the codebase in depth: read `episodes/pipeline.py` for the full step sequence, `episodes/views.py` for submit/dedup logic, `episodes/providers/` for scraping/transcription/extraction implementations, `episodes/models.py` for status fields and entity types, and `episodes/management/commands/load_entity_types.py`.
 
-Findings on description mismatches (6 steps):
+Findings on description mismatches (7 steps):
 
 - **Submit** — "notified" is vague; duplicates are actually rejected via `unique=True` constraint and form validation error
 - **Scrape** — omits audio URL extraction (critical field) and the `needs_review` fallback path for missing required fields
