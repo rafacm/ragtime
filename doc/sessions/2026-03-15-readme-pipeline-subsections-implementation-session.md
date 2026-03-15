@@ -5,7 +5,7 @@
 
 ## Summary
 
-Implemented the plan to convert the README's Processing Pipeline section from a numbered list to `###` subsections, correcting 7 step descriptions to match the actual implementation.
+Implemented the plan to convert the README's Processing Pipeline section from a numbered list to `####` subsections under a new `### Steps` heading, correcting 7 step descriptions to match the actual implementation.
 
 ## Conversation
 
@@ -13,7 +13,7 @@ Implemented the plan to convert the README's Processing Pipeline section from a 
 Implement the plan to update the README pipeline section to subsection format.
 
 ### Assistant
-Read the current `README.md` to locate the pipeline section (lines 34–48). Replaced the numbered list with 11 `###` subsections, each with the format `### N. EMOJI Name — \`status\`` followed by a corrected description paragraph.
+Read the current `README.md` to locate the pipeline section (lines 34–48). Replaced the numbered list with 11 `####` subsections under a new `### Steps` heading, each with the format `#### N. EMOJI Name (status: \`...\`)` followed by a corrected description paragraph.
 
 Key description changes applied:
 - Submit: "detected and notified" → "rejected"

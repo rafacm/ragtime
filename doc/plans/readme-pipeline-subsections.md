@@ -2,11 +2,11 @@
 
 ## Context
 
-The README's "Processing Pipeline" section uses a numbered list with one-line descriptions per step. Several descriptions diverge from the actual implementation, and the format doesn't allow enough detail (e.g., Entity Types management details feel out of place in a list item). Converting to `###` subsections per step fixes both issues: descriptions can be richer, entity type details stay inline, and each step gets a linkable anchor.
+The README's "Processing Pipeline" section uses a numbered list with one-line descriptions per step. Several descriptions diverge from the actual implementation, and the format doesn't allow enough detail (e.g., Entity Types management details feel out of place in a list item). Converting to subsections per step fixes both issues: descriptions can be richer, entity type details stay inline, and each step gets a linkable anchor.
 
 ## Format
 
-Each step becomes a `### N. EMOJI Name — \`status\`` heading followed by a short paragraph (1-3 sentences). The introductory text and the "Any step failure..." note are preserved.
+A `### Steps` heading is added under `## Processing Pipeline`. Each step becomes a `#### N. EMOJI Name (status: \`...\`)` heading followed by a short paragraph (1-3 sentences). The introductory text is replaced with a description of the signal-based dispatch mechanism.
 
 ## File to edit
 
