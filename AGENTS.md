@@ -52,7 +52,7 @@ Use `uv` for everything — never `pip install` directly.
 Before beginning any new work, always:
 1. Verify we are on the `main` branch (`git branch --show-current`) and switch to it if not
 2. Pull latest changes (`git pull --rebase`)
-3. If there are any issues with the two points above, stop and ask for guidance before proceeding.
+3. If there are any issues with steps 1–2 above, stop and ask for guidance before proceeding.
 
 All new features and fixes must be implemented in a dedicated branch off `main`. Never commit directly to `main`. Use a descriptive branch name (e.g., `feature/transcribe-step`, `fix/dedup-race-condition`). Once the work is complete, open a pull request to merge back into `main`.
 
@@ -96,4 +96,4 @@ The commit for a given feature MUST contain the plan, the feature documentation,
 
 ## PR Creation
 
-When creating PRs, ensure the PR includes: changelog entry, session transcripts (planning + implementation), and feature doc. Review the Documentation section above for full requirements before creating the PR.
+When creating PRs, ensure the PR includes: plan document, feature doc, session transcripts (planning + implementation), and changelog entry. Review the Documentation section above for full requirements before creating the PR.
