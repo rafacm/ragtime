@@ -169,3 +169,153 @@ class TranscribeEpisodeTests(TestCase):
         mock_provider.transcribe.assert_called_once()
         _, kwargs = mock_provider.transcribe.call_args
         self.assertEqual(kwargs["language"], "en")
+
+
+@override_settings(
+    RAGTIME_TRANSCRIPTION_PROVIDER="openai",
+    RAGTIME_TRANSCRIPTION_API_KEY="test-key",
+    RAGTIME_TRANSCRIPTION_MODEL="whisper-1",
+)
+class ResizeWithinTranscribeTests(TestCase):
+    """Tests for the resize logic embedded in transcribe_episode."""
+
+    def _create_episode_with_audio(self, audio_size=100, **kwargs):
+        from django.core.files.base import ContentFile
+
+        with patch("episodes.signals.async_task"):
+            episode = Episode.objects.create(**kwargs)
+            episode.audio_file.save(
+                f"{episode.pk}.mp3",
+                ContentFile(b"x" * audio_size),
+                save=True,
+            )
+        return episode
+
+    @patch("episodes.transcriber.get_transcription_provider")
+    @override_settings(RAGTIME_MAX_AUDIO_SIZE=25 * 1024 * 1024)
+    def test_small_file_skips_resize(self, mock_factory):
+        """File under max size → no resize, transcription proceeds."""
+        from episodes.transcriber import transcribe_episode
+
+        mock_provider = MagicMock()
+        mock_provider.transcribe.return_value = SAMPLE_WHISPER_RESPONSE
+        mock_factory.return_value = mock_provider
+
+        episode = self._create_episode_with_audio(
+            audio_size=100,
+            url="https://example.com/ep/rtr-1",
+            status=Episode.Status.TRANSCRIBING,
+        )
+
+        with patch("episodes.signals.async_task"):
+            transcribe_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.SUMMARIZING)
+
+    @patch("episodes.transcriber.get_transcription_provider")
+    @patch("episodes.transcriber.subprocess.run")
+    @patch("episodes.transcriber.shutil.which", return_value="/usr/bin/ffmpeg")
+    @override_settings(RAGTIME_MAX_AUDIO_SIZE=50)
+    def test_large_file_resized(self, mock_which, mock_run, mock_factory):
+        """File over max size → ffmpeg resize, then transcription."""
+        from episodes.transcriber import transcribe_episode
+
+        mock_provider = MagicMock()
+        mock_provider.transcribe.return_value = SAMPLE_WHISPER_RESPONSE
+        mock_factory.return_value = mock_provider
+
+        def fake_ffmpeg(args, **kw):
+            output_path = args[-1]
+            with open(output_path, "wb") as f:
+                f.write(b"small" * 5)  # 25 bytes, under 50 limit
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = fake_ffmpeg
+
+        episode = self._create_episode_with_audio(
+            audio_size=200,
+            url="https://example.com/ep/rtr-2",
+            status=Episode.Status.TRANSCRIBING,
+        )
+
+        with patch("episodes.signals.async_task"):
+            transcribe_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.SUMMARIZING)
+        mock_run.assert_called_once()
+
+    @patch("episodes.transcriber.get_transcription_provider")
+    @patch("episodes.transcriber.subprocess.run")
+    @patch("episodes.transcriber.shutil.which", return_value="/usr/bin/ffmpeg")
+    @override_settings(RAGTIME_MAX_AUDIO_SIZE=50)
+    def test_still_too_large_after_resize(self, mock_which, mock_run, mock_factory):
+        """Resized file still over max → status failed."""
+        from episodes.transcriber import transcribe_episode
+
+        def fake_ffmpeg(args, **kw):
+            output_path = args[-1]
+            with open(output_path, "wb") as f:
+                f.write(b"x" * 200)  # still too large
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = fake_ffmpeg
+
+        episode = self._create_episode_with_audio(
+            audio_size=200,
+            url="https://example.com/ep/rtr-3",
+            status=Episode.Status.TRANSCRIBING,
+        )
+
+        with patch("episodes.signals.async_task"):
+            transcribe_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.FAILED)
+        self.assertIn("exceeds 25MB after resizing", episode.error_message)
+
+    @patch("episodes.transcriber.get_transcription_provider")
+    @patch("episodes.transcriber.shutil.which", return_value=None)
+    @override_settings(RAGTIME_MAX_AUDIO_SIZE=50)
+    def test_no_ffmpeg_fails(self, mock_which, mock_factory):
+        """ffmpeg not on PATH → status failed."""
+        from episodes.transcriber import transcribe_episode
+
+        episode = self._create_episode_with_audio(
+            audio_size=200,
+            url="https://example.com/ep/rtr-4",
+            status=Episode.Status.TRANSCRIBING,
+        )
+
+        with patch("episodes.signals.async_task"):
+            transcribe_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.FAILED)
+        self.assertIn("ffmpeg is not installed", episode.error_message)
+
+    @patch("episodes.transcriber.get_transcription_provider")
+    @patch("episodes.transcriber.subprocess.run")
+    @patch("episodes.transcriber.shutil.which", return_value="/usr/bin/ffmpeg")
+    @override_settings(RAGTIME_MAX_AUDIO_SIZE=50)
+    def test_ffmpeg_error_fails(self, mock_which, mock_run, mock_factory):
+        """ffmpeg returns non-zero → status failed."""
+        from episodes.transcriber import transcribe_episode
+
+        mock_run.return_value = MagicMock(
+            returncode=1, stderr=b"Invalid input file"
+        )
+
+        episode = self._create_episode_with_audio(
+            audio_size=200,
+            url="https://example.com/ep/rtr-5",
+            status=Episode.Status.TRANSCRIBING,
+        )
+
+        with patch("episodes.signals.async_task"):
+            transcribe_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.FAILED)
+        self.assertIn("ffmpeg failed", episode.error_message)

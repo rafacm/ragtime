@@ -8,7 +8,6 @@ class Episode(models.Model):
         SCRAPING = "scraping"
         NEEDS_REVIEW = "needs_review"
         DOWNLOADING = "downloading"
-        RESIZING = "resizing"
         TRANSCRIBING = "transcribing"
         SUMMARIZING = "summarizing"
         CHUNKING = "chunking"
@@ -156,7 +155,6 @@ class Chunk(models.Model):
 PIPELINE_STEPS = [
     Episode.Status.SCRAPING,
     Episode.Status.DOWNLOADING,
-    Episode.Status.RESIZING,
     Episode.Status.TRANSCRIBING,
     Episode.Status.SUMMARIZING,
     Episode.Status.CHUNKING,

@@ -1,12 +1,11 @@
 import subprocess
 from unittest.mock import patch
 
-from django.test import TestCase, override_settings
+from django.test import TestCase
 
 from episodes.models import Episode
 
 
-@override_settings(RAGTIME_MAX_AUDIO_SIZE=25 * 1024 * 1024)
 class DownloadEpisodeTests(TestCase):
     """Tests for the download_episode task function."""
 
@@ -17,7 +16,7 @@ class DownloadEpisodeTests(TestCase):
     @patch("episodes.downloader.MP3")
     @patch("episodes.downloader.subprocess.run")
     def test_success_small_file(self, mock_run, mock_mp3):
-        """Download ≤ 25MB → status transcribing."""
+        """Download → status transcribing."""
         from episodes.downloader import download_episode
 
         audio_data = b"fake-mp3-data" * 100  # small file
@@ -46,12 +45,11 @@ class DownloadEpisodeTests(TestCase):
 
     @patch("episodes.downloader.MP3")
     @patch("episodes.downloader.subprocess.run")
-    @override_settings(RAGTIME_MAX_AUDIO_SIZE=100)  # 100 bytes limit
-    def test_large_file_triggers_resize(self, mock_run, mock_mp3):
-        """Download > max size → status resizing."""
+    def test_large_file_still_goes_to_transcribing(self, mock_run, mock_mp3):
+        """Download of large file → status transcribing (resize happens in transcribe step)."""
         from episodes.downloader import download_episode
 
-        audio_data = b"x" * 200  # exceeds 100 byte limit
+        audio_data = b"x" * 200
         mock_mp3.return_value.info.length = 120.0
 
         def write_fake_audio(cmd, **kwargs):
@@ -70,7 +68,7 @@ class DownloadEpisodeTests(TestCase):
             download_episode(episode.pk)
 
         episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.RESIZING)
+        self.assertEqual(episode.status, Episode.Status.TRANSCRIBING)
 
     @patch("episodes.downloader.subprocess.run")
     def test_wget_error_sets_failed(self, mock_run):

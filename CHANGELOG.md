@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Merge Resize into Transcribe — absorb ffmpeg downsampling into the transcribe step, reducing the pipeline from 11 to 10 steps. Resize was a transcription provider implementation detail, not a meaningful domain event — [plan](doc/plans/merge-resize-into-transcribe.md), [feature](doc/features/merge-resize-into-transcribe.md), [planning session](doc/sessions/2026-03-15-merge-resize-into-transcribe-planning-session.md), [implementation session](doc/sessions/2026-03-15-merge-resize-into-transcribe-implementation-session.md)
 - Restructure README Processing Pipeline from table to numbered emoji list, fold Extracted Entities section into Step 9 — [PR](https://github.com/rafacm/ragtime/pull/43)
 - Convert README pipeline section from numbered list to `###` subsections, fix 7 step descriptions to match implementation — [plan](doc/plans/readme-pipeline-subsections.md), [feature](doc/features/readme-pipeline-subsections.md), [planning session](doc/sessions/2026-03-15-readme-pipeline-subsections-planning-session.md), [implementation session](doc/sessions/2026-03-15-readme-pipeline-subsections-implementation-session.md)
 

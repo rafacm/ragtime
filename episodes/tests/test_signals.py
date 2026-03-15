@@ -24,7 +24,7 @@ class SignalTests(TestCase):
         mock_async.assert_not_called()
 
 
-class DownloadResizeSignalTests(TestCase):
+class DownloadSignalTests(TestCase):
     @patch("episodes.signals.async_task")
     def test_status_change_to_downloading_queues_download(self, mock_async):
         episode = Episode.objects.create(url="https://example.com/ep/sig-dl-1")
@@ -35,18 +35,6 @@ class DownloadResizeSignalTests(TestCase):
 
         mock_async.assert_called_once_with(
             "episodes.downloader.download_episode", episode.pk
-        )
-
-    @patch("episodes.signals.async_task")
-    def test_status_change_to_resizing_queues_resize(self, mock_async):
-        episode = Episode.objects.create(url="https://example.com/ep/sig-rs-1")
-        mock_async.reset_mock()
-
-        episode.status = Episode.Status.RESIZING
-        episode.save(update_fields=["status", "updated_at"])
-
-        mock_async.assert_called_once_with(
-            "episodes.resizer.resize_episode", episode.pk
         )
 
     @patch("episodes.signals.async_task")

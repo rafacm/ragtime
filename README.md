@@ -45,37 +45,33 @@ Extract metadata (title, description, date, image, audio URL) and detect languag
 
 #### 3. ⬇️ Download (status: `downloading`)
 
-Download the audio file and extract duration. Files ≤ 25 MB skip directly to Transcribe.
+Download the audio file and extract duration.
 
-#### 4. 🔊 Resize (status: `resizing`)
+#### 4. 🎙️ Transcribe (status: `transcribing`)
 
-If audio > 25 MB, downsample with ffmpeg to fit within the transcription API's file-size limit.
+If audio exceeds 25 MB, downsample with ffmpeg first. Whisper transcription with detected language, producing segment and word-level timestamps.
 
-#### 5. 🎙️ Transcribe (status: `transcribing`)
-
-Whisper transcription with detected language, producing segment and word-level timestamps.
-
-#### 6. 📋 Summarize (status: `summarizing`)
+#### 5. 📋 Summarize (status: `summarizing`)
 
 LLM-generated episode summary in the episode's detected language.
 
-#### 7. ✂️ Chunk (status: `chunking`)
+#### 6. ✂️ Chunk (status: `chunking`)
 
 Split transcript into ~150-word chunks along Whisper segment boundaries, with 1-segment overlap.
 
-#### 8. 🔍 Extract (status: `extracting`)
+#### 7. 🔍 Extract (status: `extracting`)
 
 LLM-based entity extraction from the transcript. Entity types (artist, band, album, composition, venue, recording session, label, year, era, city, country, sub-genre, instrument, role) are stored in the database and managed via Django admin. An initial set of 14 types is defined in [`episodes/initial_entity_types.yaml`](episodes/initial_entity_types.yaml) — load them with `uv run python manage.py load_entity_types`. New types can be added through Django admin; existing types can be deactivated (set `is_active = False`) to exclude them from future extractions without deleting historical data. Types that have existing entities cannot be deleted (protected by referential integrity).
 
-#### 9. 🧩 Resolve (status: `resolving`)
+#### 8. 🧩 Resolve (status: `resolving`)
 
 Match extracted entities against existing DB records using LLM-based fuzzy matching to prevent duplicates. Creates canonical entity records and links them to episodes.
 
-#### 10. 📐 Embed (status: `embedding`)
+#### 9. 📐 Embed (status: `embedding`)
 
 Generate multilingual embeddings for transcript chunks and store in ChromaDB.
 
-#### 11. ✅ Ready (status: `ready`)
+#### 10. ✅ Ready (status: `ready`)
 
 Episode fully processed and available for Scott to query.
 
