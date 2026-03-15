@@ -33,6 +33,8 @@ Use `uv` for everything — never `pip install` directly.
 
 **11-step pipeline** (`episodes/pipeline.py`): submit → scrape → download → resize → transcribe → summarize → chunk → extract → resolve → embed → ready. Each step updates the episode status. Failures set status to `failed`. Runs async via Django Q2.
 
+> **Keep in sync:** When adding, removing, or changing a pipeline step, update the "Processing Pipeline" section in `README.md` (each step is a `###` subsection with its status and description).
+
 **Entity resolution:** After extraction, entities (artists, bands, albums, venues, sessions, labels, years) are resolved against existing DB records using LLM-based fuzzy matching to prevent duplicates.
 
 **Scott (RAG agent):** Embeds user question → retrieves chunks from ChromaDB → LLM answers strictly from retrieved content with episode/timestamp references. Responds in the user's language via multilingual embeddings. No hallucination — refuses if no relevant content found.
