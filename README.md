@@ -31,7 +31,9 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 
 ## Processing Pipeline
 
-Each episode goes through the following steps, with status tracked throughout:
+Each step is a standalone module (`episodes/<step>.py`) that updates the episode's `status` field when it completes. A [`post_save` signal](episodes/signals.py) watches for status changes and dispatches the next step as an async [Django Q2](https://django-q2.readthedocs.io/) task — no central orchestrator needed. Any failure sets `status` to `failed` and halts the chain.
+
+### Steps
 
 #### 1. 📥 Submit (status: `pending`)
 
