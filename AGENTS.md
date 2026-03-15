@@ -31,7 +31,7 @@ Use `uv` for everything — never `pip install` directly.
 
 **Provider abstraction:** LLM, transcription, and embedding backends are pluggable via abstract base classes in `episodes/providers/base.py` with a factory in `episodes/providers/factory.py`. Configured through `RAGTIME_*` environment variables.
 
-**11-step pipeline** (`episodes/pipeline.py`): submit → scrape → download → resize → transcribe → summarize → chunk → extract → resolve → embed → ready. Each step updates the episode status. Failures set status to `failed`. Runs async via Django Q2.
+**10-step pipeline** (`episodes/pipeline.py`): submit → scrape → download → transcribe → summarize → chunk → extract → resolve → embed → ready. Each step updates the episode status. Failures set status to `failed`. Runs async via Django Q2.
 
 > **Keep in sync:** When adding, removing, or changing a pipeline step, update the "Processing Pipeline" section in `README.md` (each step is a `####` subsection with its status and description).
 

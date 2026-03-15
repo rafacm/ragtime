@@ -1,10 +1,80 @@
 import logging
+import os
+import shutil
+import subprocess
+import tempfile
+
+from django.conf import settings
+from django.core.files import File
 
 from .models import Episode
 from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_transcription_provider
 
 logger = logging.getLogger(__name__)
+
+FFMPEG_TIMEOUT = 600  # 10 minutes
+
+
+def _resize_if_needed(episode):
+    """Downsample audio with ffmpeg if it exceeds the max file size.
+
+    Returns True if the file was resized (so audio_file needs saving).
+    """
+    max_size = getattr(settings, "RAGTIME_MAX_AUDIO_SIZE", 25 * 1024 * 1024)
+    if episode.audio_file.size <= max_size:
+        return False
+
+    if not shutil.which("ffmpeg"):
+        raise RuntimeError("ffmpeg is not installed or not on PATH")
+
+    input_path = episode.audio_file.path
+    output_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+            output_path = tmp.name
+
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-i", input_path,
+                "-ac", "1",
+                "-ar", "22050",
+                "-b:a", "64k",
+                "-y",
+                output_path,
+            ],
+            capture_output=True,
+            timeout=FFMPEG_TIMEOUT,
+        )
+
+        if result.returncode != 0:
+            stderr = result.stderr.decode(errors="replace")
+            raise RuntimeError(
+                f"ffmpeg failed (exit {result.returncode}): {stderr[:500]}"
+            )
+
+        output_size = os.path.getsize(output_path)
+        if output_size > max_size:
+            raise RuntimeError(
+                f"Audio file exceeds 25MB after resizing "
+                f"({output_size / (1024 * 1024):.1f}MB)"
+            )
+
+        filename = f"{episode.pk}.mp3"
+        with open(output_path, "rb") as f:
+            episode.audio_file.save(filename, File(f), save=False)
+
+        logger.info("Episode %s audio resized to %.1fMB", episode.pk, output_size / (1024 * 1024))
+        return True
+
+    finally:
+        if output_path:
+            try:
+                os.unlink(output_path)
+            except OSError:
+                pass
 
 
 def transcribe_episode(episode_id: int) -> None:
@@ -32,6 +102,8 @@ def transcribe_episode(episode_id: int) -> None:
         return
 
     try:
+        resized = _resize_if_needed(episode)
+
         provider = get_transcription_provider()
         language = episode.language or None
         result = provider.transcribe(episode.audio_file.path, language=language)
@@ -40,14 +112,11 @@ def transcribe_episode(episode_id: int) -> None:
         episode.transcript = result.get("text", "")
         complete_step(episode, Episode.Status.TRANSCRIBING)
         episode.status = Episode.Status.SUMMARIZING
-        episode.save(
-            update_fields=[
-                "status",
-                "transcript",
-                "transcript_json",
-                "updated_at",
-            ]
-        )
+
+        update_fields = ["status", "transcript", "transcript_json", "updated_at"]
+        if resized:
+            update_fields.append("audio_file")
+        episode.save(update_fields=update_fields)
     except Exception as exc:
         logger.exception("Failed to transcribe episode %s", episode_id)
         episode.error_message = str(exc)

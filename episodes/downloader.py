@@ -3,12 +3,11 @@ import os
 import subprocess
 import tempfile
 
-from django.conf import settings
 from django.core.files import File
 from mutagen.mp3 import MP3
 
 from .models import Episode
-from .processing import complete_step, fail_step, skip_step, start_step
+from .processing import complete_step, fail_step, start_step
 
 logger = logging.getLogger(__name__)
 
@@ -52,23 +51,8 @@ def download_episode(episode_id: int) -> None:
         audio = MP3(episode.audio_file.path)
         episode.duration = int(audio.info.length)
 
-        # Check file size against Whisper API limit
-        file_size = episode.audio_file.size
-        max_size = getattr(settings, "RAGTIME_MAX_AUDIO_SIZE", 25 * 1024 * 1024)
-
-        if file_size <= max_size:
-            complete_step(episode, Episode.Status.DOWNLOADING)
-            skip_step(episode, Episode.Status.RESIZING)
-            episode.status = Episode.Status.TRANSCRIBING
-        else:
-            complete_step(episode, Episode.Status.DOWNLOADING)
-            episode.status = Episode.Status.RESIZING
-            logger.info(
-                "Episode %s audio is %.1fMB, queuing resize",
-                episode_id,
-                file_size / (1024 * 1024),
-            )
-
+        complete_step(episode, Episode.Status.DOWNLOADING)
+        episode.status = Episode.Status.TRANSCRIBING
         episode.save(update_fields=["status", "audio_file", "duration", "updated_at"])
 
     except Exception as exc:

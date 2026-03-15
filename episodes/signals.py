@@ -24,8 +24,6 @@ def queue_next_step(sender, instance, created, **kwargs):
         async_task("episodes.chunker.chunk_episode", instance.pk)
     elif instance.status == Episode.Status.DOWNLOADING:
         async_task("episodes.downloader.download_episode", instance.pk)
-    elif instance.status == Episode.Status.RESIZING:
-        async_task("episodes.resizer.resize_episode", instance.pk)
     elif instance.status == Episode.Status.TRANSCRIBING:
         async_task("episodes.transcriber.transcribe_episode", instance.pk)
     elif instance.status == Episode.Status.SUMMARIZING:
