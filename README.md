@@ -49,7 +49,7 @@ Download the audio file and extract duration.
 
 #### 4. 🎙️ Transcribe (status: `transcribing`)
 
-If audio exceeds the file-size limit (default 25 MB), adaptively downsample with ffmpeg — the gentlest settings that fit are chosen based on episode duration (from 128 kbps for slightly oversized files down to 32 kbps for very long episodes). Whisper transcription with detected language, producing segment and word-level timestamps.
+Send audio to the Whisper API (or a local Whisper-compatible endpoint) for transcription, producing segment and word-level timestamps in the detected language. Files that exceed the configurable size limit (default 25 MB) are [adaptively downsampled](doc/features/adaptive-audio-resize-tiers.md) with ffmpeg — the gentlest settings that fit are chosen based on episode duration, from 128 kbps for slightly oversized files down to 32 kbps for very long episodes.
 
 #### 5. 📋 Summarize (status: `summarizing`)
 
