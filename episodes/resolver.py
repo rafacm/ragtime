@@ -137,6 +137,19 @@ def _aggregate_entities_from_chunks(chunks):
     return aggregated
 
 
+def _create_mentions_for_name(name, entity, names_dict, episode):
+    """Build EntityMention objects for all (chunk, context) pairs where name appeared."""
+    mentions = []
+    for chunk, context in names_dict.get(name, []):
+        mentions.append(EntityMention(
+            entity=entity,
+            episode=episode,
+            chunk=chunk,
+            context=context,
+        ))
+    return mentions
+
+
 def resolve_entities(episode_id: int) -> None:
     try:
         episode = Episode.objects.get(pk=episode_id)
@@ -206,8 +219,10 @@ def resolve_entities(episode_id: int) -> None:
                         )
 
                         all_mentions = []
+                        handled_names = set()
                         for match in result["matches"]:
                             extracted_name = match["extracted_name"]
+                            handled_names.add(extracted_name)
                             wikidata_id = match.get("wikidata_id") or ""
                             canonical_name = match.get("canonical_name") or extracted_name
 
@@ -220,13 +235,25 @@ def resolve_entities(episode_id: int) -> None:
                                 entity.wikidata_id = wikidata_id
                                 entity.save(update_fields=["wikidata_id", "updated_at"])
 
-                            for chunk, context in names_dict.get(extracted_name, []):
-                                all_mentions.append(EntityMention(
-                                    entity=entity,
-                                    episode=episode,
-                                    chunk=chunk,
-                                    context=context,
-                                ))
+                            all_mentions.extend(
+                                _create_mentions_for_name(extracted_name, entity, names_dict, episode)
+                            )
+
+                        # Fallback: create entities for any names the LLM omitted
+                        for name in unique_names:
+                            if name not in handled_names:
+                                logger.warning(
+                                    "LLM omitted '%s' from resolution — creating without wikidata_id",
+                                    name,
+                                )
+                                entity = Entity.objects.create(
+                                    entity_type=entity_type,
+                                    name=name,
+                                )
+                                all_mentions.extend(
+                                    _create_mentions_for_name(name, entity, names_dict, episode)
+                                )
+
                         EntityMention.objects.bulk_create(all_mentions)
                     else:
                         # No Wikidata candidates — create all as new (no LLM call)
@@ -236,13 +263,9 @@ def resolve_entities(episode_id: int) -> None:
                                 entity_type=entity_type,
                                 name=name,
                             )
-                            for chunk, context in names_dict[name]:
-                                all_mentions.append(EntityMention(
-                                    entity=entity,
-                                    episode=episode,
-                                    chunk=chunk,
-                                    context=context,
-                                ))
+                            all_mentions.extend(
+                                _create_mentions_for_name(name, entity, names_dict, episode)
+                            )
                         EntityMention.objects.bulk_create(all_mentions)
                 else:
                     # Fetch Wikidata candidates for resolution
@@ -262,19 +285,22 @@ def resolve_entities(episode_id: int) -> None:
                     )
 
                     existing_by_id = {e.pk: e for e in existing}
+                    # Pre-compute wikidata_id lookup dict to avoid N+1 queries
+                    existing_by_wikidata = {
+                        e.wikidata_id: e for e in existing if e.wikidata_id
+                    }
                     all_mentions = []
+                    handled_names = set()
 
                     for match in result["matches"]:
                         matched_id = match["matched_entity_id"]
                         extracted_name = match["extracted_name"]
+                        handled_names.add(extracted_name)
                         wikidata_id = match.get("wikidata_id") or ""
 
                         if wikidata_id:
-                            # Try to find existing entity by wikidata_id
-                            wikidata_match = Entity.objects.filter(
-                                entity_type=entity_type,
-                                wikidata_id=wikidata_id,
-                            ).first()
+                            # Try to find existing entity by wikidata_id (O(1) dict lookup)
+                            wikidata_match = existing_by_wikidata.get(wikidata_id)
                             if wikidata_match:
                                 entity = wikidata_match
                             elif matched_id is not None and matched_id in existing_by_id:
@@ -282,6 +308,7 @@ def resolve_entities(episode_id: int) -> None:
                                 if not entity.wikidata_id:
                                     entity.wikidata_id = wikidata_id
                                     entity.save(update_fields=["wikidata_id", "updated_at"])
+                                    existing_by_wikidata[wikidata_id] = entity
                             else:
                                 entity, _created = Entity.objects.get_or_create(
                                     entity_type=entity_type,
@@ -291,6 +318,7 @@ def resolve_entities(episode_id: int) -> None:
                                 if not _created and not entity.wikidata_id:
                                     entity.wikidata_id = wikidata_id
                                     entity.save(update_fields=["wikidata_id", "updated_at"])
+                                existing_by_wikidata[wikidata_id] = entity
                         elif matched_id is not None and matched_id in existing_by_id:
                             entity = existing_by_id[matched_id]
                         else:
@@ -299,14 +327,25 @@ def resolve_entities(episode_id: int) -> None:
                                 name=match["canonical_name"],
                             )
 
-                        # Collect mentions for every (chunk, context) where this name appeared
-                        for chunk, context in names_dict.get(extracted_name, []):
-                            all_mentions.append(EntityMention(
-                                entity=entity,
-                                episode=episode,
-                                chunk=chunk,
-                                context=context,
-                            ))
+                        all_mentions.extend(
+                            _create_mentions_for_name(extracted_name, entity, names_dict, episode)
+                        )
+
+                    # Fallback: create entities for any names the LLM omitted
+                    for name in unique_names:
+                        if name not in handled_names:
+                            logger.warning(
+                                "LLM omitted '%s' from resolution — creating without wikidata_id",
+                                name,
+                            )
+                            entity, _created = Entity.objects.get_or_create(
+                                entity_type=entity_type,
+                                name=name,
+                            )
+                            all_mentions.extend(
+                                _create_mentions_for_name(name, entity, names_dict, episode)
+                            )
+
                     EntityMention.objects.bulk_create(all_mentions)
 
         complete_step(episode, Episode.Status.RESOLVING)

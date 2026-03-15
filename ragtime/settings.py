@@ -187,13 +187,22 @@ RAGTIME_WIKIDATA_DEBOUNCE_MS = int(os.getenv('RAGTIME_WIKIDATA_DEBOUNCE_MS', '30
 RAGTIME_WIKIDATA_MIN_CHARS = int(os.getenv('RAGTIME_WIKIDATA_MIN_CHARS', '3'))
 
 # Caches
+_wikidata_cache_backend = os.getenv('RAGTIME_WIKIDATA_CACHE_BACKEND', 'locmem')
+if _wikidata_cache_backend == 'db':
+    _wikidata_cache = {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'wikidata_cache',
+        'TIMEOUT': int(os.getenv('RAGTIME_WIKIDATA_CACHE_TTL', '604800')),
+    }
+else:
+    _wikidata_cache = {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'TIMEOUT': int(os.getenv('RAGTIME_WIKIDATA_CACHE_TTL', '604800')),
+    }
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
     },
-    'wikidata': {
-        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
-        'LOCATION': 'wikidata_cache',
-        'TIMEOUT': int(os.getenv('RAGTIME_WIKIDATA_CACHE_TTL', '604800')),
-    },
+    'wikidata': _wikidata_cache,
 }
