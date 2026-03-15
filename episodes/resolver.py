@@ -104,9 +104,9 @@ def resolve_entities(episode_id: int) -> None:
     start_step(episode, Episode.Status.RESOLVING)
 
     chunks = list(episode.chunks.order_by("index"))
-    has_any_entities = any(chunk.entities_json for chunk in chunks)
+    aggregated = _aggregate_entities_from_chunks(chunks)
 
-    if not chunks or not has_any_entities:
+    if not aggregated:
         EntityMention.objects.filter(episode=episode).delete()
         complete_step(episode, Episode.Status.RESOLVING)
         episode.status = Episode.Status.EMBEDDING
@@ -115,7 +115,6 @@ def resolve_entities(episode_id: int) -> None:
 
     try:
         provider = get_resolution_provider()
-        aggregated = _aggregate_entities_from_chunks(chunks)
 
         with transaction.atomic():
             # Delete existing mentions for idempotent reprocessing

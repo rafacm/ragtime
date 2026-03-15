@@ -386,6 +386,7 @@ class ResolveEntitiesTests(TestCase):
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
         self.assertEqual(Entity.objects.count(), 0)
         self.assertEqual(EntityMention.objects.count(), 0)
+        mock_factory.assert_not_called()
 
     @patch("episodes.resolver.get_resolution_provider")
     def test_unmatched_canonical_name_already_exists(self, mock_factory):
