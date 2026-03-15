@@ -37,3 +37,39 @@ Implemented in phases:
 **Phase 11 — Documentation:** Updated README (renamed sections, updated descriptions), CHANGELOG, created plan and feature docs, session transcripts.
 
 All 111 tests pass.
+
+### User
+Requested URL fix (`owner/ragtime` → `rafacm/ragtime`), Wikidata-powered EntityType admin with search widget (debouncing, min chars), and confirmation that the configure wizard handles Wikidata env vars.
+
+### Assistant
+Fixed URL in 3 files. Built admin Wikidata search widget with JS debouncing, configurable `RAGTIME_WIKIDATA_DEBOUNCE_MS` and `RAGTIME_WIKIDATA_MIN_CHARS`. Added AJAX views, URL routes, custom template, form validation requiring `wikidata_id` on add. Added Wikidata Q-ID hyperlinks to EntityType list/detail views. Confirmed configure wizard already handles Wikidata vars, added new ones.
+
+### User
+Requested Wikidata ID hyperlinks in EntityType admin list and detail views.
+
+### Assistant
+Added `wikidata_link` and `wikidata_id_display` methods to EntityTypeAdmin rendering `<a href="https://www.wikidata.org/wiki/Q..." target="_blank">` links. Updated tests to verify.
+
+### User
+Created PR #49, ran PR review, requested implementation of 7 Copilot review comments.
+
+### Assistant
+Implemented all 7 review comment fixes:
+
+1. **Dropped entities fallback (HIGH):** Added `handled_names` tracking in both no-existing and existing-entities branches. Names omitted by the LLM are created as fallback entities without `wikidata_id`. Added 2 new tests: `test_llm_omitted_name_fallback_new_entities` and `test_llm_omitted_name_fallback_existing_entities`.
+
+2. **Deterministic cache keys (HIGH):** Replaced `hash(tuple(...))` with `hashlib.sha256(urllib.parse.urlencode(sorted(params.items())).encode()).hexdigest()` for deterministic, cross-process-stable cache keys.
+
+3. **N+1 wikidata_id queries (MEDIUM):** Pre-computed `existing_by_wikidata` dict from `existing` entities before the match loop. All wikidata_id lookups are now O(1) dict lookups instead of DB queries.
+
+4. **Entity admin wikidata_id as hyperlink (MEDIUM):** Added `wikidata_link` (list) and `wikidata_id_display` (detail) methods to `EntityAdmin`, matching the EntityType pattern. Added 3 new tests.
+
+5. **Configurable min_chars in validation error (LOW):** Reads `settings.RAGTIME_WIKIDATA_MIN_CHARS` and interpolates into the error message via f-string.
+
+6. **Hard-coded URLs in JS (LOW):** Widget template now passes resolved URLs via `data-search-url` and `data-detail-url` attributes using `{% url %}` tags. JS reads these from the DOM instead of hard-coded paths.
+
+7. **DatabaseCache requires createcachetable (LOW):** Wikidata cache now defaults to `locmem`. Users opt in to persistent `db` cache via `RAGTIME_WIKIDATA_CACHE_BACKEND=db`. Added to `.env.sample` and configure helpers.
+
+Extracted `_create_mentions_for_name()` helper to reduce code duplication in resolver.
+
+All 126 tests pass (5 new tests added for review fixes).

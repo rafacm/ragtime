@@ -758,6 +758,109 @@ class ResolveEntitiesTests(TestCase):
         entity = Entity.objects.get(name="Miles Davis")
         self.assertEqual(entity.wikidata_id, "Q93341")
 
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_llm_omitted_name_fallback_new_entities(self, mock_factory):
+        """LLM omits a name from matches — fallback creates entity without wikidata_id."""
+        from episodes.resolver import resolve_entities
+
+        mock_provider = MagicMock()
+        # LLM only returns Miles Davis, omits John Coltrane
+        mock_provider.structured_extract.return_value = {
+            "matches": [
+                {
+                    "extracted_name": "Miles Davis",
+                    "canonical_name": "Miles Davis",
+                    "matched_entity_id": None,
+                    "wikidata_id": "Q93341",
+                },
+            ],
+        }
+        mock_factory.return_value = mock_provider
+
+        entities_json = {
+            "artist": [
+                {"name": "Miles Davis", "context": "trumpet"},
+                {"name": "John Coltrane", "context": "saxophone"},
+            ],
+        }
+
+        episode = self._create_episode(
+            url="https://example.com/ep/res-fallback-new",
+            status=Episode.Status.RESOLVING,
+        )
+        self._create_chunk(episode, index=0, entities_json=entities_json)
+
+        wikidata_candidates = {
+            "Miles Davis": [
+                {"qid": "Q93341", "label": "Miles Davis", "description": "trumpeter"},
+            ],
+        }
+
+        with patch("episodes.resolver._fetch_wikidata_candidates", return_value=wikidata_candidates):
+            with patch("episodes.signals.async_task"):
+                resolve_entities(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.EMBEDDING)
+
+        # Both entities created — Miles with Q-ID, Coltrane without
+        self.assertEqual(Entity.objects.count(), 2)
+        miles = Entity.objects.get(name="Miles Davis")
+        self.assertEqual(miles.wikidata_id, "Q93341")
+        coltrane = Entity.objects.get(name="John Coltrane")
+        self.assertEqual(coltrane.wikidata_id, "")
+
+        # Both have mentions
+        self.assertEqual(EntityMention.objects.filter(episode=episode).count(), 2)
+
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_llm_omitted_name_fallback_existing_entities(self, mock_factory):
+        """LLM omits a name when existing entities present — fallback creates it."""
+        from episodes.resolver import resolve_entities
+
+        artist_type = _get_entity_type("artist")
+        existing = Entity.objects.create(
+            entity_type=artist_type, name="Miles Davis"
+        )
+
+        mock_provider = MagicMock()
+        # LLM only returns Miles Davis, omits John Coltrane
+        mock_provider.structured_extract.return_value = {
+            "matches": [
+                {
+                    "extracted_name": "Miles Davis",
+                    "canonical_name": "Miles Davis",
+                    "matched_entity_id": existing.pk,
+                    "wikidata_id": None,
+                },
+            ],
+        }
+        mock_factory.return_value = mock_provider
+
+        entities_json = {
+            "artist": [
+                {"name": "Miles Davis", "context": "trumpet"},
+                {"name": "John Coltrane", "context": "saxophone"},
+            ],
+        }
+
+        episode = self._create_episode(
+            url="https://example.com/ep/res-fallback-exist",
+            status=Episode.Status.RESOLVING,
+        )
+        self._create_chunk(episode, index=0, entities_json=entities_json)
+
+        with patch("episodes.resolver._fetch_wikidata_candidates", return_value={}):
+            with patch("episodes.signals.async_task"):
+                resolve_entities(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.EMBEDDING)
+
+        # Miles matched, Coltrane created via fallback
+        self.assertEqual(Entity.objects.filter(entity_type=artist_type).count(), 2)
+        self.assertEqual(EntityMention.objects.filter(episode=episode).count(), 2)
+
     @patch("episodes.resolver._fetch_wikidata_candidates", return_value={})
     @patch("episodes.resolver.get_resolution_provider")
     def test_wikidata_fallback_on_failure(self, mock_factory, _mock_wd):

@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
 
-from episodes.models import EntityType, Episode
+from episodes.models import Entity, EntityType, Episode
 
 
 class EpisodeAdminTests(TestCase):
@@ -169,6 +169,51 @@ class EntityTypeAdminTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "https://www.wikidata.org/wiki/Q11111")
         self.assertContains(response, 'target="_blank"')
+
+
+class EntityAdminTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth.models import User
+
+        cls.admin_user = User.objects.create_superuser(
+            username="admin", password="testpass"
+        )
+
+    def setUp(self):
+        self.client.login(username="admin", password="testpass")
+
+    @patch("episodes.signals.async_task")
+    def test_list_shows_wikidata_link(self, _mock):
+        et = EntityType.objects.create(
+            key="ent_admin_list", name="Test Artist", wikidata_id="Q639669", description="Musician.",
+        )
+        Entity.objects.create(entity_type=et, name="Miles Davis", wikidata_id="Q93341")
+        response = self.client.get("/admin/episodes/entity/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "https://www.wikidata.org/wiki/Q93341")
+        self.assertContains(response, 'target="_blank"')
+
+    @patch("episodes.signals.async_task")
+    def test_detail_shows_wikidata_link(self, _mock):
+        et = EntityType.objects.create(
+            key="ent_admin_detail", name="Test Artist", wikidata_id="Q639669", description="Musician.",
+        )
+        entity = Entity.objects.create(entity_type=et, name="Miles Davis", wikidata_id="Q93341")
+        response = self.client.get(f"/admin/episodes/entity/{entity.pk}/change/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "https://www.wikidata.org/wiki/Q93341")
+        self.assertContains(response, 'target="_blank"')
+
+    @patch("episodes.signals.async_task")
+    def test_detail_no_wikidata_shows_dash(self, _mock):
+        et = EntityType.objects.create(
+            key="ent_admin_nodash", name="Test Artist", wikidata_id="Q639669", description="Musician.",
+        )
+        entity = Entity.objects.create(entity_type=et, name="Unknown Artist")
+        response = self.client.get(f"/admin/episodes/entity/{entity.pk}/change/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "wikidata.org")
 
 
 @override_settings(

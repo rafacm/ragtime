@@ -1,6 +1,8 @@
 """Wikidata API client for entity lookup and candidate matching."""
 
+import hashlib
 import logging
+import urllib.parse
 
 import httpx
 from django.conf import settings
@@ -26,7 +28,8 @@ def _get_user_agent():
 def _make_request(params: dict) -> dict:
     """Make a request to the Wikidata API with caching."""
     cache = _get_cache()
-    cache_key = f"wikidata:{hash(tuple(sorted(params.items())))}"
+    normalized = urllib.parse.urlencode(sorted(params.items()))
+    cache_key = f"wikidata:{hashlib.sha256(normalized.encode()).hexdigest()}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached

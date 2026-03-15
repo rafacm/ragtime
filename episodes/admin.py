@@ -375,9 +375,10 @@ class EntityTypeForm(forms.ModelForm):
     def clean_wikidata_id(self):
         value = self.cleaned_data.get("wikidata_id", "")
         if not value and not self.instance.pk:
+            min_chars = getattr(settings, "RAGTIME_WIKIDATA_MIN_CHARS", 3)
             raise forms.ValidationError(
-                "Select an entity type from Wikidata. "
-                "Type at least 3 characters in the search box above."
+                f"Select an entity type from Wikidata. "
+                f"Type at least {min_chars} characters in the search box above."
             )
         return value
 
@@ -460,11 +461,37 @@ class EntityTypeAdmin(admin.ModelAdmin):
 
 @admin.register(Entity)
 class EntityAdmin(admin.ModelAdmin):
-    list_display = ("name", "entity_type", "wikidata_id", "mention_count", "created_at")
+    list_display = ("name", "entity_type", "wikidata_link", "mention_count", "created_at")
     list_filter = ("entity_type__name",)
     search_fields = ("name",)
-    readonly_fields = ("entity_type", "name", "wikidata_id", "created_at", "updated_at")
+    readonly_fields = ("entity_type", "name", "wikidata_id_display", "created_at", "updated_at")
     inlines = [EntityMentionInlineForEntity]
+
+    def get_fieldsets(self, request, obj=None):
+        return [
+            (None, {"fields": ("entity_type", "name", "wikidata_id_display")}),
+            ("Timestamps", {"classes": ("collapse",), "fields": ("created_at", "updated_at")}),
+        ]
+
+    @admin.display(description="Wikidata ID")
+    def wikidata_link(self, obj):
+        if obj.wikidata_id:
+            return format_html(
+                '<a href="https://www.wikidata.org/wiki/{}" target="_blank" rel="noopener">{}</a>',
+                obj.wikidata_id,
+                obj.wikidata_id,
+            )
+        return "\u2014"
+
+    @admin.display(description="Wikidata ID")
+    def wikidata_id_display(self, obj):
+        if obj.wikidata_id:
+            return format_html(
+                '<a href="https://www.wikidata.org/wiki/{}" target="_blank" rel="noopener">{}</a>',
+                obj.wikidata_id,
+                obj.wikidata_id,
+            )
+        return "\u2014"
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)

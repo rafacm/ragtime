@@ -1,23 +1,25 @@
 (function() {
     'use strict';
 
-    const SEARCH_URL = '/episodes/wikidata/search/';
-    const DETAIL_URL = '/episodes/wikidata/entity/';
-
     function init(config) {
-        const debounceMs = config.debounceMs || 300;
-        const minChars = config.minChars || 3;
+        var debounceMs = config.debounceMs || 300;
+        var minChars = config.minChars || 3;
 
-        const searchInput = document.getElementById('wikidata-search-input');
-        const resultsContainer = document.getElementById('wikidata-results');
-        const selectedContainer = document.getElementById('wikidata-selected');
+        var wrapper = document.querySelector('.wikidata-search-wrapper');
+        var searchInput = document.getElementById('wikidata-search-input');
+        var resultsContainer = document.getElementById('wikidata-results');
+        var selectedContainer = document.getElementById('wikidata-selected');
 
-        if (!searchInput || !resultsContainer) return;
+        if (!searchInput || !resultsContainer || !wrapper) return;
 
-        let debounceTimer = null;
+        // Read URLs from data attributes (set by Django template)
+        var searchUrl = wrapper.getAttribute('data-search-url') || '/episodes/wikidata/search/';
+        var detailUrlTemplate = wrapper.getAttribute('data-detail-url') || '/episodes/wikidata/entity/__QID__/';
+
+        var debounceTimer = null;
 
         searchInput.addEventListener('input', function() {
-            const query = this.value.trim();
+            var query = this.value.trim();
             clearTimeout(debounceTimer);
 
             if (query.length < minChars) {
@@ -27,7 +29,7 @@
             }
 
             debounceTimer = setTimeout(function() {
-                performSearch(query, resultsContainer, selectedContainer);
+                performSearch(query, searchUrl, resultsContainer, selectedContainer, detailUrlTemplate);
             }, debounceMs);
         });
 
@@ -39,11 +41,11 @@
         });
     }
 
-    function performSearch(query, resultsContainer, selectedContainer) {
-        fetch(SEARCH_URL + '?q=' + encodeURIComponent(query))
+    function performSearch(query, searchUrl, resultsContainer, selectedContainer, detailUrlTemplate) {
+        fetch(searchUrl + '?q=' + encodeURIComponent(query))
             .then(function(response) { return response.json(); })
             .then(function(data) {
-                renderResults(data.results || [], resultsContainer, selectedContainer);
+                renderResults(data.results || [], resultsContainer, selectedContainer, detailUrlTemplate);
             })
             .catch(function(err) {
                 console.error('Wikidata search error:', err);
@@ -52,7 +54,7 @@
             });
     }
 
-    function renderResults(results, container, selectedContainer) {
+    function renderResults(results, container, selectedContainer, detailUrlTemplate) {
         container.innerHTML = '';
 
         if (results.length === 0) {
@@ -70,7 +72,7 @@
                 (item.description ? '<br><small>' + escapeHtml(item.description) + '</small>' : '');
 
             div.addEventListener('click', function() {
-                selectEntity(item, container, selectedContainer);
+                selectEntity(item, container, selectedContainer, detailUrlTemplate);
             });
 
             container.appendChild(div);
@@ -79,7 +81,7 @@
         container.style.display = 'block';
     }
 
-    function selectEntity(item, resultsContainer, selectedContainer) {
+    function selectEntity(item, resultsContainer, selectedContainer, detailUrlTemplate) {
         resultsContainer.style.display = 'none';
 
         // Show loading state
@@ -88,8 +90,11 @@
             escapeHtml(item.qid) + '...</div>';
         selectedContainer.style.display = 'block';
 
+        // Build detail URL from template
+        var detailUrl = detailUrlTemplate.replace('__QID__', item.qid);
+
         // Fetch full entity details
-        fetch(DETAIL_URL + item.qid + '/')
+        fetch(detailUrl)
             .then(function(response) { return response.json(); })
             .then(function(detail) {
                 populateFields(item, detail);
