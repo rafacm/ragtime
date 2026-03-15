@@ -121,8 +121,9 @@ def extract_entities(episode_id: int) -> None:
         Chunk.objects.bulk_update(chunks, ["entities_json"])
 
         complete_step(episode, Episode.Status.EXTRACTING)
+        episode.entities_json = None
         episode.status = Episode.Status.RESOLVING
-        episode.save(update_fields=["status", "updated_at"])
+        episode.save(update_fields=["status", "entities_json", "updated_at"])
     except Exception as exc:
         logger.exception("Failed to extract entities for episode %s", episode_id)
         episode.error_message = str(exc)
