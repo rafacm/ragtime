@@ -251,13 +251,13 @@ class ResizeWithinTranscribeTests(TestCase):
     @patch("episodes.transcriber.shutil.which", return_value="/usr/bin/ffmpeg")
     @override_settings(RAGTIME_MAX_AUDIO_SIZE=50)
     def test_still_too_large_after_resize(self, mock_which, mock_run, mock_factory):
-        """Resized file still over max → status failed."""
+        """Resized file still over max after all tiers → status failed."""
         from episodes.transcriber import transcribe_episode
 
         def fake_ffmpeg(args, **kw):
             output_path = args[-1]
             with open(output_path, "wb") as f:
-                f.write(b"x" * 200)  # still too large
+                f.write(b"x" * 200)  # still too large for every tier
             return MagicMock(returncode=0)
 
         mock_run.side_effect = fake_ffmpeg
@@ -323,7 +323,7 @@ class ResizeWithinTranscribeTests(TestCase):
     @patch("episodes.transcriber.get_transcription_provider")
     @patch("episodes.transcriber.subprocess.run")
     @patch("episodes.transcriber.shutil.which", return_value="/usr/bin/ffmpeg")
-    @override_settings(RAGTIME_MAX_AUDIO_SIZE=25 * 1024 * 1024)
+    @override_settings(RAGTIME_MAX_AUDIO_SIZE=100)
     def test_duration_selects_gentle_tier(self, mock_which, mock_run, mock_factory):
         """Episode with short duration selects high-quality tier."""
         from episodes.transcriber import transcribe_episode
@@ -335,16 +335,16 @@ class ResizeWithinTranscribeTests(TestCase):
         def fake_ffmpeg(args, **kw):
             output_path = args[-1]
             with open(output_path, "wb") as f:
-                f.write(b"x" * 100)  # small enough
+                f.write(b"x" * 50)  # under 100 limit
             return MagicMock(returncode=0)
 
         mock_run.side_effect = fake_ffmpeg
 
         episode = self._create_episode_with_audio(
-            audio_size=26 * 1024 * 1024,
+            audio_size=200,
             url="https://example.com/ep/rtr-6",
             status=Episode.Status.TRANSCRIBING,
-            duration=600,  # 10 minutes — should pick tier 0 (128k)
+            duration=0.0005,  # tiny duration — tier 0 estimate fits under 100 bytes
         )
 
         with patch("episodes.signals.async_task"):
@@ -355,6 +355,48 @@ class ResizeWithinTranscribeTests(TestCase):
         ffmpeg_args = mock_run.call_args[0][0]
         self.assertIn("128k", ffmpeg_args)
         self.assertIn("44100", ffmpeg_args)
+
+    @patch("episodes.transcriber.get_transcription_provider")
+    @patch("episodes.transcriber.subprocess.run")
+    @patch("episodes.transcriber.shutil.which", return_value="/usr/bin/ffmpeg")
+    @override_settings(RAGTIME_MAX_AUDIO_SIZE=100)
+    def test_retry_with_lower_tier_on_oversize(self, mock_which, mock_run, mock_factory):
+        """First tier output too large → retries with next tier until it fits."""
+        from episodes.transcriber import transcribe_episode
+
+        mock_provider = MagicMock()
+        mock_provider.transcribe.return_value = SAMPLE_WHISPER_RESPONSE
+        mock_factory.return_value = mock_provider
+
+        call_count = 0
+
+        def fake_ffmpeg(args, **kw):
+            nonlocal call_count
+            call_count += 1
+            output_path = args[-1]
+            with open(output_path, "wb") as f:
+                # First call: still too large; second call: fits
+                f.write(b"x" * (200 if call_count == 1 else 50))
+            return MagicMock(returncode=0)
+
+        mock_run.side_effect = fake_ffmpeg
+
+        episode = self._create_episode_with_audio(
+            audio_size=200,
+            url="https://example.com/ep/rtr-8",
+            status=Episode.Status.TRANSCRIBING,
+            duration=0.0005,  # tiny duration — starts at tier 0
+        )
+
+        with patch("episodes.signals.async_task"):
+            transcribe_episode(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.SUMMARIZING)
+        self.assertEqual(mock_run.call_count, 2)
+        # Second call should use tier 1 (96k)
+        second_call_args = mock_run.call_args_list[1][0][0]
+        self.assertIn("96k", second_call_args)
 
     @patch("episodes.transcriber.get_transcription_provider")
     @patch("episodes.transcriber.subprocess.run")
