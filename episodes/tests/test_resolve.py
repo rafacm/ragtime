@@ -863,6 +863,63 @@ class ResolveEntitiesTests(TestCase):
 
     @patch("episodes.resolver._fetch_wikidata_candidates", return_value={})
     @patch("episodes.resolver.get_resolution_provider")
+    def test_two_names_same_entity_same_chunk(self, mock_factory, _mock_wd):
+        """Two extracted names resolve to the same entity in the same chunk — no duplicate mention."""
+        from episodes.resolver import resolve_entities
+
+        artist_type = _get_entity_type("artist")
+        existing = Entity.objects.create(
+            entity_type=artist_type, name="Miles Davis"
+        )
+
+        mock_provider = MagicMock()
+        # LLM maps both "Miles" and "Miles Davis" to the same entity
+        mock_provider.structured_extract.return_value = {
+            "matches": [
+                {
+                    "extracted_name": "Miles Davis",
+                    "canonical_name": "Miles Davis",
+                    "matched_entity_id": existing.pk,
+                    "wikidata_id": None,
+                },
+                {
+                    "extracted_name": "Miles",
+                    "canonical_name": "Miles Davis",
+                    "matched_entity_id": existing.pk,
+                    "wikidata_id": None,
+                },
+            ],
+        }
+        mock_factory.return_value = mock_provider
+
+        # Both names appear in the same chunk
+        entities_json = {
+            "artist": [
+                {"name": "Miles Davis", "context": "trumpet legend"},
+                {"name": "Miles", "context": "short form"},
+            ],
+        }
+
+        episode = self._create_episode(
+            url="https://example.com/ep/res-dedup-mention",
+            status=Episode.Status.RESOLVING,
+        )
+        self._create_chunk(episode, index=0, entities_json=entities_json)
+
+        with patch("episodes.signals.async_task"):
+            resolve_entities(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.EMBEDDING)
+
+        # Only 1 entity, 1 mention (deduped by entity+chunk)
+        self.assertEqual(Entity.objects.filter(entity_type=artist_type).count(), 1)
+        self.assertEqual(EntityMention.objects.filter(episode=episode).count(), 1)
+        mention = EntityMention.objects.get(episode=episode)
+        self.assertEqual(mention.entity, existing)
+
+    @patch("episodes.resolver._fetch_wikidata_candidates", return_value={})
+    @patch("episodes.resolver.get_resolution_provider")
     def test_wikidata_fallback_on_failure(self, mock_factory, _mock_wd):
         """Wikidata failure doesn't break resolution — falls back to no candidates."""
         from episodes.resolver import resolve_entities
