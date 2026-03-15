@@ -1,4 +1,5 @@
 from django import forms
+from django.conf import settings
 from django.contrib import admin
 from django.db.models import Count
 from django.template.response import TemplateResponse
@@ -325,8 +326,8 @@ class ChunkAdmin(admin.ModelAdmin):
 class EntityInlineForEntityType(admin.TabularInline):
     model = Entity
     extra = 0
-    fields = ("name", "created_at")
-    readonly_fields = ("name", "created_at")
+    fields = ("name", "wikidata_id", "created_at")
+    readonly_fields = ("name", "wikidata_id", "created_at")
     show_change_link = True
 
     def has_add_permission(self, request, obj=None):
@@ -351,6 +352,17 @@ class CommaSeparatedListField(forms.CharField):
         return [item.strip() for item in value.split(",") if item.strip()]
 
 
+class WikidataSearchWidget(forms.TextInput):
+    """A text input that renders the Wikidata search box above it."""
+
+    template_name = "admin/episodes/entitytype/wikidata_search_widget.html"
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        context["is_wikidata_search"] = True
+        return context
+
+
 class EntityTypeForm(forms.ModelForm):
     examples = CommaSeparatedListField(
         help_text="Comma-separated list of examples, e.g. Miles Davis, Alice Coltrane",
@@ -360,20 +372,83 @@ class EntityTypeForm(forms.ModelForm):
         model = EntityType
         fields = "__all__"
 
+    def clean_wikidata_id(self):
+        value = self.cleaned_data.get("wikidata_id", "")
+        if not value and not self.instance.pk:
+            min_chars = getattr(settings, "RAGTIME_WIKIDATA_MIN_CHARS", 3)
+            raise forms.ValidationError(
+                f"Select an entity type from Wikidata. "
+                f"Type at least {min_chars} characters in the search box above."
+            )
+        return value
+
 
 @admin.register(EntityType)
 class EntityTypeAdmin(admin.ModelAdmin):
     form = EntityTypeForm
-    list_display = ("name", "key", "is_active", "entity_count")
+    list_display = ("name", "key", "wikidata_link", "is_active", "entity_count")
     list_filter = ("is_active",)
     search_fields = ("name", "key")
-    fields = ("key", "name", "description", "examples", "is_active", "created_at", "updated_at")
     inlines = [EntityInlineForEntityType]
+
+    def get_fields(self, request, obj=None):
+        if obj is None:
+            return ("wikidata_id", "key", "name", "description", "examples", "is_active")
+        return ("key", "name", "wikidata_id_display", "description", "examples", "is_active", "created_at", "updated_at")
 
     def get_readonly_fields(self, request, obj=None):
         if obj is not None:
-            return ("key", "created_at", "updated_at")
-        return ("created_at", "updated_at")
+            return ("key", "wikidata_id_display", "created_at", "updated_at")
+        return ()
+
+    @admin.display(description="Wikidata ID")
+    def wikidata_link(self, obj):
+        if obj.wikidata_id:
+            return format_html(
+                '<a href="https://www.wikidata.org/wiki/{}" target="_blank" rel="noopener">{}</a>',
+                obj.wikidata_id,
+                obj.wikidata_id,
+            )
+        return "\u2014"
+
+    @admin.display(description="Wikidata ID")
+    def wikidata_id_display(self, obj):
+        if obj.wikidata_id:
+            return format_html(
+                '<a href="https://www.wikidata.org/wiki/{}" target="_blank" rel="noopener">{}</a>',
+                obj.wikidata_id,
+                obj.wikidata_id,
+            )
+        return "\u2014"
+
+    def get_form(self, request, obj=None, **kwargs):
+        if obj is None:
+            kwargs["widgets"] = {
+                "wikidata_id": WikidataSearchWidget(
+                    attrs={"readonly": "readonly", "class": "vTextField"}
+                ),
+            }
+        return super().get_form(request, obj, **kwargs)
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        extra_context = extra_context or {}
+        extra_context["wikidata_debounce_ms"] = getattr(
+            settings, "RAGTIME_WIKIDATA_DEBOUNCE_MS", 300
+        )
+        extra_context["wikidata_min_chars"] = getattr(
+            settings, "RAGTIME_WIKIDATA_MIN_CHARS", 3
+        )
+        return super().change_view(request, object_id, form_url, extra_context)
+
+    def add_view(self, request, form_url="", extra_context=None):
+        extra_context = extra_context or {}
+        extra_context["wikidata_debounce_ms"] = getattr(
+            settings, "RAGTIME_WIKIDATA_DEBOUNCE_MS", 300
+        )
+        extra_context["wikidata_min_chars"] = getattr(
+            settings, "RAGTIME_WIKIDATA_MIN_CHARS", 3
+        )
+        return super().add_view(request, form_url, extra_context)
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -386,11 +461,37 @@ class EntityTypeAdmin(admin.ModelAdmin):
 
 @admin.register(Entity)
 class EntityAdmin(admin.ModelAdmin):
-    list_display = ("name", "entity_type", "mention_count", "created_at")
+    list_display = ("name", "entity_type", "wikidata_link", "mention_count", "created_at")
     list_filter = ("entity_type__name",)
     search_fields = ("name",)
-    readonly_fields = ("entity_type", "name", "created_at", "updated_at")
+    readonly_fields = ("entity_type", "name", "wikidata_id_display", "created_at", "updated_at")
     inlines = [EntityMentionInlineForEntity]
+
+    def get_fieldsets(self, request, obj=None):
+        return [
+            (None, {"fields": ("entity_type", "name", "wikidata_id_display")}),
+            ("Timestamps", {"classes": ("collapse",), "fields": ("created_at", "updated_at")}),
+        ]
+
+    @admin.display(description="Wikidata ID")
+    def wikidata_link(self, obj):
+        if obj.wikidata_id:
+            return format_html(
+                '<a href="https://www.wikidata.org/wiki/{}" target="_blank" rel="noopener">{}</a>',
+                obj.wikidata_id,
+                obj.wikidata_id,
+            )
+        return "\u2014"
+
+    @admin.display(description="Wikidata ID")
+    def wikidata_id_display(self, obj):
+        if obj.wikidata_id:
+            return format_html(
+                '<a href="https://www.wikidata.org/wiki/{}" target="_blank" rel="noopener">{}</a>',
+                obj.wikidata_id,
+                obj.wikidata_id,
+            )
+        return "\u2014"
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)

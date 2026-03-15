@@ -1,5 +1,6 @@
 - key: artist
   name: Artist
+  wikidata_id: Q639669
   description: Individual musicians or singers.
   examples:
     - Miles Davis
@@ -7,6 +8,7 @@
 
 - key: band
   name: Band
+  wikidata_id: Q215380
   description: Organized groups or ensembles.
   examples:
     - The Jazz Messengers
@@ -14,6 +16,7 @@
 
 - key: album
   name: Album
+  wikidata_id: Q482994
   description: Specific studio or live record releases.
   examples:
     - Kind of Blue
@@ -21,6 +24,7 @@
 
 - key: composition
   name: Composition
+  wikidata_id: Q207628
   description: Specific songs, standards, or tunes.
   examples:
     - Take Five
@@ -29,6 +33,7 @@
 
 - key: venue
   name: Venue
+  wikidata_id: Q8719053
   description: Physical clubs, theaters, or festivals.
   examples:
     - Village Vanguard
@@ -36,6 +41,7 @@
 
 - key: recording_session
   name: Recording Session
+  wikidata_id: Q81091849
   description: A specific date/time/place of a recording.
   examples:
     - The Blackhawk Sessions
@@ -43,6 +49,7 @@
 
 - key: label
   name: Label
+  wikidata_id: Q18127
   description: The record company/publisher.
   examples:
     - Blue Note
@@ -51,6 +58,7 @@
 
 - key: year
   name: Year
+  wikidata_id: Q577
   description: The specific calendar year mentioned.
   examples:
     - "1959"
@@ -59,6 +67,7 @@
 
 - key: era
   name: Era
+  wikidata_id: Q11514315
   description: Broad historical periods or movements.
   examples:
     - The Swing Era
@@ -67,6 +76,7 @@
 
 - key: city
   name: City
+  wikidata_id: Q515
   description: The specific metropolitan area.
   examples:
     - New Orleans
@@ -75,6 +85,7 @@
 
 - key: country
   name: Country
+  wikidata_id: Q6256
   description: The nation of origin or performance.
   examples:
     - USA
@@ -84,6 +95,7 @@
 
 - key: sub_genre
   name: Sub-genre
+  wikidata_id: Q188451
   description: Specific stylistic categories within Jazz.
   examples:
     - Hard Bop
@@ -93,6 +105,7 @@
 
 - key: instrument
   name: Instrument
+  wikidata_id: Q34379
   description: The tool used to create the music.
   examples:
     - Trumpet
@@ -101,6 +114,7 @@
 
 - key: role
   name: Role
+  wikidata_id: Q12737077
   description: The artist's function in that moment.
   examples:
     - Bandleader

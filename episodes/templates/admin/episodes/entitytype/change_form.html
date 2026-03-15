@@ -1,0 +1,24 @@
+{% extends "admin/change_form.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+{% if add %}
+<link rel="stylesheet" href="{% static 'episodes/css/wikidata-search.css' %}">
+{% endif %}
+{% endblock %}
+
+{% block after_field_sets %}
+{{ block.super }}
+{% if add %}
+<script src="{% static 'episodes/js/wikidata-search.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    wikidataSearch.init({
+        debounceMs: {{ wikidata_debounce_ms }},
+        minChars: {{ wikidata_min_chars }}
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

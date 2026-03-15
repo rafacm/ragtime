@@ -69,6 +69,12 @@ class EntityType(models.Model):
         max_length=100,
         help_text="Human-readable label, e.g. Recording Session",
     )
+    wikidata_id = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Wikidata class Q-ID, e.g. Q639669 for 'musician'",
+    )
     description = models.TextField(
         help_text="What this entity type represents, e.g. A specific date/time/place of a recording.",
     )
@@ -92,6 +98,13 @@ class Entity(models.Model):
         EntityType, on_delete=models.PROTECT, related_name="entities"
     )
     name = models.CharField(max_length=500)
+    wikidata_id = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Wikidata entity Q-ID, e.g. Q93341 for 'Miles Davis'",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

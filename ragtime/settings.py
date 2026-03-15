@@ -176,3 +176,33 @@ RAGTIME_EXTRACTION_MODEL = os.getenv('RAGTIME_EXTRACTION_MODEL', 'gpt-4.1-mini')
 RAGTIME_RESOLUTION_PROVIDER = os.getenv('RAGTIME_RESOLUTION_PROVIDER', 'openai')
 RAGTIME_RESOLUTION_API_KEY = os.getenv('RAGTIME_RESOLUTION_API_KEY', '')
 RAGTIME_RESOLUTION_MODEL = os.getenv('RAGTIME_RESOLUTION_MODEL', 'gpt-4.1-mini')
+
+# Wikidata integration
+RAGTIME_WIKIDATA_USER_AGENT = os.getenv(
+    'RAGTIME_WIKIDATA_USER_AGENT',
+    'RAGtime/0.1 (https://github.com/rafacm/ragtime)',
+)
+RAGTIME_WIKIDATA_CACHE_TTL = int(os.getenv('RAGTIME_WIKIDATA_CACHE_TTL', '604800'))
+RAGTIME_WIKIDATA_DEBOUNCE_MS = int(os.getenv('RAGTIME_WIKIDATA_DEBOUNCE_MS', '300'))
+RAGTIME_WIKIDATA_MIN_CHARS = int(os.getenv('RAGTIME_WIKIDATA_MIN_CHARS', '3'))
+
+# Caches
+_wikidata_cache_backend = os.getenv('RAGTIME_WIKIDATA_CACHE_BACKEND', 'locmem')
+if _wikidata_cache_backend == 'db':
+    _wikidata_cache = {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'wikidata_cache',
+        'TIMEOUT': int(os.getenv('RAGTIME_WIKIDATA_CACHE_TTL', '604800')),
+    }
+else:
+    _wikidata_cache = {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'TIMEOUT': int(os.getenv('RAGTIME_WIKIDATA_CACHE_TTL', '604800')),
+    }
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    },
+    'wikidata': _wikidata_cache,
+}
