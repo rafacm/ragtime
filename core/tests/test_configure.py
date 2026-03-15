@@ -237,6 +237,11 @@ class ConfigureWizardTest(TestCase):
             "gpt-4.1-mini",  # Resolution model
             "openai",         # Transcription provider
             "whisper-1",      # Transcription model
+            "",               # Wikidata user agent (keep default)
+            "",               # Wikidata cache backend (keep default)
+            "",               # Wikidata cache TTL (keep default)
+            "",               # Wikidata debounce ms (keep default)
+            "",               # Wikidata min chars (keep default)
         ]
 
         with tempfile.NamedTemporaryFile(
@@ -319,6 +324,11 @@ class ConfigureWizardTest(TestCase):
             "gpt-4.1-mini",  # Resolution model
             "openai",         # Transcription provider
             "whisper-1",      # Transcription model
+            "",               # Wikidata user agent (keep default)
+            "",               # Wikidata cache backend (keep default)
+            "",               # Wikidata cache TTL (keep default)
+            "",               # Wikidata debounce ms (keep default)
+            "",               # Wikidata min chars (keep default)
         ]
 
         original_lines = ["# My config\n", "DEBUG=true\n", "RAGTIME_SCRAPING_PROVIDER=openai\n"]
