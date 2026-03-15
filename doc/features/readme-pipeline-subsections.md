@@ -6,7 +6,7 @@ The README's "Processing Pipeline" section used a numbered list with one-line de
 
 ## Changes
 
-Converted the numbered list into `###` subsections — one per pipeline step — with the format `### N. EMOJI Name — \`status\``.
+Converted the numbered list into `####` subsections under a new `### Steps` heading — one per pipeline step — with the format `#### N. EMOJI Name (status: \`...\`)`. The intro sentence was replaced with a description of the signal-based dispatch mechanism linking to `episodes/signals.py`.
 
 ### Description fixes
 
