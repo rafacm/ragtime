@@ -137,10 +137,19 @@ def _aggregate_entities_from_chunks(chunks):
     return aggregated
 
 
-def _create_mentions_for_name(name, entity, names_dict, episode):
-    """Build EntityMention objects for all (chunk, context) pairs where name appeared."""
+def _collect_mentions(name, entity, names_dict, episode, seen):
+    """Build EntityMention objects, skipping duplicates by (entity_id, chunk_id).
+
+    The LLM can map multiple extracted names to the same canonical entity.
+    If those names appear in the same chunk, we'd violate the unique constraint
+    on (entity, chunk). ``seen`` tracks pairs already added across all names.
+    """
     mentions = []
     for chunk, context in names_dict.get(name, []):
+        key = (entity.pk, chunk.pk)
+        if key in seen:
+            continue
+        seen.add(key)
         mentions.append(EntityMention(
             entity=entity,
             episode=episode,
@@ -220,6 +229,7 @@ def resolve_entities(episode_id: int) -> None:
 
                         all_mentions = []
                         handled_names = set()
+                        seen_mentions = set()
                         for match in result["matches"]:
                             extracted_name = match["extracted_name"]
                             handled_names.add(extracted_name)
@@ -236,7 +246,7 @@ def resolve_entities(episode_id: int) -> None:
                                 entity.save(update_fields=["wikidata_id", "updated_at"])
 
                             all_mentions.extend(
-                                _create_mentions_for_name(extracted_name, entity, names_dict, episode)
+                                _collect_mentions(extracted_name, entity, names_dict, episode, seen_mentions)
                             )
 
                         # Fallback: create entities for any names the LLM omitted
@@ -251,20 +261,21 @@ def resolve_entities(episode_id: int) -> None:
                                     name=name,
                                 )
                                 all_mentions.extend(
-                                    _create_mentions_for_name(name, entity, names_dict, episode)
+                                    _collect_mentions(name, entity, names_dict, episode, seen_mentions)
                                 )
 
                         EntityMention.objects.bulk_create(all_mentions)
                     else:
                         # No Wikidata candidates — create all as new (no LLM call)
                         all_mentions = []
+                        seen_mentions = set()
                         for name in unique_names:
                             entity = Entity.objects.create(
                                 entity_type=entity_type,
                                 name=name,
                             )
                             all_mentions.extend(
-                                _create_mentions_for_name(name, entity, names_dict, episode)
+                                _collect_mentions(name, entity, names_dict, episode, seen_mentions)
                             )
                         EntityMention.objects.bulk_create(all_mentions)
                 else:
@@ -291,6 +302,7 @@ def resolve_entities(episode_id: int) -> None:
                     }
                     all_mentions = []
                     handled_names = set()
+                    seen_mentions = set()
 
                     for match in result["matches"]:
                         matched_id = match["matched_entity_id"]
@@ -328,7 +340,7 @@ def resolve_entities(episode_id: int) -> None:
                             )
 
                         all_mentions.extend(
-                            _create_mentions_for_name(extracted_name, entity, names_dict, episode)
+                            _collect_mentions(extracted_name, entity, names_dict, episode, seen_mentions)
                         )
 
                     # Fallback: create entities for any names the LLM omitted
@@ -343,7 +355,7 @@ def resolve_entities(episode_id: int) -> None:
                                 name=name,
                             )
                             all_mentions.extend(
-                                _create_mentions_for_name(name, entity, names_dict, episode)
+                                _collect_mentions(name, entity, names_dict, episode, seen_mentions)
                             )
 
                     EntityMention.objects.bulk_create(all_mentions)
