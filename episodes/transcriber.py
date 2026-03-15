@@ -16,13 +16,13 @@ logger = logging.getLogger(__name__)
 FFMPEG_TIMEOUT = 300  # 5 minutes — must fit within Q_CLUSTER['timeout']
 
 # Tiers ordered from highest to lowest quality.
-# Each tuple: (channels, sample_rate, bitrate_str, bitrate_bps)
+# Each tuple: (channels, sample_rate, bitrate_kbps)
 RESIZE_TIERS = (
-    (1, 44100, "128k", 128_000),
-    (1, 32000, "96k", 96_000),
-    (1, 22050, "64k", 64_000),
-    (1, 16000, "48k", 48_000),
-    (1, 16000, "32k", 32_000),
+    (1, 44100, 128),
+    (1, 32000, 96),
+    (1, 22050, 64),
+    (1, 16000, 48),
+    (1, 16000, 32),
 )
 
 RESIZE_SAFETY_MARGIN = 1.10  # 10% overhead for MP3 container/framing
@@ -36,8 +36,8 @@ def _select_resize_tier(duration_seconds, max_size_bytes):
     if duration_seconds is None:
         return len(RESIZE_TIERS) - 1
 
-    for i, (_channels, _sr, _br_str, bitrate_bps) in enumerate(RESIZE_TIERS):
-        estimated = (bitrate_bps / 8) * duration_seconds * RESIZE_SAFETY_MARGIN
+    for i, (_channels, _sr, bitrate_kbps) in enumerate(RESIZE_TIERS):
+        estimated = (bitrate_kbps * 1000 / 8) * duration_seconds * RESIZE_SAFETY_MARGIN
         if estimated <= max_size_bytes:
             return i
 
@@ -63,12 +63,6 @@ def _resize_if_needed(episode):
         # No tier fits the estimate — try the most aggressive as last resort.
         tier_idx = len(RESIZE_TIERS) - 1
 
-    channels, sample_rate, bitrate_str, _ = RESIZE_TIERS[tier_idx]
-    logger.info(
-        "Episode %s: resize tier %d selected (ac=%d ar=%d b:a=%s)",
-        episode.pk, tier_idx, channels, sample_rate, bitrate_str,
-    )
-
     input_path = episode.audio_file.path
     output_path = None
 
@@ -76,37 +70,53 @@ def _resize_if_needed(episode):
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
             output_path = tmp.name
 
-        try:
-            result = subprocess.run(
-                [
-                    "ffmpeg",
-                    "-i", input_path,
-                    "-ac", str(channels),
-                    "-ar", str(sample_rate),
-                    "-b:a", bitrate_str,
-                    "-y",
-                    output_path,
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                timeout=FFMPEG_TIMEOUT,
-            )
-        except subprocess.TimeoutExpired:
-            raise RuntimeError(
-                f"ffmpeg timed out during audio resize ({FFMPEG_TIMEOUT}s)"
+        # Try selected tier, then progressively more aggressive tiers.
+        for idx in range(tier_idx, len(RESIZE_TIERS)):
+            channels, sample_rate, bitrate_kbps = RESIZE_TIERS[idx]
+            bitrate_str = f"{bitrate_kbps}k"
+            logger.info(
+                "Episode %s: trying resize tier %d (ac=%d ar=%d b:a=%s)",
+                episode.pk, idx, channels, sample_rate, bitrate_str,
             )
 
-        if result.returncode != 0:
-            stderr = result.stderr.decode(errors="replace")
-            raise RuntimeError(
-                f"ffmpeg failed (exit {result.returncode}): {stderr[:500]}"
-            )
+            try:
+                result = subprocess.run(
+                    [
+                        "ffmpeg",
+                        "-i", input_path,
+                        "-ac", str(channels),
+                        "-ar", str(sample_rate),
+                        "-b:a", bitrate_str,
+                        "-y",
+                        output_path,
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    timeout=FFMPEG_TIMEOUT,
+                )
+            except subprocess.TimeoutExpired:
+                raise RuntimeError(
+                    f"ffmpeg timed out during audio resize ({FFMPEG_TIMEOUT}s)"
+                )
 
-        output_size = os.path.getsize(output_path)
-        if output_size > max_size:
+            if result.returncode != 0:
+                stderr = result.stderr.decode(errors="replace")
+                raise RuntimeError(
+                    f"ffmpeg failed (exit {result.returncode}): {stderr[:500]}"
+                )
+
+            output_size = os.path.getsize(output_path)
+            if output_size <= max_size:
+                break
+
+            logger.info(
+                "Episode %s: tier %d output %.1fMB still exceeds limit, trying next tier",
+                episode.pk, idx, output_size / (1024 * 1024),
+            )
+        else:
             raise RuntimeError(
                 f"Audio file exceeds {max_size / (1024 * 1024):.1f}MB limit after resizing "
-                f"({output_size / (1024 * 1024):.1f}MB)"
+                f"with all tiers ({output_size / (1024 * 1024):.1f}MB)"
             )
 
         filename = f"{episode.pk}.mp3"
