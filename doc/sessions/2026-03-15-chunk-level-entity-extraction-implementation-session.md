@@ -45,3 +45,57 @@ Read all critical files: `episodes/models.py`, `episodes/extractor.py`, `episode
 **README:** Updated Extract and Resolve step descriptions.
 
 All 102 tests pass. Migration applies cleanly. No pending migrations.
+
+### User
+Requested clickable Episode link in EntityMention admin list view.
+
+### Assistant
+Added `episode_link` method using `reverse("admin:episodes_episode_change", ...)` to `EntityMentionAdmin`, replacing the plain `episode` column.
+
+### User
+Asked whether Chunks should be exposed in Django admin.
+
+### Assistant
+Proposed registering a read-only `ChunkAdmin` with entity mention inline, plus clickable chunk links in `EntityMentionAdmin`. User approved.
+
+### Assistant
+- Registered `ChunkAdmin` with `episode_link`, `formatted_time_range`, `short_text`, `has_entities` columns
+- Added `EntityMentionInlineForChunk` (excludes episode column since it's on the parent page)
+- Added `chunk_link` to `EntityMentionAdmin` list view
+- Added `show_change_link = True` to `ChunkInlineForEpisode`
+
+### User
+Noted that Entity Mentions inline on Chunk detail should not show Episode column.
+
+### Assistant
+Set explicit `fields` on `EntityMentionInlineForChunk` to show only `entity`, `context`, `created_at`.
+
+### User
+Requested PR creation.
+
+### Assistant
+Created PR #47: https://github.com/rafacm/ragtime/pull/47
+
+### PR Review — Copilot (5 comments)
+
+**Comment 1 — Silent context loss with `ignore_conflicts` (`resolver.py:139-150`):**
+`bulk_create(ignore_conflicts=True)` silently drops duplicate `(entity, chunk)` pairs; if the extractor returns the same name twice in a chunk with different contexts, one is lost.
+**Fix:** De-duplicated by `(name, chunk)` in `_aggregate_entities_from_chunks()` (keeps first context per chunk). Removed `ignore_conflicts=True` from both `bulk_create` call sites.
+
+**Comment 2 — High-cardinality `list_filter` (`admin.py:274`):**
+`list_filter = ("episode__title",)` creates one sidebar entry per unique title.
+**Fix:** Changed to `list_filter = ("episode",)` for FK filter widget.
+
+**Comment 3 — Redundant inner import (`extractor.py:121-122`):**
+`from .models import Chunk` inside function body when module already imports from `.models`.
+**Fix:** Added `Chunk` to top-level import, removed inner import.
+
+**Comment 4 — Missing mention cleanup in early-return path (`resolver.py:103-105`):**
+When no chunks/entities exist, stale `EntityMention` rows from a previous run survive.
+**Fix:** Added `EntityMention.objects.filter(episode=episode).delete()` before early return.
+
+**Comment 5 — Per-name DB round-trips (`resolver.py:127-138`):**
+One `Entity.objects.create()` + one `bulk_create()` per name.
+**Fix:** Batched all `EntityMention` objects per entity type into a single `bulk_create`. `Entity.objects.create()` per name kept because SQLite doesn't support `bulk_create` returning IDs.
+
+All 102 tests pass after fixes.

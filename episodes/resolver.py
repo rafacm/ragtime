@@ -64,7 +64,10 @@ def _build_system_prompt(entity_type_name, existing_entities):
 
 
 def _aggregate_entities_from_chunks(chunks):
-    """Aggregate entities across chunks into {type_key: {name: [(chunk, context), ...]}}."""
+    """Aggregate entities across chunks into {type_key: {name: [(chunk, context), ...]}}.
+
+    De-duplicates by (name, chunk) — keeps the first context seen per chunk.
+    """
     aggregated = defaultdict(lambda: defaultdict(list))
     for chunk in chunks:
         if not chunk.entities_json:
@@ -72,8 +75,12 @@ def _aggregate_entities_from_chunks(chunks):
         for type_key, entities in chunk.entities_json.items():
             if entities is None:
                 continue
+            seen_chunks = set()
             for entity in entities:
                 name = entity["name"]
+                if (name, chunk.pk) in seen_chunks:
+                    continue
+                seen_chunks.add((name, chunk.pk))
                 context = entity.get("context") or ""
                 aggregated[type_key][name].append((chunk, context))
     return aggregated
@@ -100,6 +107,7 @@ def resolve_entities(episode_id: int) -> None:
     has_any_entities = any(chunk.entities_json for chunk in chunks)
 
     if not chunks or not has_any_entities:
+        EntityMention.objects.filter(episode=episode).delete()
         complete_step(episode, Episode.Status.RESOLVING)
         episode.status = Episode.Status.EMBEDDING
         episode.save(update_fields=["status", "updated_at"])
@@ -131,23 +139,20 @@ def resolve_entities(episode_id: int) -> None:
 
                 if not existing:
                     # No existing entities — create all as new (no LLM call)
+                    all_mentions = []
                     for name in unique_names:
                         entity = Entity.objects.create(
                             entity_type=entity_type,
                             name=name,
                         )
-                        mentions = [
-                            EntityMention(
+                        for chunk, context in names_dict[name]:
+                            all_mentions.append(EntityMention(
                                 entity=entity,
                                 episode=episode,
                                 chunk=chunk,
                                 context=context,
-                            )
-                            for chunk, context in names_dict[name]
-                        ]
-                        EntityMention.objects.bulk_create(
-                            mentions, ignore_conflicts=True
-                        )
+                            ))
+                    EntityMention.objects.bulk_create(all_mentions)
                 else:
                     # LLM resolution against existing entities
                     extracted_names = ", ".join(unique_names)
@@ -161,6 +166,7 @@ def resolve_entities(episode_id: int) -> None:
                     )
 
                     existing_by_id = {e.pk: e for e in existing}
+                    all_mentions = []
 
                     for match in result["matches"]:
                         matched_id = match["matched_entity_id"]
@@ -174,20 +180,15 @@ def resolve_entities(episode_id: int) -> None:
                                 name=match["canonical_name"],
                             )
 
-                        # Create mentions for every (chunk, context) where this name appeared
-                        chunk_contexts = names_dict.get(extracted_name, [])
-                        mentions = [
-                            EntityMention(
+                        # Collect mentions for every (chunk, context) where this name appeared
+                        for chunk, context in names_dict.get(extracted_name, []):
+                            all_mentions.append(EntityMention(
                                 entity=entity,
                                 episode=episode,
                                 chunk=chunk,
                                 context=context,
-                            )
-                            for chunk, context in chunk_contexts
-                        ]
-                        EntityMention.objects.bulk_create(
-                            mentions, ignore_conflicts=True
-                        )
+                            ))
+                    EntityMention.objects.bulk_create(all_mentions)
 
         complete_step(episode, Episode.Status.RESOLVING)
         episode.status = Episode.Status.EMBEDDING

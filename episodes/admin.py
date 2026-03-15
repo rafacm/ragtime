@@ -271,7 +271,7 @@ class EpisodeAdmin(admin.ModelAdmin):
 @admin.register(Chunk)
 class ChunkAdmin(admin.ModelAdmin):
     list_display = ("episode_link", "index", "formatted_time_range", "short_text", "has_entities")
-    list_filter = ("episode__title",)
+    list_filter = ("episode",)
     search_fields = ("text", "episode__title")
     readonly_fields = (
         "episode", "index", "text", "start_time", "end_time",
