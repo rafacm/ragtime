@@ -1,0 +1,82 @@
+.wikidata-search-wrapper {
+    margin-bottom: 1em;
+    position: relative;
+}
+
+.wikidata-search-wrapper label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+#wikidata-search-input {
+    width: 100%;
+    max-width: 600px;
+    padding: 6px 8px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+#wikidata-results {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    max-width: 600px;
+    width: 100%;
+    max-height: 300px;
+    overflow-y: auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.wikidata-result-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+}
+
+.wikidata-result-item:last-child {
+    border-bottom: none;
+}
+
+.wikidata-result-item:hover {
+    background: #f0f4ff;
+}
+
+.wikidata-qid {
+    color: #666;
+    font-size: 12px;
+    font-family: monospace;
+}
+
+.wikidata-no-results,
+.wikidata-error {
+    padding: 8px 12px;
+    color: #666;
+    font-style: italic;
+}
+
+.wikidata-error {
+    color: #c00;
+}
+
+#wikidata-selected {
+    display: none;
+    margin-top: 8px;
+}
+
+.wikidata-selected-item {
+    background: #f0f8f0;
+    border: 1px solid #aca;
+    border-radius: 4px;
+    padding: 8px 12px;
+    max-width: 600px;
+}
+
+.wikidata-autofill-note {
+    color: #080;
+    font-style: italic;
+}

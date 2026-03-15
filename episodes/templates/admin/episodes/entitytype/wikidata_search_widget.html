@@ -1,0 +1,15 @@
+{% load static %}
+<div class="wikidata-search-wrapper">
+    <label for="wikidata-search-input">Search Wikidata:</label>
+    <input type="text" id="wikidata-search-input"
+           placeholder="Type to search Wikidata (e.g. 'musician', 'record label')..."
+           autocomplete="off">
+    <div id="wikidata-results"></div>
+    <div id="wikidata-selected"></div>
+</div>
+<input type="{{ widget.type }}"
+       name="{{ widget.name }}"
+       {% if widget.value != None %}value="{{ widget.value }}"{% endif %}
+       {% for name, value in widget.attrs.items %}
+       {% if value is not False %}{{ name }}{% if value is not True %}="{{ value }}"{% endif %}{% endif %}
+       {% endfor %}>

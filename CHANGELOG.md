@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Wikidata Integration for Entity Resolution — add `wikidata_id` fields to EntityType and Entity models, Wikidata API client with database caching, candidate lookup during resolution (LLM confirms best Q-ID match), `lookup_entity` management command for CLI search, rename pipeline sections to "Extract entities" / "Resolve entities" — [plan](doc/plans/wikidata-integration.md), [feature](doc/features/wikidata-integration.md), [planning session](doc/sessions/2026-03-15-wikidata-integration-planning-session.md), [implementation session](doc/sessions/2026-03-15-wikidata-integration-implementation-session.md)
+
 - Adaptive Audio Resize Tiers — select the gentlest ffmpeg settings that fit under the Whisper API size limit based on episode duration, instead of always using the most aggressive compression — [plan](doc/plans/adaptive-audio-resize-tiers.md), [feature](doc/features/adaptive-audio-resize-tiers.md), [planning session](doc/sessions/2026-03-15-adaptive-audio-resize-tiers-planning-session.md), [implementation session](doc/sessions/2026-03-15-adaptive-audio-resize-tiers-implementation-session.md)
 
 - Chunk-level Entity Extraction — extract entities per chunk instead of per episode, linking each entity mention to the specific chunk (and timestamp) where it appeared. Resolution aggregates unique names across chunks before resolving — [plan](doc/plans/chunk-level-entity-extraction.md), [feature](doc/features/chunk-level-entity-extraction.md), [planning session](doc/sessions/2026-03-15-chunk-level-entity-extraction-planning-session.md), [implementation session](doc/sessions/2026-03-15-chunk-level-entity-extraction-implementation-session.md)
