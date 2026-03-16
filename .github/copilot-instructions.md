@@ -21,19 +21,31 @@ RAGtime is a Django 5.2 app (Python 3.13) for ingesting jazz podcast episodes an
 - **URL patterns** must use named routes (`name=` parameter) so templates can use `{% url %}`.
 - **Settings secrets** (`SECRET_KEY`, API keys) must never be hardcoded — they come from environment variables loaded via `python-dotenv`.
 
-## Pipeline Architecture (`episodes/pipeline.py`)
+## Pipeline Architecture
 
-- The ingestion pipeline is a **12-step flow**: `submit → dedup → scrape → download → resize → transcribe → summarize → chunk → extract → resolve → embed → ready`. The constant `PIPELINE_STEPS` in `episodes/models.py` lists the 9 active processing steps (scraping through embedding); `PENDING`, `NEEDS_REVIEW`, and `READY` are the surrounding lifecycle states.
-- Each step must call `update_episode_status()` at start and on completion/failure, transitioning through the correct `Episode.Status` choices in order.
-- **Failures must set `status = FAILED`** and populate `episode.error_message` before re-raising.
-- Each step runs as an async Django Q2 task dispatched via signals in `episodes/signals.py`. Do not call pipeline steps synchronously from views or other steps.
+- The ingestion pipeline flows through these statuses: `pending → scraping → needs_review → downloading → resizing → transcribing → summarizing → chunking → extracting → resolving → embedding → ready`. The constant `PIPELINE_STEPS` in `episodes/models.py` lists the 9 active processing steps (scraping through embedding); `PENDING`, `NEEDS_REVIEW`, `READY`, and `FAILED` are lifecycle states.
+- Pipeline steps are dispatched as async Django Q2 tasks via `episodes/signals.py`. Each step lives in its own module (e.g. `episodes/scraper.py`, `episodes/chunker.py`). Do not call pipeline steps synchronously from views or other steps.
+- Each step transitions `Episode.status` directly on the model instance. **Failures must set `status = FAILED`** and populate `episode.error_message` before re-raising.
+- `NEEDS_REVIEW` is a manual gate after scraping — episodes pause here for human approval before downloading proceeds.
 - New pipeline steps must be added to `PIPELINE_STEPS` in `episodes/models.py` and wired into `signals.py`.
+
+## Entity Extraction & Resolution
+
+- The **extract** step uses an LLM to identify jazz entities (artists, bands, albums, venues, recording sessions, labels, years) from episode chunks.
+- The **resolve** step uses LLM-based fuzzy matching to merge extracted entities against existing DB records, preventing duplicates. Entity types have optional Wikidata Q-IDs (`EntityType.wikidata_id`) for external linking.
+- Entity resolution logic lives in `episodes/resolver.py`. When modifying resolution, ensure deduplication correctness — a single entity mentioned under different names must resolve to one DB record.
 
 ## Provider Abstraction (`episodes/providers/`)
 
 - All LLM, transcription, and embedding calls go through the **abstract base classes** in `episodes/providers/base.py`. Never call `openai` (or any external SDK) directly from pipeline steps — always use a provider instance obtained from the factory.
 - New provider implementations must subclass the appropriate abstract base class and register in `episodes/providers/factory.py`.
 - Provider selection is driven by `RAGTIME_*` environment variables. Any new configurable provider option needs a corresponding entry in `.env.sample` and `core/management/commands/configure.py`.
+
+## Scott (RAG Chatbot)
+
+- Scott answers questions **strictly from ingested content** — no hallucination. If no relevant chunks are found, Scott must refuse to answer rather than guess.
+- Responses include episode and timestamp references so users can verify sources.
+- Scott responds in the user's language via multilingual embeddings.
 
 ## Testing
 
@@ -43,7 +55,6 @@ RAGtime is a Django 5.2 app (Python 3.13) for ingesting jazz podcast episodes an
 - Use `@override_settings` to inject test-specific `RAGTIME_*` environment values rather than modifying the real environment.
 - Provider integrations should be tested with a stub/mock provider, not a real API call.
 - Every new pipeline step module needs a corresponding `episodes/tests/test_<step>.py`.
-- Test file names must match the module they test (e.g., `test_chunk.py` for `chunker.py`).
 
 ## Security
 
@@ -56,25 +67,5 @@ RAGtime is a Django 5.2 app (Python 3.13) for ingesting jazz podcast episodes an
 
 - **Use `uv` exclusively** — never `pip install`. Dependency changes go through `uv add` / `uv remove`, and `pyproject.toml` + `uv.lock` must be committed together.
 - The project requires **Python 3.13** (`requires-python = ">=3.13,<3.14"`). Do not introduce syntax or APIs that require a different version.
-- New runtime dependencies must have a pinned minor-version range in `pyproject.toml` (e.g., `>=1.0,<2`), not open-ended pins.
+- New runtime dependencies must use a major-version ceiling in `pyproject.toml` (e.g., `>=1.0,<2`), not open-ended pins.
 - `ffmpeg` is a system dependency (not in `pyproject.toml`) — document any new system-level requirements in `README.md`.
-
-## Documentation Requirements
-
-Every PR that introduces a new feature or significant change must include:
-
-1. **Plan document** — `doc/plans/<feature-name>.md`
-2. **Feature document** — `doc/features/<feature-name>.md` (problem, changes, key parameters, verification, files modified)
-3. **Planning session transcript** — `doc/sessions/*-planning-session.md` (Session ID, Summary, User/Assistant conversation)
-4. **Implementation session transcript** — `doc/sessions/*-implementation-session.md` (same format)
-5. **`CHANGELOG.md` entry** — dated section (`## YYYY-MM-DD`), grouped by `### Added / Changed / Fixed / ...`
-
-When a `RAGTIME_*` environment variable is added, changed, or removed, `.env.sample` and `core/management/commands/configure.py` must be updated in the same PR.
-
-## Code Style
-
-- Keep functions focused and short. Pipeline step functions should do one thing.
-- Prefer explicit over implicit — avoid `*args/**kwargs` in signatures unless the function genuinely needs variadic arguments.
-- Use f-strings for string formatting; avoid `%` formatting or `.format()`.
-- No unused imports. Flag any `import` that is not referenced in the file.
-- Type annotations are encouraged for public functions and provider interfaces; not required for private helpers or test utilities.
