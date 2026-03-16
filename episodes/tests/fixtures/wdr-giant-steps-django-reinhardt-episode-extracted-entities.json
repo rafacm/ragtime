@@ -1,5 +1,5 @@
 {
-  "artist": [
+  "musician": [
     {
       "name": "Django Reinhardt",
       "context": "Hauptthema des Podcasts, herausragender Gypsy Jazz Gitarrist"
@@ -49,7 +49,7 @@
       "context": "Pianist und Leiter des Modern Jazz Quartet, schrieb die Komposition 'Django' zu Ehren Reinhardts"
     }
   ],
-  "band": [
+  "musical_group": [
     {
       "name": "Quintet du Oddclub de France",
       "context": "Django Reinhardts Ensemble mit Stéphane Grappelli und weiteren Rhythmus-Gitarristen"
@@ -60,7 +60,7 @@
     }
   ],
   "album": null,
-  "composition": [
+  "composed_musical_work": [
     {
       "name": "Nuage",
       "context": "Melancholischer Titel von Django Reinhardt, Sinnbild für Heimat der Sinti und Roma"
@@ -74,7 +74,7 @@
       "context": "Komposition von John Lewis zu Ehren Django Reinhardts, wird Jazz-Standard"
     }
   ],
-  "venue": [
+  "music_venue": [
     {
       "name": "52. Straße von New York",
       "context": "Ort von Salons, wo Django nach Kriegsende spielt"
@@ -89,7 +89,7 @@
     }
   ],
   "recording_session": null,
-  "label": null,
+  "record_label": null,
   "year": [
     { "name": "1910", "context": "Geburtsjahr Django Reinhardts" },
     {
@@ -120,7 +120,7 @@
       "context": "Djangos Auftritt in Paris und Einfluss in der Jazzszene"
     }
   ],
-  "era": [
+  "historical_period": [
     {
       "name": "Gypsy Jazz",
       "context": "von Django Reinhardt geschaffenes Jazz Subgenre"
@@ -175,7 +175,7 @@
     },
     { "name": "Italien", "context": "Reiseort der Familie Reinhardt vor Paris" }
   ],
-  "sub_genre": [
+  "music_genre": [
     { "name": "Gypsy Jazz", "context": "Djangos eigenschaffener Stil" },
     {
       "name": "Jazz Manouche",
@@ -186,7 +186,7 @@
       "context": "Jazzstil, der das Interesse an Gypsy Jazz verdrängt"
     }
   ],
-  "instrument": [
+  "musical_instrument": [
     { "name": "Gitarre", "context": "Djangos Hauptinstrument" },
     {
       "name": "Geige",

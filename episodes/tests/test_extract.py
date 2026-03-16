@@ -33,7 +33,7 @@ class ExtractorBuildPromptTests(TestCase):
         prompt = build_system_prompt("de")
         self.assertIn("German", prompt)
         self.assertIn("entity extractor", prompt)
-        self.assertIn("Artist", prompt)
+        self.assertIn("Musician", prompt)
 
     def test_build_system_prompt_without_language(self):
         from episodes.extractor import build_system_prompt
@@ -55,7 +55,7 @@ class ExtractorBuildPromptTests(TestCase):
         EntityType.objects.filter(key="role").update(is_active=False)
         prompt = build_system_prompt("")
         self.assertNotIn("Role", prompt)
-        self.assertIn("Artist", prompt)
+        self.assertIn("Musician", prompt)
 
     def test_system_prompt_says_excerpt(self):
         from episodes.extractor import build_system_prompt
@@ -85,7 +85,7 @@ class ExtractorBuildSchemaTests(TestCase):
             self.assertIn(et.key, inner["required"])
 
         # Check one property structure
-        artist_prop = inner["properties"]["artist"]
+        artist_prop = inner["properties"]["musician"]
         self.assertEqual(artist_prop["type"], ["array", "null"])
         item = artist_prop["items"]
         self.assertIn("name", item["properties"])
@@ -102,29 +102,29 @@ class ExtractEntitiesTests(TestCase):
     """Tests for the extract_entities task function."""
 
     SAMPLE_ENTITIES = {
-        "artist": [
+        "musician": [
             {"name": "Miles Davis", "context": "discussed his trumpet style"},
         ],
-        "band": None,
+        "musical_group": None,
         "album": [
             {"name": "Kind of Blue", "context": "landmark album"},
         ],
-        "composition": None,
-        "venue": None,
+        "composed_musical_work": None,
+        "music_venue": None,
         "recording_session": None,
-        "label": [
+        "record_label": [
             {"name": "Columbia Records", "context": "released Kind of Blue"},
         ],
         "year": [
             {"name": "1959", "context": "year Kind of Blue was released"},
         ],
-        "era": None,
+        "historical_period": None,
         "city": None,
         "country": None,
-        "sub_genre": [
+        "music_genre": [
             {"name": "Modal Jazz", "context": "genre of Kind of Blue"},
         ],
-        "instrument": [
+        "musical_instrument": [
             {"name": "Trumpet", "context": "Miles Davis instrument"},
         ],
         "role": None,

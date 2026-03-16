@@ -105,7 +105,7 @@ class ResolveEntitiesTests(TestCase):
         from episodes.resolver import resolve_entities
 
         # Pre-create an existing entity
-        artist_type = _get_entity_type("artist")
+        artist_type = _get_entity_type("musician")
         existing = Entity.objects.create(
             entity_type=artist_type, name="Miles Davis"
         )
@@ -124,7 +124,7 @@ class ResolveEntitiesTests(TestCase):
         mock_factory.return_value = mock_provider
 
         entities_json = {
-            "artist": [
+            "musician": [
                 {"name": "Miles Davis", "context": "trumpet player"},
             ],
         }
@@ -157,7 +157,7 @@ class ResolveEntitiesTests(TestCase):
         """Some matches, some new."""
         from episodes.resolver import resolve_entities
 
-        artist_type = _get_entity_type("artist")
+        artist_type = _get_entity_type("musician")
         existing = Entity.objects.create(
             entity_type=artist_type, name="Miles Davis"
         )
@@ -182,7 +182,7 @@ class ResolveEntitiesTests(TestCase):
         mock_factory.return_value = mock_provider
 
         entities_json = {
-            "artist": [
+            "musician": [
                 {"name": "Miles Davis", "context": "trumpet"},
                 {"name": "John Coltrane", "context": "saxophone"},
             ],
@@ -216,12 +216,12 @@ class ResolveEntitiesTests(TestCase):
         mock_factory.return_value = mock_provider
 
         entities_chunk1 = {
-            "artist": [
+            "musician": [
                 {"name": "Miles Davis", "context": "early career"},
             ],
         }
         entities_chunk2 = {
-            "artist": [
+            "musician": [
                 {"name": "Miles Davis", "context": "later work"},
             ],
         }
@@ -254,7 +254,7 @@ class ResolveEntitiesTests(TestCase):
         """Multiple chunks with same entity type -> one resolution call with unique names."""
         from episodes.resolver import resolve_entities
 
-        artist_type = _get_entity_type("artist")
+        artist_type = _get_entity_type("musician")
         existing = Entity.objects.create(
             entity_type=artist_type, name="Miles Davis"
         )
@@ -279,12 +279,12 @@ class ResolveEntitiesTests(TestCase):
         mock_factory.return_value = mock_provider
 
         entities_chunk1 = {
-            "artist": [
+            "musician": [
                 {"name": "Miles Davis", "context": "trumpet"},
             ],
         }
         entities_chunk2 = {
-            "artist": [
+            "musician": [
                 {"name": "Miles Davis", "context": "bandleader"},
                 {"name": "John Coltrane", "context": "saxophone"},
             ],
@@ -321,7 +321,7 @@ class ResolveEntitiesTests(TestCase):
         mock_factory.return_value = mock_provider
 
         entities_json = {
-            "instrument": [
+            "musical_instrument": [
                 {"name": "Saxophon", "context": "German spelling"},
             ],
         }
@@ -332,7 +332,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        instrument_type = _get_entity_type("instrument")
+        instrument_type = _get_entity_type("musical_instrument")
 
         # First episode — no existing entities, so created directly with extracted name
         with patch("episodes.signals.async_task"):
@@ -358,7 +358,7 @@ class ResolveEntitiesTests(TestCase):
             status=Episode.Status.RESOLVING,
         )
         self._create_chunk(episode2, index=0, entities_json={
-            "instrument": [
+            "musical_instrument": [
                 {"name": "Saxophone", "context": "English spelling"},
             ],
         })
@@ -383,8 +383,8 @@ class ResolveEntitiesTests(TestCase):
         mock_factory.return_value = mock_provider
 
         entities_json = {
-            "artist": None,
-            "band": None,
+            "musician": None,
+            "musical_group": None,
         }
 
         episode = self._create_episode(
@@ -409,7 +409,7 @@ class ResolveEntitiesTests(TestCase):
         """LLM returns matched_entity_id=None but canonical_name already exists -> reuse entity."""
         from episodes.resolver import resolve_entities
 
-        artist_type = _get_entity_type("artist")
+        artist_type = _get_entity_type("musician")
         existing = Entity.objects.create(
             entity_type=artist_type, name="Django Reinhardt"
         )
@@ -428,7 +428,7 @@ class ResolveEntitiesTests(TestCase):
         mock_factory.return_value = mock_provider
 
         entities_json = {
-            "artist": [
+            "musician": [
                 {"name": "Django Reinhardt", "context": "jazz guitarist"},
             ],
         }
@@ -495,7 +495,7 @@ class ResolveEntitiesTests(TestCase):
         from episodes.resolver import resolve_entities
 
         # Pre-create an existing entity so LLM call happens
-        artist_type = _get_entity_type("artist")
+        artist_type = _get_entity_type("musician")
         Entity.objects.create(entity_type=artist_type, name="Miles Davis")
 
         mock_provider = MagicMock()
@@ -503,7 +503,7 @@ class ResolveEntitiesTests(TestCase):
         mock_factory.return_value = mock_provider
 
         entities_json = {
-            "artist": [
+            "musician": [
                 {"name": "Miles Davis", "context": "trumpet"},
             ],
         }
@@ -618,7 +618,7 @@ class ResolveEntitiesTests(TestCase):
         """Wikidata candidates are passed to the LLM and wikidata_id is saved."""
         from episodes.resolver import resolve_entities
 
-        artist_type = _get_entity_type("artist")
+        artist_type = _get_entity_type("musician")
         existing = Entity.objects.create(
             entity_type=artist_type, name="Miles Davis"
         )
@@ -637,7 +637,7 @@ class ResolveEntitiesTests(TestCase):
         mock_factory.return_value = mock_provider
 
         entities_json = {
-            "artist": [
+            "musician": [
                 {"name": "Miles Davis", "context": "trumpet"},
             ],
         }
@@ -675,7 +675,7 @@ class ResolveEntitiesTests(TestCase):
         """Entity with matching wikidata_id in DB is reused."""
         from episodes.resolver import resolve_entities
 
-        artist_type = _get_entity_type("artist")
+        artist_type = _get_entity_type("musician")
         existing = Entity.objects.create(
             entity_type=artist_type, name="Miles Davis", wikidata_id="Q93341"
         )
@@ -694,7 +694,7 @@ class ResolveEntitiesTests(TestCase):
         mock_factory.return_value = mock_provider
 
         entities_json = {
-            "artist": [
+            "musician": [
                 {"name": "M. Davis", "context": "trumpet"},
             ],
         }
@@ -733,7 +733,7 @@ class ResolveEntitiesTests(TestCase):
         mock_factory.return_value = mock_provider
 
         entities_json = {
-            "artist": [
+            "musician": [
                 {"name": "Miles Davis", "context": "trumpet"},
             ],
         }
@@ -778,7 +778,7 @@ class ResolveEntitiesTests(TestCase):
         mock_factory.return_value = mock_provider
 
         entities_json = {
-            "artist": [
+            "musician": [
                 {"name": "Miles Davis", "context": "trumpet"},
                 {"name": "John Coltrane", "context": "saxophone"},
             ],
@@ -818,7 +818,7 @@ class ResolveEntitiesTests(TestCase):
         """LLM omits a name when existing entities present — fallback creates it."""
         from episodes.resolver import resolve_entities
 
-        artist_type = _get_entity_type("artist")
+        artist_type = _get_entity_type("musician")
         existing = Entity.objects.create(
             entity_type=artist_type, name="Miles Davis"
         )
@@ -838,7 +838,7 @@ class ResolveEntitiesTests(TestCase):
         mock_factory.return_value = mock_provider
 
         entities_json = {
-            "artist": [
+            "musician": [
                 {"name": "Miles Davis", "context": "trumpet"},
                 {"name": "John Coltrane", "context": "saxophone"},
             ],
@@ -867,7 +867,7 @@ class ResolveEntitiesTests(TestCase):
         """Two extracted names resolve to the same entity in the same chunk — no duplicate mention."""
         from episodes.resolver import resolve_entities
 
-        artist_type = _get_entity_type("artist")
+        artist_type = _get_entity_type("musician")
         existing = Entity.objects.create(
             entity_type=artist_type, name="Miles Davis"
         )
@@ -894,7 +894,7 @@ class ResolveEntitiesTests(TestCase):
 
         # Both names appear in the same chunk
         entities_json = {
-            "artist": [
+            "musician": [
                 {"name": "Miles Davis", "context": "trumpet legend"},
                 {"name": "Miles", "context": "short form"},
             ],
@@ -928,7 +928,7 @@ class ResolveEntitiesTests(TestCase):
         mock_factory.return_value = mock_provider
 
         entities_json = {
-            "artist": [
+            "musician": [
                 {"name": "Miles Davis", "context": "trumpet"},
             ],
         }
