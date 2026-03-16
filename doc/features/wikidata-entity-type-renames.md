@@ -14,7 +14,9 @@ Entity type keys in `initial_entity_types.yaml` used informal names (e.g., "arti
 
 ## Key Parameters
 
-No tunable constants. All names and descriptions come directly from Wikidata API responses.
+No tunable constants. Names and descriptions for the 8 renamed types come from Wikidata API responses. Types that were not renamed (e.g., `recording_session`, `album`, `year`) retain their existing descriptions and examples.
+
+**Note:** This project has not been released yet, so there are no existing installs to migrate. A fresh `migrate` + `load_entity_types` is sufficient.
 
 ## Verification
 

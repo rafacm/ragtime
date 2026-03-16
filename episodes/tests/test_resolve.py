@@ -90,7 +90,7 @@ class ResolveEntitiesTests(TestCase):
         # No LLM call needed when no existing entities and no Wikidata candidates
         mock_provider.structured_extract.assert_not_called()
 
-        # 59 entities from fixture (3 null types: album, recording_session, label)
+        # 59 entities from fixture (3 null types: album, recording_session, record_label)
         self.assertEqual(Entity.objects.count(), 59)
         self.assertEqual(EntityMention.objects.filter(episode=episode).count(), 59)
 
@@ -105,9 +105,9 @@ class ResolveEntitiesTests(TestCase):
         from episodes.resolver import resolve_entities
 
         # Pre-create an existing entity
-        artist_type = _get_entity_type("musician")
+        musician_type = _get_entity_type("musician")
         existing = Entity.objects.create(
-            entity_type=artist_type, name="Miles Davis"
+            entity_type=musician_type, name="Miles Davis"
         )
 
         mock_provider = MagicMock()
@@ -141,9 +141,9 @@ class ResolveEntitiesTests(TestCase):
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
 
-        # Still only 1 artist entity
+        # Still only 1 musician entity
         self.assertEqual(
-            Entity.objects.filter(entity_type=artist_type).count(), 1
+            Entity.objects.filter(entity_type=musician_type).count(), 1
         )
         # Mention was created with chunk FK
         mention = EntityMention.objects.get(episode=episode)
@@ -157,9 +157,9 @@ class ResolveEntitiesTests(TestCase):
         """Some matches, some new."""
         from episodes.resolver import resolve_entities
 
-        artist_type = _get_entity_type("musician")
+        musician_type = _get_entity_type("musician")
         existing = Entity.objects.create(
-            entity_type=artist_type, name="Miles Davis"
+            entity_type=musician_type, name="Miles Davis"
         )
 
         mock_provider = MagicMock()
@@ -200,9 +200,9 @@ class ResolveEntitiesTests(TestCase):
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
 
-        # 2 artist entities: existing Miles + new Coltrane
+        # 2 musician entities: existing Miles + new Coltrane
         self.assertEqual(
-            Entity.objects.filter(entity_type=artist_type).count(), 2
+            Entity.objects.filter(entity_type=musician_type).count(), 2
         )
         self.assertEqual(EntityMention.objects.filter(episode=episode).count(), 2)
 
@@ -254,9 +254,9 @@ class ResolveEntitiesTests(TestCase):
         """Multiple chunks with same entity type -> one resolution call with unique names."""
         from episodes.resolver import resolve_entities
 
-        artist_type = _get_entity_type("musician")
+        musician_type = _get_entity_type("musician")
         existing = Entity.objects.create(
-            entity_type=artist_type, name="Miles Davis"
+            entity_type=musician_type, name="Miles Davis"
         )
 
         mock_provider = MagicMock()
@@ -300,7 +300,7 @@ class ResolveEntitiesTests(TestCase):
         with patch("episodes.signals.async_task"):
             resolve_entities(episode.pk)
 
-        # Only 1 LLM call (one entity type: artist)
+        # Only 1 LLM call (one entity type: musician)
         self.assertEqual(mock_provider.structured_extract.call_count, 1)
 
         # Unique names sent to resolution
@@ -409,9 +409,9 @@ class ResolveEntitiesTests(TestCase):
         """LLM returns matched_entity_id=None but canonical_name already exists -> reuse entity."""
         from episodes.resolver import resolve_entities
 
-        artist_type = _get_entity_type("musician")
+        musician_type = _get_entity_type("musician")
         existing = Entity.objects.create(
-            entity_type=artist_type, name="Django Reinhardt"
+            entity_type=musician_type, name="Django Reinhardt"
         )
 
         mock_provider = MagicMock()
@@ -447,7 +447,7 @@ class ResolveEntitiesTests(TestCase):
 
         # Should reuse existing entity, not crash
         self.assertEqual(
-            Entity.objects.filter(entity_type=artist_type).count(), 1
+            Entity.objects.filter(entity_type=musician_type).count(), 1
         )
         mention = EntityMention.objects.get(episode=episode)
         self.assertEqual(mention.entity, existing)
@@ -495,8 +495,8 @@ class ResolveEntitiesTests(TestCase):
         from episodes.resolver import resolve_entities
 
         # Pre-create an existing entity so LLM call happens
-        artist_type = _get_entity_type("musician")
-        Entity.objects.create(entity_type=artist_type, name="Miles Davis")
+        musician_type = _get_entity_type("musician")
+        Entity.objects.create(entity_type=musician_type, name="Miles Davis")
 
         mock_provider = MagicMock()
         mock_provider.structured_extract.side_effect = Exception("API error")
@@ -618,9 +618,9 @@ class ResolveEntitiesTests(TestCase):
         """Wikidata candidates are passed to the LLM and wikidata_id is saved."""
         from episodes.resolver import resolve_entities
 
-        artist_type = _get_entity_type("musician")
+        musician_type = _get_entity_type("musician")
         existing = Entity.objects.create(
-            entity_type=artist_type, name="Miles Davis"
+            entity_type=musician_type, name="Miles Davis"
         )
 
         mock_provider = MagicMock()
@@ -675,9 +675,9 @@ class ResolveEntitiesTests(TestCase):
         """Entity with matching wikidata_id in DB is reused."""
         from episodes.resolver import resolve_entities
 
-        artist_type = _get_entity_type("musician")
+        musician_type = _get_entity_type("musician")
         existing = Entity.objects.create(
-            entity_type=artist_type, name="Miles Davis", wikidata_id="Q93341"
+            entity_type=musician_type, name="Miles Davis", wikidata_id="Q93341"
         )
 
         mock_provider = MagicMock()
@@ -710,7 +710,7 @@ class ResolveEntitiesTests(TestCase):
                 resolve_entities(episode.pk)
 
         # Should match existing entity by wikidata_id
-        self.assertEqual(Entity.objects.filter(entity_type=artist_type).count(), 1)
+        self.assertEqual(Entity.objects.filter(entity_type=musician_type).count(), 1)
         mention = EntityMention.objects.get(episode=episode)
         self.assertEqual(mention.entity, existing)
 
@@ -818,9 +818,9 @@ class ResolveEntitiesTests(TestCase):
         """LLM omits a name when existing entities present — fallback creates it."""
         from episodes.resolver import resolve_entities
 
-        artist_type = _get_entity_type("musician")
+        musician_type = _get_entity_type("musician")
         existing = Entity.objects.create(
-            entity_type=artist_type, name="Miles Davis"
+            entity_type=musician_type, name="Miles Davis"
         )
 
         mock_provider = MagicMock()
@@ -858,7 +858,7 @@ class ResolveEntitiesTests(TestCase):
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
 
         # Miles matched, Coltrane created via fallback
-        self.assertEqual(Entity.objects.filter(entity_type=artist_type).count(), 2)
+        self.assertEqual(Entity.objects.filter(entity_type=musician_type).count(), 2)
         self.assertEqual(EntityMention.objects.filter(episode=episode).count(), 2)
 
     @patch("episodes.resolver._fetch_wikidata_candidates", return_value={})
@@ -867,9 +867,9 @@ class ResolveEntitiesTests(TestCase):
         """Two extracted names resolve to the same entity in the same chunk — no duplicate mention."""
         from episodes.resolver import resolve_entities
 
-        artist_type = _get_entity_type("musician")
+        musician_type = _get_entity_type("musician")
         existing = Entity.objects.create(
-            entity_type=artist_type, name="Miles Davis"
+            entity_type=musician_type, name="Miles Davis"
         )
 
         mock_provider = MagicMock()
@@ -913,7 +913,7 @@ class ResolveEntitiesTests(TestCase):
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
 
         # Only 1 entity, 1 mention (deduped by entity+chunk)
-        self.assertEqual(Entity.objects.filter(entity_type=artist_type).count(), 1)
+        self.assertEqual(Entity.objects.filter(entity_type=musician_type).count(), 1)
         self.assertEqual(EntityMention.objects.filter(episode=episode).count(), 1)
         mention = EntityMention.objects.get(episode=episode)
         self.assertEqual(mention.entity, existing)

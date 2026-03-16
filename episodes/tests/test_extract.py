@@ -85,9 +85,9 @@ class ExtractorBuildSchemaTests(TestCase):
             self.assertIn(et.key, inner["required"])
 
         # Check one property structure
-        artist_prop = inner["properties"]["musician"]
-        self.assertEqual(artist_prop["type"], ["array", "null"])
-        item = artist_prop["items"]
+        musician_prop = inner["properties"]["musician"]
+        self.assertEqual(musician_prop["type"], ["array", "null"])
+        item = musician_prop["items"]
         self.assertIn("name", item["properties"])
         self.assertIn("context", item["properties"])
         self.assertFalse(item["additionalProperties"])
