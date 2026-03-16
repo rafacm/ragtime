@@ -80,6 +80,23 @@ SYSTEMS = [
             },
         ],
     },
+    {
+        "name": "LLM Observability",
+        "description": "Langfuse tracing for LLM calls (optional)",
+        "shareable": False,
+        "subsystems": [
+            {
+                "prefix": "RAGTIME_LANGFUSE",
+                "label": "Langfuse",
+                "fields": [
+                    ("ENABLED", "false", False),
+                    ("SECRET_KEY", "", True),
+                    ("PUBLIC_KEY", "", True),
+                    ("HOST", "http://localhost:3000", False),
+                ],
+            },
+        ],
+    },
 ]
 
 

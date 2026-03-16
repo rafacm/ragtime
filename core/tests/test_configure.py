@@ -242,6 +242,8 @@ class ConfigureWizardTest(TestCase):
             "",               # Wikidata cache TTL (keep default)
             "",               # Wikidata debounce ms (keep default)
             "",               # Wikidata min chars (keep default)
+            "",               # Langfuse enabled (keep default)
+            "",               # Langfuse host (keep default)
         ]
 
         with tempfile.NamedTemporaryFile(
@@ -329,6 +331,8 @@ class ConfigureWizardTest(TestCase):
             "",               # Wikidata cache TTL (keep default)
             "",               # Wikidata debounce ms (keep default)
             "",               # Wikidata min chars (keep default)
+            "",               # Langfuse enabled (keep default)
+            "",               # Langfuse host (keep default)
         ]
 
         original_lines = ["# My config\n", "DEBUG=true\n", "RAGTIME_SCRAPING_PROVIDER=openai\n"]

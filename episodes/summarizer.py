@@ -2,6 +2,7 @@ import logging
 
 from .languages import ISO_639_LANGUAGE_NAMES, ISO_639_RE
 from .models import Episode
+from .observability import observe_step
 from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_summarization_provider
 
@@ -29,6 +30,7 @@ def build_system_prompt(language: str) -> str:
     return f"{_BASE_SYSTEM_PROMPT}\n{_FALLBACK_INSTRUCTION}"
 
 
+@observe_step("summarize_episode")
 def summarize_episode(episode_id: int) -> None:
     try:
         episode = Episode.objects.get(pk=episode_id)

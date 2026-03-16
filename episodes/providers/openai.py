@@ -1,12 +1,13 @@
 import json
 
-from openai import OpenAI
+from episodes.observability import get_openai_client_class
 
 from .base import LLMProvider, TranscriptionProvider
 
 
 class OpenAILLMProvider(LLMProvider):
     def __init__(self, api_key: str, model: str):
+        OpenAI = get_openai_client_class()
         self.client = OpenAI(api_key=api_key)
         self.model = model
 
@@ -32,6 +33,7 @@ class OpenAILLMProvider(LLMProvider):
 
 class OpenAITranscriptionProvider(TranscriptionProvider):
     def __init__(self, api_key: str, model: str):
+        OpenAI = get_openai_client_class()
         self.client = OpenAI(api_key=api_key)
         self.model = model
 
