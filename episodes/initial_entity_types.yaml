@@ -1,18 +1,20 @@
-- key: artist
-  name: Artist
+- key: musician
+  name: Musician
   wikidata_id: Q639669
-  description: Individual musicians or singers.
+  description: Person who composes, conducts or performs music.
   examples:
     - Miles Davis
     - Alice Coltrane
+    - Thelonious Monk
 
-- key: band
-  name: Band
+- key: musical_group
+  name: Musical Group
   wikidata_id: Q215380
-  description: Organized groups or ensembles.
+  description: Musical ensemble which performs music.
   examples:
     - The Jazz Messengers
     - Snarky Puppy
+    - Weather Report
 
 - key: album
   name: Album
@@ -22,35 +24,36 @@
     - Kind of Blue
     - A Love Supreme
 
-- key: composition
-  name: Composition
+- key: composed_musical_work
+  name: Composed Musical Work
   wikidata_id: Q207628
-  description: Specific songs, standards, or tunes.
+  description: Original piece or work of music, either vocal or instrumental.
   examples:
     - Take Five
     - Giant Steps
     - Summertime
 
-- key: venue
-  name: Venue
+- key: music_venue
+  name: Music Venue
   wikidata_id: Q8719053
-  description: Physical clubs, theaters, or festivals.
+  description: Any location used for a concert or musical performance.
   examples:
     - Village Vanguard
     - Newport Jazz Festival
+    - Blue Note Jazz Club
 
 - key: recording_session
   name: Recording Session
-  wikidata_id: Q81091849
+  wikidata_id: Q98216532
   description: A specific date/time/place of a recording.
   examples:
     - The Blackhawk Sessions
     - 1959 Sessions
 
-- key: label
-  name: Label
+- key: record_label
+  name: Record Label
   wikidata_id: Q18127
-  description: The record company/publisher.
+  description: Brand and trademark associated with the marketing of music recordings and music videos.
   examples:
     - Blue Note
     - "Impulse!"
@@ -65,14 +68,14 @@
     - "1942"
     - "2024"
 
-- key: era
-  name: Era
+- key: historical_period
+  name: Historical Period
   wikidata_id: Q11514315
-  description: Broad historical periods or movements.
+  description: Segment of time in history.
   examples:
     - The Swing Era
     - Prohibition
-    - Post-Bop
+    - The Harlem Renaissance
 
 - key: city
   name: City
@@ -93,20 +96,20 @@
     - Ethiopia
     - France
 
-- key: sub_genre
-  name: Sub-genre
+- key: music_genre
+  name: Music Genre
   wikidata_id: Q188451
-  description: Specific stylistic categories within Jazz.
+  description: Category that identifies pieces of music as belonging to a shared tradition or set of conventions.
   examples:
+    - Bebop
     - Hard Bop
     - Fusion
-    - Modal
     - Free Jazz
 
-- key: instrument
-  name: Instrument
+- key: musical_instrument
+  name: Musical Instrument
   wikidata_id: Q34379
-  description: The tool used to create the music.
+  description: Device created or adapted to make musical sounds.
   examples:
     - Trumpet
     - Fender Rhodes

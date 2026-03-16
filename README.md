@@ -25,7 +25,7 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 
 - 🎙️ **Episode Ingestion** — Add podcast episodes by URL. RAGtime scrapes metadata (title, description, date, image), downloads audio, and processes it through the pipeline.
 - 📝 **Multilingual Transcription** — Transcribes episodes using configurable backends (Whisper API by default) with segment and word-level timestamps. Supports multiple languages (English, Spanish, German, Swedish, etc.).
-- 🔍 **Entity Extraction** — Identifies jazz entities: artists, bands, albums, venues, recording sessions, record labels, years. Entities are resolved against existing records using LLM-based matching.
+- 🔍 **Entity Extraction** — Identifies jazz entities: musicians, musical groups, albums, music venues, recording sessions, record labels, years. Entities are resolved against existing records using LLM-based matching.
 - 📇 **Episode Indexing** — Splits transcripts into segments and generates multilingual embeddings stored in ChromaDB. Enables cross-language semantic search so Scott can retrieve relevant content regardless of the question's language.
 - 🎷 **Scott — Your Jazz AI** — A conversational agent that answers questions strictly from ingested episode content. Scott responds in the user's language and provides references to specific episodes and timestamps. Responses stream in real-time.
 
@@ -61,7 +61,7 @@ Split transcript into ~150-word chunks along Whisper segment boundaries, with 1-
 
 #### 7. 🔍 Extract entities (status: `extracting`)
 
-LLM-based entity extraction runs **per chunk**, linking each entity mention to the specific chunk (and thus timestamp) where it appeared. Entity types (artist, band, album, composition, venue, recording session, label, year, era, city, country, sub-genre, instrument, role) are stored in the database and managed via Django admin. Each entity type has a **Wikidata class Q-ID** (e.g., Q639669 for "musician") for candidate lookup during resolution. An initial set of 14 types is defined in [`episodes/initial_entity_types.yaml`](episodes/initial_entity_types.yaml) — load them with:
+LLM-based entity extraction runs **per chunk**, linking each entity mention to the specific chunk (and thus timestamp) where it appeared. Entity types (musician, musical group, album, composed musical work, music venue, recording session, record label, year, historical period, city, country, music genre, musical instrument, role) are stored in the database and managed via Django admin. Each entity type has a **Wikidata class Q-ID** (e.g., Q639669 for "musician") for candidate lookup during resolution. An initial set of 14 types is defined in [`episodes/initial_entity_types.yaml`](episodes/initial_entity_types.yaml) — load them with:
 
 ```
 uv run python manage.py load_entity_types
