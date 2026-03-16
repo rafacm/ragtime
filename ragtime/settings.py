@@ -200,6 +200,12 @@ else:
         'TIMEOUT': int(os.getenv('RAGTIME_WIKIDATA_CACHE_TTL', '604800')),
     }
 
+# LLM Observability (Langfuse)
+RAGTIME_LANGFUSE_ENABLED = os.getenv('RAGTIME_LANGFUSE_ENABLED', 'false').lower() in ('true', '1', 'yes')
+RAGTIME_LANGFUSE_SECRET_KEY = os.getenv('RAGTIME_LANGFUSE_SECRET_KEY', '')
+RAGTIME_LANGFUSE_PUBLIC_KEY = os.getenv('RAGTIME_LANGFUSE_PUBLIC_KEY', '')
+RAGTIME_LANGFUSE_HOST = os.getenv('RAGTIME_LANGFUSE_HOST', 'http://localhost:3000')
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',

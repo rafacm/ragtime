@@ -2,6 +2,7 @@ import logging
 
 from .languages import ISO_639_LANGUAGE_NAMES, ISO_639_RE
 from .models import Chunk, EntityType, Episode
+from .observability import observe_step
 from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_extraction_provider
 
@@ -80,6 +81,7 @@ def build_response_schema() -> dict:
     }
 
 
+@observe_step("extract_entities")
 def extract_entities(episode_id: int) -> None:
     try:
         episode = Episode.objects.get(pk=episode_id)

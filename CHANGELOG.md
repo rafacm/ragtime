@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## 2026-03-16
 
+### Added
+
+- Optional Langfuse LLM Observability — trace all OpenAI API calls across the 5 LLM pipeline steps (scrape, transcribe, summarize, extract, resolve), grouped by ProcessingRun session. Zero overhead when disabled. Install with `uv sync --extra observability` — [plan](doc/plans/langfuse-observability.md), [feature](doc/features/langfuse-observability.md), [planning session](doc/sessions/2026-03-16-langfuse-observability-planning-session.md), [implementation session](doc/sessions/2026-03-16-langfuse-observability-implementation-session.md)
+
 ### Changed
 
 - Rename Entity Type Keys to Match Wikidata Labels — align 8 entity type keys, names, and descriptions with official Wikidata labels (e.g., artist -> musician, band -> musical_group), fix incorrect Q-ID for recording_session (was a galaxy, now Q98216532) — [plan](doc/plans/wikidata-entity-type-renames.md), [feature](doc/features/wikidata-entity-type-renames.md), [planning session](doc/sessions/2026-03-16-wikidata-entity-type-renames-planning-session.md), [implementation session](doc/sessions/2026-03-16-wikidata-entity-type-renames-implementation-session.md)

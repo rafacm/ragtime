@@ -38,6 +38,7 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 - **Episode ingestion**: submit episodes by URL, metadata scraping, audio download, transcription, summarization,  chunking, entity extraction and resolution with [Wikidata](https://www.wikidata.org/) integration.
 - **Episode management UI**: Django admin interface to view episode status and metadata and browse extracted entities.
 - **Configuration wizard**: interactive `manage.py configure` command for all `RAGTIME_*` env vars.
+- **LLM observability**: optional [Langfuse](https://langfuse.com) integration for tracing and monitoring LLM calls across the pipeline.
 
 ### What's coming
 
@@ -189,6 +190,50 @@ uv run python manage.py qcluster
 You can run `uv run python manage.py configure` to launch an interactive setup wizard for all `RAGTIME_*` env vars.
 
 Alternatively, copy [`.env.sample`](.env.sample) to `.env` and fill in your values.
+
+## LLM Observability (Langfuse)
+
+RAGtime optionally integrates with [Langfuse](https://langfuse.com) to trace all LLM calls across the pipeline. When enabled, every OpenAI API call is captured with prompts, completions, token usage, latency, and cost — grouped by `ProcessingRun`.
+
+### What is traced
+
+| Pipeline step | Function | LLM calls |
+|---|---|---|
+| Scrape | `scrape_episode` | Structured metadata extraction |
+| Transcribe | `transcribe_episode` | Whisper API transcription |
+| Summarize | `summarize_episode` | Summary generation |
+| Extract | `extract_entities` | Per-chunk entity extraction |
+| Resolve | `resolve_entities` | Entity resolution against DB |
+
+### Setup
+
+1. Install the optional dependency:
+   ```
+   uv sync --extra observability
+   ```
+
+2. Run Langfuse locally via Docker Compose (requires Postgres, ClickHouse, and Redis):
+   ```
+   # See https://langfuse.com/self-hosting/deployment/docker-compose
+   curl -LO https://langfuse.com/docker-compose.yml
+   docker compose up -d
+   ```
+
+3. Configure via the wizard or `.env`:
+   ```
+   uv run python manage.py configure
+   ```
+   Or set these variables in `.env`:
+   ```
+   RAGTIME_LANGFUSE_ENABLED=true
+   RAGTIME_LANGFUSE_SECRET_KEY=sk-lf-...
+   RAGTIME_LANGFUSE_PUBLIC_KEY=pk-lf-...
+   RAGTIME_LANGFUSE_HOST=http://localhost:3000
+   ```
+
+4. Process an episode and view traces at `http://localhost:3000`.
+
+When disabled (the default), Langfuse is never imported and there is zero overhead.
 
 ## Tech Stack
 
