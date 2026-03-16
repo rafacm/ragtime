@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- Rename Entity Type Keys to Match Wikidata Labels — align 8 entity type keys, names, and descriptions with official Wikidata labels (e.g., artist -> musician, band -> musical_group), fix incorrect Q-ID for recording_session (was a galaxy, now Q98216532) — [plan](doc/plans/wikidata-entity-type-renames.md), [feature](doc/features/wikidata-entity-type-renames.md), [planning session](doc/sessions/2026-03-16-wikidata-entity-type-renames-planning-session.md), [implementation session](doc/sessions/2026-03-16-wikidata-entity-type-renames-implementation-session.md)
+- Rename Entity Type Keys to Match Wikidata Labels — align 8 entity type keys, names, and descriptions with official Wikidata labels (e.g., artist -> musician, band -> musical_group), fix incorrect Q-ID for recording_session (was a galaxy, now Q98216532); pre-release project with no existing installs — no upgrade steps needed — [plan](doc/plans/wikidata-entity-type-renames.md), [feature](doc/features/wikidata-entity-type-renames.md), [planning session](doc/sessions/2026-03-16-wikidata-entity-type-renames-planning-session.md), [implementation session](doc/sessions/2026-03-16-wikidata-entity-type-renames-implementation-session.md)
 
 ## 2026-03-15
 
