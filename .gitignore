@@ -58,3 +58,6 @@ docker-compose.override.yml
 
 # SpecStory - https://github.com/specstoryai
 .specstory/
+
+# Claude
+.claude/worktrees/
