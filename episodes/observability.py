@@ -63,8 +63,12 @@ def observe_step(name):
     Returns a no-op passthrough when Langfuse is disabled.
     """
     def decorator(func):
+        observed_func = None
+
         @functools.wraps(func)
         def wrapper(episode_id, *args, **kwargs):
+            nonlocal observed_func
+
             if not is_enabled():
                 return func(episode_id, *args, **kwargs)
 
@@ -74,19 +78,21 @@ def observe_step(name):
             except ImportError:
                 return func(episode_id, *args, **kwargs)
 
-            from .models import Episode
-            from .processing import get_active_run
+            from .models import ProcessingRun
 
-            try:
-                episode = Episode.objects.get(pk=episode_id)
-            except Episode.DoesNotExist:
-                return func(episode_id, *args, **kwargs)
-
-            run = get_active_run(episode)
+            run = (
+                ProcessingRun.objects.filter(
+                    episode_id=episode_id,
+                    status=ProcessingRun.Status.RUNNING,
+                )
+                .order_by("-started_at")
+                .first()
+            )
             session_id = str(run.pk) if run else None
             metadata = {"episode_id": episode_id}
 
-            observed_func = langfuse_observe(name=name)(func)
+            if observed_func is None:
+                observed_func = langfuse_observe(name=name)(func)
 
             with propagate_attributes(
                 session_id=session_id, metadata=metadata
