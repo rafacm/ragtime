@@ -38,7 +38,7 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 - **Processing pipeline steps 1–8**: submit, scrape, download, transcribe, summarize, chunk, extract entities, and resolve entities — the full ingestion pipeline up to entity resolution, including Wikidata integration.
 - **Episode management UI**: submit episodes by URL, view status and metadata, browse entities.
 - **Configuration wizard**: interactive `manage.py configure` command for all `RAGTIME_*` env vars.
-- **CI**: GitHub Actions workflow with linting and tests.
+- **CI**: GitHub Actions workflow with tests.
 
 ### What's coming
 
