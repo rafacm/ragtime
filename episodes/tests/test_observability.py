@@ -10,6 +10,7 @@ from episodes.observability import get_openai_client_class, is_enabled, observe_
 class IsEnabledTest(TestCase):
     """Tests for is_enabled()."""
 
+    @override_settings(RAGTIME_LANGFUSE_ENABLED=False)
     def test_disabled_by_default(self):
         self.assertFalse(is_enabled())
 
@@ -67,6 +68,7 @@ class IsEnabledTest(TestCase):
 class GetOpenaiClientClassTest(TestCase):
     """Tests for get_openai_client_class()."""
 
+    @override_settings(RAGTIME_LANGFUSE_ENABLED=False)
     def test_returns_standard_openai_when_disabled(self):
         from openai import OpenAI
 
@@ -90,6 +92,7 @@ class GetOpenaiClientClassTest(TestCase):
 class ObserveStepTest(TestCase):
     """Tests for observe_step() decorator."""
 
+    @override_settings(RAGTIME_LANGFUSE_ENABLED=False)
     def test_noop_when_disabled(self):
         """When Langfuse is disabled, the decorator passes through."""
         called_with = {}
@@ -103,6 +106,7 @@ class ObserveStepTest(TestCase):
         self.assertEqual(result, "result")
         self.assertEqual(called_with["episode_id"], 42)
 
+    @override_settings(RAGTIME_LANGFUSE_ENABLED=False)
     def test_preserves_function_name(self):
         @observe_step("test_step")
         def my_step(episode_id):

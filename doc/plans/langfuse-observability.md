@@ -43,4 +43,4 @@ Two complementary instrumentation layers:
 | `RAGTIME_LANGFUSE_ENABLED` | `false` | Master toggle — when false, no Langfuse code runs |
 | `RAGTIME_LANGFUSE_SECRET_KEY` | (empty) | Langfuse project secret key |
 | `RAGTIME_LANGFUSE_PUBLIC_KEY` | (empty) | Langfuse project public key |
-| `RAGTIME_LANGFUSE_HOST` | `https://cloud.langfuse.com` | Langfuse server URL (self-hosted or cloud) |
+| `RAGTIME_LANGFUSE_HOST` | `http://localhost:3000` | Langfuse server URL (self-hosted or cloud) |

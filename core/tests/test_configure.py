@@ -221,13 +221,16 @@ class ConfigureShowTest(TestCase):
 class ConfigureWizardTest(TestCase):
     """Tests for the interactive wizard flow."""
 
-    @patch(
-        "core.management.commands._configure_helpers.getpass.getpass",
-        return_value="sk-newkey123",
-    )
+    @patch("core.management.commands._configure_helpers.getpass.getpass")
     @patch("builtins.input")
     def test_shared_mode_wizard(self, mock_input, mock_getpass):
         """Test wizard with shared LLM provider/key."""
+        mock_getpass.side_effect = [
+            "sk-newkey123",   # Shared LLM API key
+            "sk-newkey123",   # Transcription API key
+            "",               # Langfuse secret key (keep default)
+            "",               # Langfuse public key (keep default)
+        ]
         mock_input.side_effect = [
             "Y",              # Share provider/key? Yes
             "openai",         # Provider
@@ -310,13 +313,16 @@ class ConfigureWizardTest(TestCase):
 
         self.assertIn("cancelled", out.getvalue())
 
-    @patch(
-        "core.management.commands._configure_helpers.getpass.getpass",
-        return_value="sk-newkey123",
-    )
+    @patch("core.management.commands._configure_helpers.getpass.getpass")
     @patch("builtins.input")
     def test_rerun_preserves_non_ragtime_lines(self, mock_input, mock_getpass):
         """Test that re-running preserves non-RAGTIME lines."""
+        mock_getpass.side_effect = [
+            "sk-newkey123",   # Shared LLM API key
+            "sk-newkey123",   # Transcription API key
+            "",               # Langfuse secret key (keep default)
+            "",               # Langfuse public key (keep default)
+        ]
         mock_input.side_effect = [
             "Y",              # Share provider/key? Yes
             "openai",         # Provider
