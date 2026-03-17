@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-03-17
+
+### Changed
+
+- Clarify Extract and Resolve README sections — rewrite pipeline steps 7 and 8 with NER/NEL labels, concrete example tables, and two-phase design rationale — [plan](doc/plans/clarify-extract-resolve-readme.md), [feature](doc/features/clarify-extract-resolve-readme.md), [planning session](doc/sessions/2026-03-17-clarify-extract-resolve-readme-planning-session.md), [implementation session](doc/sessions/2026-03-17-clarify-extract-resolve-readme-implementation-session.md)
+
 ## 2026-03-16
 
 ### Changed

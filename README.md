@@ -78,17 +78,49 @@ Split transcript into ~150-word chunks along Whisper segment boundaries, with 1-
 
 #### 7. 🔍 Extract entities (status: `extracting`)
 
-LLM-based entity extraction runs **per chunk**, linking each entity mention to the specific chunk (and thus timestamp) where it appeared. Entity types (musician, musical group, album, composed musical work, music venue, recording session, record label, year, historical period, city, country, music genre, musical instrument, role) are stored in the database and managed via Django admin. Each entity type has a **Wikidata class Q-ID** (e.g., Q639669 for "musician") for candidate lookup during resolution. An initial set of 14 types is defined in [`episodes/initial_entity_types.yaml`](episodes/initial_entity_types.yaml) — load them with:
+**Named Entity Recognition (NER)** — identifies entity mentions in the transcript text.
+
+Runs **per chunk**: each chunk is sent to the LLM independently, which returns the entity names and types it finds. This is a surface-level task — the LLM only needs the chunk's text to spot mentions. Results are stored as raw JSON in `Chunk.entities_json`.
+
+At this stage, no database records are created and no deduplication happens. The same entity may appear under different surface forms across chunks (e.g., "Bird" in chunk 3, "Charlie Parker" in chunk 12).
+
+**Example** — given a chunk containing *"Bird played trumpet at Birdland alongside Dizzy Gillespie"*, extraction produces:
+
+| Mention | Type |
+|---|---|
+| Bird | musician |
+| Birdland | music venue |
+| Dizzy Gillespie | musician |
+
+**Entity types** (musician, musical group, album, composed musical work, music venue, recording session, record label, year, historical period, city, country, music genre, musical instrument, role) are stored in the database and managed via Django admin. Each entity type has a **Wikidata class Q-ID** (e.g., Q639669 for "musician") used for candidate lookup during resolution. An initial set of 14 types is defined in [`episodes/initial_entity_types.yaml`](episodes/initial_entity_types.yaml) — load them with:
 
 ```
 uv run python manage.py load_entity_types
 ```
 
-New types can be added through Django admin; existing types can be deactivated (set `is_active = False`) to exclude them from future extractions without deleting historical data. Types that have existing entities cannot be deleted (protected by referential integrity). Raw extraction results are stored in `Chunk.entities_json`.
+New types can be added through Django admin; existing types can be deactivated (set `is_active = False`) to exclude them from future extractions without deleting historical data. Types that have existing entities cannot be deleted (protected by referential integrity).
 
 #### 8. 🧩 Resolve entities (status: `resolving`)
 
-Aggregates unique entity names across all chunks, then resolves once per entity type against existing DB records using LLM-based fuzzy matching to prevent duplicates. During resolution, **Wikidata candidate lookup** searches for matching entities by name and type, presenting candidates (with Q-IDs and descriptions) to the LLM for confirmation. The LLM picks the best Wikidata match or returns null if none apply. Matched entities receive a `wikidata_id` for canonical identification. Creates canonical entity records and `EntityMention` records per (entity, chunk) pair, preserving provenance. Search Wikidata from the CLI with:
+**Entity Linking (NEL)** — maps extracted mentions to canonical entity records, deduplicating across chunks.
+
+Aggregates all extracted names across every chunk, then resolves **once per entity type** using LLM-based fuzzy matching against two sources:
+
+1. **Existing DB records** — prevents duplicates when the same entity was seen in a previous episode.
+2. **Wikidata candidates** — searches by name and type, presenting candidates (with Q-IDs and descriptions) to the LLM for confirmation. Matched entities receive a `wikidata_id` for canonical identification.
+
+**Example** — continuing from the extract step, suppose the episode's chunks collectively mention "Bird", "Charlie Parker", "Yardbird", and "Dizzy Gillespie":
+
+| Extracted mentions | Resolved to (canonical entity) | Wikidata ID |
+|---|---|---|
+| Bird, Charlie Parker, Yardbird | Charlie Parker | Q103767 |
+| Dizzy Gillespie | Dizzy Gillespie | Q49575 |
+
+All three surface forms collapse into a single `Entity` record for Charlie Parker. An `EntityMention` is created for each (entity, chunk) pair, preserving which chunks mentioned the entity and the context of each mention.
+
+This two-phase design (extract then resolve) is intentional: extraction is cheap and parallelizable per chunk, while resolution requires cross-chunk aggregation and knowledge base lookups. It also allows re-running resolution independently — e.g., after improving matching logic — without re-extracting.
+
+Search Wikidata from the CLI with:
 
 ```
 uv run python manage.py lookup_entity "Miles Davis"
