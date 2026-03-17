@@ -29,6 +29,23 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 - 📇 **Episode Indexing** — Splits transcripts into segments and generates multilingual embeddings stored in ChromaDB. Enables cross-language semantic search so Scott can retrieve relevant content regardless of the question's language.
 - 🎷 **Scott — Your Jazz AI** — A conversational agent that answers questions strictly from ingested episode content. Scott responds in the user's language and provides references to specific episodes and timestamps. Responses stream in real-time.
 
+## Status
+
+> RAGtime is under active development.
+
+### What's already implemented
+
+- **Processing pipeline steps 1–8**: submit, scrape, download, transcribe, summarize, chunk, extract entities, and resolve entities — the full ingestion pipeline up to entity resolution, including Wikidata integration.
+- **Episode management UI**: submit episodes by URL, view status and metadata, browse entities.
+- **Configuration wizard**: interactive `manage.py configure` command for all `RAGTIME_*` env vars.
+- **CI**: GitHub Actions workflow with linting and tests.
+
+### What's coming
+
+- **Embed step** (pipeline step 9): generate multilingual embeddings for transcript chunks and store them in ChromaDB.
+- **Scott — the RAG chatbot** (pipeline step 10 + chat app): conversational agent that answers questions strictly from ingested content, with episode/timestamp references, multilingual support, and streaming responses.
+- **LLM observability**: Langfuse integration for tracing and monitoring LLM calls across the pipeline.
+
 ## Processing Pipeline
 
 Each step is a standalone module (`episodes/<step>.py`) that updates the episode's `status` field when it completes. A [`post_save` signal](episodes/signals.py) watches for status changes and dispatches the next step as an async [Django Q2](https://django-q2.readthedocs.io/) task — no central orchestrator needed. Any failure sets `status` to `failed` and halts the chain.
