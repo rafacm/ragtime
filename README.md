@@ -82,9 +82,9 @@ Split transcript into ~150-word chunks along Whisper segment boundaries, with 1-
 
 Runs **per chunk**: each chunk is sent to the LLM independently, which returns the entity names and types it finds. This is a surface-level task — the LLM only needs the chunk's text to spot mentions. Results are stored as raw JSON in `Chunk.entities_json`.
 
-At this stage, no database records are created and no deduplication happens. The same entity may appear under different surface forms across chunks (e.g., "Bird" in chunk 3, "Charlie Parker" in chunk 12).
+At this stage, no `Entity` or `EntityMention` records are created and no deduplication happens. The same entity may appear under different surface forms across chunks (e.g., "Bird" in chunk 3, "Charlie Parker" in chunk 12).
 
-**Example** — given a chunk containing *"Bird played trumpet at Birdland alongside Dizzy Gillespie"*, extraction produces:
+**Example** — given a chunk containing *"Bird played at Birdland alongside Dizzy Gillespie"*, extraction produces:
 
 | Mention | Type |
 |---|---|
