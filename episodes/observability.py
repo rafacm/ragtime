@@ -89,15 +89,24 @@ def observe_step(name):
                 .first()
             )
             session_id = str(run.pk) if run else None
-            metadata = {"episode_id": episode_id}
+            metadata = {"episode_id": str(episode_id)}
 
             if observed_func is None:
                 observed_func = langfuse_observe(name=name)(func)
 
+            from .models import Episode
+
             with propagate_attributes(
                 session_id=session_id, metadata=metadata
             ):
-                return observed_func(episode_id, *args, **kwargs)
+                observed_func(episode_id, *args, **kwargs)
+
+            # Return episode status as trace output (step functions return None)
+            try:
+                episode = Episode.objects.get(pk=episode_id)
+                return {"status": episode.status, "episode_id": episode_id}
+            except Episode.DoesNotExist:
+                return {"status": "unknown", "episode_id": episode_id}
 
         return wrapper
     return decorator
