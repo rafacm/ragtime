@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from django.conf import settings
 
 from .events import StepFailureEvent
-from .models import PipelineEvent, RecoveryAttempt
+from .models import RecoveryAttempt
 
 logger = logging.getLogger(__name__)
 

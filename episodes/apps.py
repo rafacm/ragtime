@@ -12,5 +12,5 @@ class EpisodesConfig(AppConfig):
         from .recovery import handle_step_failure
         from .signals import step_failed
 
-        step_failed.connect(handle_step_failure)
+        step_failed.connect(handle_step_failure, dispatch_uid="recovery_step_failed")
         setup_observability()
