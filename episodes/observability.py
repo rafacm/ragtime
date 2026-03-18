@@ -99,13 +99,12 @@ def observe_step(name):
                 f"run-{run.pk}-ep-{episode_id}" if run else f"ep-{episode_id}"
             )
 
-            # Use episode URL as user_id for filtering in Langfuse
             try:
                 episode = Episode.objects.get(pk=episode_id)
-                user_id = episode.url
             except Episode.DoesNotExist:
                 episode = None
-                user_id = f"episode-{episode_id}"
+
+            user_id = f"episode-{episode_id}"
 
             metadata = {"episode_id": str(episode_id)}
             if episode and episode.title:
