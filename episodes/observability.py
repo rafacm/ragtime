@@ -83,7 +83,7 @@ def observe_step(name):
             except ImportError:
                 return func(episode_id, *args, **kwargs)
 
-            from .models import ProcessingRun
+            from .models import Episode, ProcessingRun
 
             run = (
                 ProcessingRun.objects.filter(
@@ -93,25 +93,37 @@ def observe_step(name):
                 .order_by("-started_at")
                 .first()
             )
-            session_id = str(run.pk) if run else None
+
+            # Build descriptive session ID: "run-42-ep-1" instead of "42"
+            session_id = (
+                f"run-{run.pk}-ep-{episode_id}" if run else f"ep-{episode_id}"
+            )
+
+            # Use episode URL as user_id for filtering in Langfuse
+            try:
+                episode = Episode.objects.get(pk=episode_id)
+                user_id = episode.url
+            except Episode.DoesNotExist:
+                episode = None
+                user_id = f"episode-{episode_id}"
+
             metadata = {"episode_id": str(episode_id)}
+            if episode and episode.title:
+                metadata["episode_title"] = episode.title
 
             if observed_func is None:
                 observed_func = langfuse_observe(name=name)(func)
 
-            from .models import Episode
-
             with propagate_attributes(
-                session_id=session_id, metadata=metadata
+                session_id=session_id, user_id=user_id, metadata=metadata
             ):
                 observed_func(episode_id, *args, **kwargs)
 
             # Return episode status as trace output (step functions return None)
-            try:
-                episode = Episode.objects.get(pk=episode_id)
+            if episode:
+                episode.refresh_from_db(fields=["status"])
                 return {"status": episode.status, "episode_id": episode_id}
-            except Episode.DoesNotExist:
-                return {"status": "unknown", "episode_id": episode_id}
+            return {"status": "unknown", "episode_id": episode_id}
 
         return wrapper
     return decorator
