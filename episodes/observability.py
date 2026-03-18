@@ -58,6 +58,18 @@ def get_openai_client_class():
     return OpenAI
 
 
+def _update_observation(**kwargs):
+    """Update the current Langfuse observation. No-op when disabled."""
+    if not is_enabled():
+        return
+    try:
+        from langfuse.decorators import langfuse_context
+
+        langfuse_context.update_current_observation(**kwargs)
+    except (ImportError, Exception):
+        pass
+
+
 def set_observation_input(system_prompt, user_content, *, response_schema=None):
     """Set the current Langfuse observation's input in chat-message format.
 
@@ -68,23 +80,16 @@ def set_observation_input(system_prompt, user_content, *, response_schema=None):
     When *response_schema* is provided, it is logged in metadata as
     ``response_schema`` (the RAGtime equivalent of ``tool_definitions``).
     """
-    if not is_enabled():
-        return
-    try:
-        from langfuse.decorators import langfuse_context
+    update_kwargs = {
+        "input": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ],
+    }
+    if response_schema is not None:
+        update_kwargs["metadata"] = {"response_schema": response_schema}
 
-        update_kwargs = {
-            "input": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ],
-        }
-        if response_schema is not None:
-            update_kwargs["metadata"] = {"response_schema": response_schema}
-
-        langfuse_context.update_current_observation(**update_kwargs)
-    except (ImportError, Exception):
-        pass
+    _update_observation(**update_kwargs)
 
 
 def set_observation_output(output):
@@ -93,14 +98,40 @@ def set_observation_output(output):
     Call this from provider methods after the API call to log the
     structured response. No-op when disabled.
     """
-    if not is_enabled():
-        return
-    try:
-        from langfuse.decorators import langfuse_context
+    _update_observation(output=output)
 
-        langfuse_context.update_current_observation(output=output)
-    except (ImportError, Exception):
-        pass
+
+def observe_provider(func):
+    """Decorator that wraps a provider method with its own Langfuse span.
+
+    Creates a child span under the current step trace so that
+    ``set_observation_input`` and ``set_observation_output`` update this
+    span's fields (not the parent step trace). The auto-captured OpenAI
+    generation becomes a grandchild of the step trace.
+
+    No-op when Langfuse is disabled. Designed for instance methods (skips
+    ``self`` when capturing arguments).
+    """
+    observed = None
+
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        nonlocal observed
+
+        if not is_enabled():
+            return func(self, *args, **kwargs)
+
+        try:
+            from langfuse import observe as langfuse_observe
+        except ImportError:
+            return func(self, *args, **kwargs)
+
+        if observed is None:
+            observed = langfuse_observe(name=func.__name__)(func)
+
+        return observed(self, *args, **kwargs)
+
+    return wrapper
 
 
 def observe_step(name):
