@@ -212,7 +212,9 @@ RAGtime optionally integrates with [Langfuse](https://langfuse.com) to trace all
    uv sync --extra observability
    ```
 
-2. Run Langfuse locally via [Docker Compose](https://langfuse.com/self-hosting/deployment/docker-compose).
+2. Run Langfuse locally via Docker Compose.
+
+   See [this walk through guide](https://langfuse.com/self-hosting/deployment/docker-compose).
 
 3. Configure via the wizard or `.env`:
    ```
