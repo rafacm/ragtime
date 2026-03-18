@@ -140,11 +140,13 @@ def scrape_episode(episode_id: int) -> None:
             complete_step(episode, Episode.Status.SCRAPING)
             episode.status = Episode.Status.DOWNLOADING
         else:
-            episode.error_message = "Incomplete metadata: missing required fields"
+            incomplete_exc = ValueError("Incomplete metadata: missing required fields")
+            episode.error_message = str(incomplete_exc)
             episode.status = Episode.Status.FAILED
             fail_step(
                 episode, Episode.Status.SCRAPING,
-                "Incomplete metadata: missing required fields",
+                str(incomplete_exc),
+                exc=incomplete_exc,
             )
             logger.warning(
                 "Episode %s: incomplete metadata after scraping", episode_id

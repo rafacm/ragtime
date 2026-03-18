@@ -71,8 +71,8 @@ def complete_step(episode, step_name):
     )
 
     # Build and send completion event
-    step_obj = ProcessingStep.objects.get(run=run, step_name=step_name)
     try:
+        step_obj = ProcessingStep.objects.get(run=run, step_name=step_name)
         from .events import build_completion_event
         from .signals import step_completed
 
@@ -118,8 +118,8 @@ def fail_step(episode, step_name, error_message="", exc=None):
     run.save(update_fields=["status", "finished_at"])
 
     if exc is not None:
-        step_obj = ProcessingStep.objects.get(run=run, step_name=step_name)
         try:
+            step_obj = ProcessingStep.objects.get(run=run, step_name=step_name)
             from .events import build_failure_event
             from .signals import step_failed
 

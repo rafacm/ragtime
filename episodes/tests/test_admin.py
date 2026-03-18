@@ -90,6 +90,31 @@ class EpisodeAdminTests(TestCase):
         # title field should be readonly (no editable input)
         self.assertNotIn('name="title"', content)
 
+    @patch("episodes.signals.async_task")
+    def test_metadata_fields_editable_when_awaiting_human(self, mock_async):
+        from episodes.models import PipelineEvent, ProcessingRun, ProcessingStep, RecoveryAttempt
+
+        episode = Episode.objects.create(
+            url="https://example.com/ep/admin-4",
+            status=Episode.Status.FAILED,
+        )
+        run = ProcessingRun.objects.create(episode=episode, status=ProcessingRun.Status.FAILED)
+        step = ProcessingStep.objects.create(
+            run=run, step_name="scraping", status=ProcessingStep.Status.FAILED
+        )
+        pe = PipelineEvent.objects.create(
+            episode=episode, processing_step=step,
+            event_type=PipelineEvent.EventType.FAILED, step_name="scraping",
+        )
+        RecoveryAttempt.objects.create(
+            episode=episode, pipeline_event=pe,
+            strategy="human", status=RecoveryAttempt.Status.AWAITING_HUMAN,
+        )
+        response = self.client.get(f"/admin/episodes/episode/{episode.pk}/change/")
+        content = response.content.decode()
+        # title field should be editable when awaiting human
+        self.assertIn('name="title"', content)
+
 
 class EntityTypeAdminTests(TestCase):
     @classmethod

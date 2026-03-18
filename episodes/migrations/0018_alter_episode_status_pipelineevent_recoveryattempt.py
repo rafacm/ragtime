@@ -4,6 +4,15 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
+def migrate_needs_review_to_failed(apps, schema_editor):
+    """Convert any existing needs_review episodes to failed."""
+    Episode = apps.get_model('episodes', 'Episode')
+    Episode.objects.filter(status='needs_review').update(
+        status='failed',
+        error_message='Migrated from needs_review: incomplete metadata',
+    )
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -11,6 +20,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(
+            migrate_needs_review_to_failed,
+            reverse_code=migrations.RunPython.noop,
+        ),
         migrations.AlterField(
             model_name='episode',
             name='status',
