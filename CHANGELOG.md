@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-03-18
+
+### Added
+
+- Decoupled Recovery Architecture — structured pipeline events (StepCompletedEvent/StepFailureEvent), pluggable recovery layer with strategy chain (agent → human), PipelineEvent and RecoveryAttempt models for audit trail, admin integration with colour-coded events and "Needs Human Action" filter — [plan](doc/plans/decoupled-recovery-architecture.md), [feature](doc/features/decoupled-recovery-architecture.md), [planning session](doc/sessions/2026-03-18-decoupled-recovery-architecture-planning-session.md), [implementation session](doc/sessions/2026-03-18-decoupled-recovery-architecture-implementation-session.md)
+
+### Removed
+
+- `NEEDS_REVIEW` episode status — replaced by `FAILED` status with recovery chain escalation to human. Incomplete metadata after scraping now triggers the recovery layer instead of requiring manual status management.
+
 ## 2026-03-17
 
 ### Changed
