@@ -58,6 +58,28 @@ def get_openai_client_class():
     return OpenAI
 
 
+def set_observation_input(system_prompt, user_content):
+    """Set the current Langfuse observation's input in chat-message format.
+
+    Works around the Langfuse OpenAI wrapper not parsing ``instructions``
+    from the Responses API into the system prompt field. Call this from
+    provider methods before the API call. No-op when disabled.
+    """
+    if not is_enabled():
+        return
+    try:
+        from langfuse.decorators import langfuse_context
+
+        langfuse_context.update_current_observation(
+            input=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ]
+        )
+    except (ImportError, Exception):
+        pass
+
+
 def observe_step(name):
     """Decorator factory that wraps a pipeline step with Langfuse tracing.
 
