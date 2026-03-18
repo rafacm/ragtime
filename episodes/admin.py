@@ -161,13 +161,22 @@ class EpisodeAdmin(admin.ModelAdmin):
             inlines.append(EntityMentionInlineForEpisode)
         return inlines
 
+    def _awaiting_human(self, obj):
+        """True when the episode has an unresolved AWAITING_HUMAN recovery attempt."""
+        return obj.recovery_attempts.filter(
+            status=RecoveryAttempt.Status.AWAITING_HUMAN
+        ).exists()
+
     def get_readonly_fields(self, request, obj=None):
         readonly = list(super().get_readonly_fields(request, obj))
         if obj is None:
             # Creating a new episode — only url is editable
             readonly += list(self.METADATA_FIELDS) + ["status", "scraped_html"]
+        elif obj.status == Episode.Status.FAILED and self._awaiting_human(obj):
+            # Awaiting human — metadata editable so admin can fix and reprocess
+            readonly += ["status", "scraped_html"]
         else:
-            # All statuses — everything read-only except url
+            # All other statuses — everything read-only except url
             readonly += list(self.METADATA_FIELDS) + ["status", "scraped_html"]
         return readonly
 
