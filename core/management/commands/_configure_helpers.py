@@ -81,6 +81,20 @@ SYSTEMS = [
         ],
     },
     {
+        "name": "Recovery",
+        "description": "Automatic recovery for pipeline failures",
+        "shareable": False,
+        "subsystems": [
+            {
+                "prefix": "RAGTIME_RECOVERY",
+                "label": "Recovery",
+                "fields": [
+                    ("AGENT_ENABLED", "false", False),
+                ],
+            },
+        ],
+    },
+    {
         "name": "LLM Observability",
         "description": "Langfuse tracing for LLM calls (optional)",
         "shareable": False,

@@ -245,6 +245,7 @@ class ConfigureWizardTest(TestCase):
             "",               # Wikidata cache TTL (keep default)
             "",               # Wikidata debounce ms (keep default)
             "",               # Wikidata min chars (keep default)
+            "",               # Recovery agent enabled (keep default)
             "",               # Langfuse enabled (keep default)
             "",               # Langfuse host (keep default)
         ]
@@ -337,6 +338,7 @@ class ConfigureWizardTest(TestCase):
             "",               # Wikidata cache TTL (keep default)
             "",               # Wikidata debounce ms (keep default)
             "",               # Wikidata min chars (keep default)
+            "",               # Recovery agent enabled (keep default)
             "",               # Langfuse enabled (keep default)
             "",               # Langfuse host (keep default)
         ]

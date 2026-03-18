@@ -17,6 +17,26 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
+def setup():
+    """Eagerly initialize the Langfuse TracerProvider at startup.
+
+    Called from ``EpisodesConfig.ready()``. When Langfuse is enabled, this
+    ensures the OTel TracerProvider is registered before any pipeline step
+    runs. No-op when disabled or during tests.
+    """
+    if not is_enabled():
+        return
+    try:
+        import langfuse
+
+        langfuse.get_client()
+        logger.debug("Langfuse TracerProvider initialized")
+    except ImportError:
+        pass
+    except Exception:
+        logger.warning("Failed to initialize Langfuse TracerProvider", exc_info=True)
+
+
 def is_enabled():
     """Return True when Langfuse tracing is fully configured.
 

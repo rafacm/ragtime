@@ -7,3 +7,10 @@ class EpisodesConfig(AppConfig):
 
     def ready(self):
         import episodes.signals  # noqa: F401
+
+        from .observability import setup as setup_observability
+        from .recovery import handle_step_failure
+        from .signals import step_failed
+
+        step_failed.connect(handle_step_failure)
+        setup_observability()

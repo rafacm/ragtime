@@ -206,6 +206,10 @@ RAGTIME_LANGFUSE_SECRET_KEY = os.getenv('RAGTIME_LANGFUSE_SECRET_KEY', '')
 RAGTIME_LANGFUSE_PUBLIC_KEY = os.getenv('RAGTIME_LANGFUSE_PUBLIC_KEY', '')
 RAGTIME_LANGFUSE_HOST = os.getenv('RAGTIME_LANGFUSE_HOST', 'http://localhost:3000')
 
+# Recovery layer
+RAGTIME_RECOVERY_CHAIN = ["agent", "human"]
+RAGTIME_RECOVERY_AGENT_ENABLED = os.getenv('RAGTIME_RECOVERY_AGENT_ENABLED', 'false').lower() in ('true', '1', 'yes')
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
