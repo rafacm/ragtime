@@ -10,6 +10,7 @@ When disabled (the default) there is zero overhead — Langfuse is never importe
 import functools
 import logging
 import os
+import sys
 
 from django.conf import settings
 
@@ -22,6 +23,10 @@ def is_enabled():
     Also sets ``LANGFUSE_*`` env vars from Django settings so the SDK picks
     them up automatically.
     """
+    # Never trace during test runs
+    if "test" in sys.argv:
+        return False
+
     enabled = getattr(settings, "RAGTIME_LANGFUSE_ENABLED", False)
     secret_key = getattr(settings, "RAGTIME_LANGFUSE_SECRET_KEY", "")
     public_key = getattr(settings, "RAGTIME_LANGFUSE_PUBLIC_KEY", "")

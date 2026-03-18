@@ -18,9 +18,20 @@ class IsEnabledTest(TestCase):
         RAGTIME_LANGFUSE_ENABLED=True,
         RAGTIME_LANGFUSE_SECRET_KEY="sk-lf-secret",
         RAGTIME_LANGFUSE_PUBLIC_KEY="pk-lf-public",
+    )
+    def test_disabled_during_test_runs(self):
+        """is_enabled() returns False when sys.argv contains 'test'."""
+        self.assertFalse(is_enabled())
+
+    @override_settings(
+        RAGTIME_LANGFUSE_ENABLED=True,
+        RAGTIME_LANGFUSE_SECRET_KEY="sk-lf-secret",
+        RAGTIME_LANGFUSE_PUBLIC_KEY="pk-lf-public",
         RAGTIME_LANGFUSE_HOST="http://localhost:3000",
     )
-    def test_enabled_when_all_settings_present(self):
+    @patch("episodes.observability.sys")
+    def test_enabled_when_all_settings_present(self, mock_sys):
+        mock_sys.argv = ["manage.py", "runserver"]
         self.assertTrue(is_enabled())
 
     @override_settings(
@@ -53,7 +64,9 @@ class IsEnabledTest(TestCase):
         RAGTIME_LANGFUSE_PUBLIC_KEY="pk-lf-public",
         RAGTIME_LANGFUSE_HOST="https://cloud.langfuse.com",
     )
-    def test_sets_env_vars(self):
+    @patch("episodes.observability.sys")
+    def test_sets_env_vars(self, mock_sys):
+        mock_sys.argv = ["manage.py", "runserver"]
         env = {}
         with patch.dict(
             "os.environ", env, clear=True,
@@ -80,8 +93,10 @@ class GetOpenaiClientClassTest(TestCase):
         RAGTIME_LANGFUSE_SECRET_KEY="sk-lf-secret",
         RAGTIME_LANGFUSE_PUBLIC_KEY="pk-lf-public",
     )
-    def test_falls_back_on_import_error(self):
+    @patch("episodes.observability.sys")
+    def test_falls_back_on_import_error(self, mock_sys):
         """When langfuse is not installed, falls back to openai.OpenAI."""
+        mock_sys.argv = ["manage.py", "runserver"]
         from openai import OpenAI
 
         with patch.dict("sys.modules", {"langfuse": None, "langfuse.openai": None}):
@@ -119,8 +134,10 @@ class ObserveStepTest(TestCase):
         RAGTIME_LANGFUSE_SECRET_KEY="sk-lf-secret",
         RAGTIME_LANGFUSE_PUBLIC_KEY="pk-lf-public",
     )
-    def test_falls_back_when_langfuse_not_installed(self):
+    @patch("episodes.observability.sys")
+    def test_falls_back_when_langfuse_not_installed(self, mock_sys):
         """When enabled but langfuse not installed, runs function normally."""
+        mock_sys.argv = ["manage.py", "runserver"]
         called = []
 
         @observe_step("test_step")
