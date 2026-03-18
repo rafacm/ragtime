@@ -35,20 +35,26 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 
 ### What's already implemented
 
-- **Processing pipeline steps 1–8**: submit, scrape, download, transcribe, summarize, chunk, extract entities, and resolve entities — the full ingestion pipeline up to entity resolution, including Wikidata integration.
-- **Episode management UI**: submit episodes by URL, view status and metadata, browse entities.
+- **Episode ingestion**: submit episodes by URL, metadata scraping, audio download, transcription, summarization,  chunking, entity extraction and resolution with [Wikidata](https://www.wikidata.org/) integration.
+- **Episode management UI**: Django admin interface to view episode status and metadata and browse extracted entities.
 - **Configuration wizard**: interactive `manage.py configure` command for all `RAGTIME_*` env vars.
-- **CI**: GitHub Actions workflow with tests.
 
 ### What's coming
 
-- **Embed step** (pipeline step 9): generate multilingual embeddings for transcript chunks and store them in ChromaDB.
+- **Embed step** (pipeline step 9): generate multilingual embeddings for transcript chunks and store them in [ChromaDB](https://www.trychroma.com/).
 - **Scott — the RAG chatbot** (pipeline step 10 + chat app): conversational agent that answers questions strictly from ingested content, with episode/timestamp references, multilingual support, and streaming responses.
-- **LLM observability**: Langfuse integration for tracing and monitoring LLM calls across the pipeline.
+
+See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixes, implementation plans, feature documentation and session transcripts.
 
 ## Processing Pipeline
 
 Each step is a standalone module (`episodes/<step>.py`) that updates the episode's `status` field when it completes. A [`post_save` signal](episodes/signals.py) watches for status changes and dispatches the next step as an async [Django Q2](https://django-q2.readthedocs.io/) task — no central orchestrator needed. Any failure sets `status` to `failed` and halts the chain.
+
+```
+📥 Submit  → 🕷️ Scrape  → ⬇️ Download  → 🎙️ Transcribe → 📋 Summarize
+                                                            ↓
+✅ Ready   ← 📐 Embed   ← 🧩 Resolve   ← 🔍 Extract    ← ✂️ Chunk
+```
 
 ### Steps
 
@@ -92,7 +98,7 @@ At this stage, no `Entity` or `EntityMention` records are created and no dedupli
 | Birdland | music venue |
 | Dizzy Gillespie | musician |
 
-**Entity types** (musician, musical group, album, composed musical work, music venue, recording session, record label, year, historical period, city, country, music genre, musical instrument, role) are stored in the database and managed via Django admin. Each entity type has a **Wikidata class Q-ID** (e.g., Q639669 for "musician") used for candidate lookup during resolution. An initial set of 14 types is defined in [`episodes/initial_entity_types.yaml`](episodes/initial_entity_types.yaml) — load them with:
+**Entity types** (musician, musical group, album, composed musical work, music venue, recording session, record label, year, historical period, city, country, music genre, musical instrument, role) are stored in the database and managed via Django admin. Each entity type has a **[Wikidata](https://www.wikidata.org/) class Q-ID** (e.g., [Q639669](https://www.wikidata.org/wiki/Q639669) for "musician") used for candidate lookup during resolution. An initial set of 14 types is defined in [`episodes/initial_entity_types.yaml`](episodes/initial_entity_types.yaml) — load them with:
 
 ```
 uv run python manage.py load_entity_types
@@ -107,14 +113,14 @@ New types can be added through Django admin; existing types can be deactivated (
 Aggregates all extracted names across every chunk, then resolves **once per entity type** using LLM-based fuzzy matching against two sources:
 
 1. **Existing DB records** — prevents duplicates when the same entity was seen in a previous episode.
-2. **Wikidata candidates** — searches by name and type, presenting candidates (with Q-IDs and descriptions) to the LLM for confirmation. Matched entities receive a `wikidata_id` for canonical identification.
+2. **[Wikidata](https://www.wikidata.org/) candidates** — searches by name and type, presenting candidates (with Q-IDs and descriptions) to the LLM for confirmation. Matched entities receive a `wikidata_id` for canonical identification.
 
 **Example** — continuing from the extract step, suppose the episode's chunks collectively mention "Bird", "Charlie Parker", "Yardbird", and "Dizzy Gillespie":
 
 | Extracted mentions | Resolved to (canonical entity) | Wikidata ID |
 |---|---|---|
-| Bird, Charlie Parker, Yardbird | Charlie Parker | Q103767 |
-| Dizzy Gillespie | Dizzy Gillespie | Q49575 |
+| Bird, Charlie Parker, Yardbird | Charlie Parker | [Q103767](https://www.wikidata.org/wiki/Q103767) |
+| Dizzy Gillespie | Dizzy Gillespie | [Q49575](https://www.wikidata.org/wiki/Q49575) |
 
 All three surface forms collapse into a single `Entity` record for Charlie Parker. An `EntityMention` is created for each (entity, chunk) pair, preserving which chunks mentioned the entity and the context of each mention.
 
@@ -129,24 +135,11 @@ uv run python manage.py lookup_entity --type artist "Miles Davis"
 
 #### 9. 📐 Embed (status: `embedding`)
 
-Generate multilingual embeddings for transcript chunks and store in ChromaDB.
+Generate multilingual embeddings for transcript chunks and store in [ChromaDB](https://www.trychroma.com/).
 
 #### 10. ✅ Ready (status: `ready`)
 
 Episode fully processed and available for Scott to query.
-
-## Tech Stack
-
-- **Runtime**: Python 3.13
-- **Framework**: Django 5.2
-- **Database**: SQLite
-- **Vector Store**: ChromaDB
-- **Task Queue**: Django Q2
-- **Transcription**: Configurable — Whisper API (default), local Whisper, etc.
-- **LLM**: Configurable — Claude (Anthropic), GPT (OpenAI), etc.
-- **Embeddings**: Configurable — must support multilingual models for cross-language retrieval
-- **Frontend**: Django templates + HTMX + Tailwind CSS
-- **Package Manager**: uv
 
 ## How Scott Works
 
@@ -177,9 +170,18 @@ git clone <repo-url>
 cd ragtime
 uv sync
 uv run python manage.py migrate
-uv run python manage.py load_entity_types   # Seed initial entity types
-uv run python manage.py configure            # Interactive setup wizard for RAGTIME_* env vars
+
+# Seed initial entity types
+uv run python manage.py load_entity_types
+
+# Interactive setup wizard for RAGTIME_* env vars
+uv run python manage.py configure
+
+# Start the web server
 uv run python manage.py runserver
+
+# Start the Django Q2 task worker (separate terminal)
+uv run python manage.py qcluster
 ```
 
 ### Configuration
@@ -188,9 +190,18 @@ You can run `uv run python manage.py configure` to launch an interactive setup w
 
 Alternatively, copy [`.env.sample`](.env.sample) to `.env` and fill in your values.
 
-## Changelog
+## Tech Stack
 
-This project was developed with [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and reviewed by [Codex](https://openai.com/index/introducing-codex/). See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixes, implementation plans, feature documentation and session transcripts.
+- **Runtime**: Python 3.13
+- **Framework**: Django 5.2
+- **Database**: SQLite
+- **Vector Store**: ChromaDB
+- **Task Queue**: Django Q2
+- **Transcription**: Configurable — Whisper API (default), local Whisper, etc.
+- **LLM**: Configurable — Claude (Anthropic), GPT (OpenAI), etc.
+- **Embeddings**: Configurable — must support multilingual models for cross-language retrieval
+- **Frontend**: Django templates + HTMX + Tailwind CSS
+- **Package Manager**: uv
 
 ## License
 
