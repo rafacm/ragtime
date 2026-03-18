@@ -65,7 +65,7 @@ User submits an episode page URL. Duplicate URLs are rejected.
 
 #### 2. 🕷️ Scrape (status: `scraping`)
 
-Extract metadata (title, description, date, image, audio URL) and detect language via LLM-based structured extraction. Episodes with missing required fields (title or audio URL) are flagged for manual review (`needs_review`).
+Extract metadata (title, description, date, image, audio URL) and detect language via LLM-based structured extraction. Episodes with missing required fields (title or audio URL) are marked `failed` and escalated to the recovery layer for human review.
 
 #### 3. ⬇️ Download (status: `downloading`)
 
