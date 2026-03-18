@@ -1,6 +1,6 @@
 import json
 
-from episodes.observability import get_openai_client_class
+from episodes.observability import get_openai_client_class, set_observation_input
 
 from .base import LLMProvider, TranscriptionProvider
 
@@ -14,6 +14,7 @@ class OpenAILLMProvider(LLMProvider):
     def structured_extract(
         self, system_prompt: str, user_content: str, response_schema: dict
     ) -> dict:
+        set_observation_input(system_prompt, user_content)
         response = self.client.responses.create(
             model=self.model,
             instructions=system_prompt,
@@ -23,6 +24,7 @@ class OpenAILLMProvider(LLMProvider):
         return json.loads(response.output_text)
 
     def generate(self, system_prompt: str, user_content: str) -> str:
+        set_observation_input(system_prompt, user_content)
         response = self.client.responses.create(
             model=self.model,
             instructions=system_prompt,
