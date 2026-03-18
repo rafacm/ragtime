@@ -94,9 +94,10 @@ def observe_step(name):
                 .first()
             )
 
-            # Build descriptive session ID: "run-42-ep-1" instead of "42"
             session_id = (
-                f"run-{run.pk}-ep-{episode_id}" if run else f"ep-{episode_id}"
+                f"processing-run-{run.pk}-episode-{episode_id}"
+                if run
+                else f"episode-{episode_id}"
             )
 
             try:
