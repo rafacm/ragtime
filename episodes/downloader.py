@@ -60,7 +60,7 @@ def download_episode(episode_id: int) -> None:
         episode.error_message = str(exc)
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
-        fail_step(episode, Episode.Status.DOWNLOADING, str(exc))
+        fail_step(episode, Episode.Status.DOWNLOADING, str(exc), exc=exc)
     finally:
         try:
             os.unlink(tmp_path)

@@ -6,7 +6,6 @@ class Episode(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending"
         SCRAPING = "scraping"
-        NEEDS_REVIEW = "needs_review"
         DOWNLOADING = "downloading"
         TRANSCRIBING = "transcribing"
         SUMMARIZING = "summarizing"
@@ -238,3 +237,61 @@ class ProcessingStep(models.Model):
 
     def __str__(self):
         return f"{self.step_name} ({self.status})"
+
+
+class PipelineEvent(models.Model):
+    class EventType(models.TextChoices):
+        COMPLETED = "completed"
+        FAILED = "failed"
+
+    episode = models.ForeignKey(
+        Episode, on_delete=models.CASCADE, related_name="pipeline_events"
+    )
+    processing_step = models.ForeignKey(
+        ProcessingStep, on_delete=models.CASCADE, related_name="events"
+    )
+    event_type = models.CharField(max_length=20, choices=EventType.choices)
+    step_name = models.CharField(max_length=20)
+    error_type = models.CharField(max_length=20, blank=True, default="")
+    error_message = models.TextField(blank=True, default="")
+    http_status = models.IntegerField(null=True, blank=True)
+    exception_class = models.CharField(max_length=200, blank=True, default="")
+    context = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.step_name} {self.event_type} (episode {self.episode_id})"
+
+
+class RecoveryAttempt(models.Model):
+    class Status(models.TextChoices):
+        ATTEMPTED = "attempted"
+        AWAITING_HUMAN = "awaiting_human"
+        RESOLVED = "resolved"
+
+    episode = models.ForeignKey(
+        Episode, on_delete=models.CASCADE, related_name="recovery_attempts"
+    )
+    pipeline_event = models.ForeignKey(
+        PipelineEvent, on_delete=models.CASCADE, related_name="recovery_attempts"
+    )
+    strategy = models.CharField(max_length=30)
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ATTEMPTED,
+    )
+    success = models.BooleanField(default=False)
+    message = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.CharField(max_length=50, blank=True, default="")
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.strategy} ({self.status}) for episode {self.episode_id}"

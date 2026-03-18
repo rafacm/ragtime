@@ -108,7 +108,7 @@ class ScrapeEpisodeTests(TestCase):
 
     @patch("episodes.scraper.get_scraping_provider")
     @patch("episodes.scraper.fetch_html")
-    def test_incomplete_extraction_needs_review(self, mock_fetch, mock_provider_factory):
+    def test_incomplete_extraction_fails(self, mock_fetch, mock_provider_factory):
         mock_fetch.return_value = self.SAMPLE_HTML
         mock_provider = MagicMock()
         mock_provider.structured_extract.return_value = self.LLM_INCOMPLETE_RESPONSE
@@ -118,9 +118,10 @@ class ScrapeEpisodeTests(TestCase):
         scrape_episode(episode.pk)
 
         episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.NEEDS_REVIEW)
+        self.assertEqual(episode.status, Episode.Status.FAILED)
         self.assertEqual(episode.title, "Jazz Episode 1")
         self.assertEqual(episode.audio_url, "")  # Was null in response
+        self.assertIn("Incomplete metadata", episode.error_message)
 
     @patch("episodes.scraper.fetch_html")
     def test_http_error_sets_failed(self, mock_fetch):
@@ -140,7 +141,7 @@ class ScrapeEpisodeTests(TestCase):
             title="Filled by user",
             audio_url="https://example.com/audio.mp3",
             scraped_html="<html>cached</html>",
-            status=Episode.Status.NEEDS_REVIEW,
+            status=Episode.Status.FAILED,
         )
 
         scrape_episode(episode.pk)
@@ -161,7 +162,7 @@ class ScrapeEpisodeTests(TestCase):
         episode = self._create_episode(
             url="https://example.com/ep/5",
             scraped_html="<html>cached</html>",
-            status=Episode.Status.NEEDS_REVIEW,
+            status=Episode.Status.FAILED,
         )
 
         scrape_episode(episode.pk)

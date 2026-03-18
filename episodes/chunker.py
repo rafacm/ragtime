@@ -96,4 +96,4 @@ def chunk_episode(episode_id):
         episode.error_message = str(exc)
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
-        fail_step(episode, Episode.Status.CHUNKING, str(exc))
+        fail_step(episode, Episode.Status.CHUNKING, str(exc), exc=exc)

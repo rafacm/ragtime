@@ -1,9 +1,14 @@
+import django.dispatch
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django_q.tasks import async_task
 
 from .models import Episode
 from .processing import create_run
+
+# Custom signals for pipeline events
+step_completed = django.dispatch.Signal()  # sends: event=StepCompletedEvent
+step_failed = django.dispatch.Signal()     # sends: event=StepFailureEvent
 
 
 @receiver(post_save, sender=Episode)

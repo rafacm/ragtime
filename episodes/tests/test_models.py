@@ -27,7 +27,7 @@ class EpisodeModelTests(TestCase):
 
     def test_new_statuses_exist(self, mock_async):
         self.assertEqual(Episode.Status.SCRAPING, "scraping")
-        self.assertEqual(Episode.Status.NEEDS_REVIEW, "needs_review")
+        self.assertEqual(Episode.Status.DOWNLOADING, "downloading")
 
     def test_metadata_fields_blank_by_default(self, mock_async):
         episode = Episode.objects.create(url="https://example.com/ep/1")
