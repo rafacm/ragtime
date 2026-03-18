@@ -58,24 +58,47 @@ def get_openai_client_class():
     return OpenAI
 
 
-def set_observation_input(system_prompt, user_content):
+def set_observation_input(system_prompt, user_content, *, response_schema=None):
     """Set the current Langfuse observation's input in chat-message format.
 
     Works around the Langfuse OpenAI wrapper not parsing ``instructions``
     from the Responses API into the system prompt field. Call this from
     provider methods before the API call. No-op when disabled.
+
+    When *response_schema* is provided, it is logged in metadata as
+    ``response_schema`` (the RAGtime equivalent of ``tool_definitions``).
     """
     if not is_enabled():
         return
     try:
         from langfuse.decorators import langfuse_context
 
-        langfuse_context.update_current_observation(
-            input=[
+        update_kwargs = {
+            "input": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content},
-            ]
-        )
+            ],
+        }
+        if response_schema is not None:
+            update_kwargs["metadata"] = {"response_schema": response_schema}
+
+        langfuse_context.update_current_observation(**update_kwargs)
+    except (ImportError, Exception):
+        pass
+
+
+def set_observation_output(output):
+    """Set the current Langfuse observation's output.
+
+    Call this from provider methods after the API call to log the
+    structured response. No-op when disabled.
+    """
+    if not is_enabled():
+        return
+    try:
+        from langfuse.decorators import langfuse_context
+
+        langfuse_context.update_current_observation(output=output)
     except (ImportError, Exception):
         pass
 
