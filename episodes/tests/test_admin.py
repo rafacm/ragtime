@@ -35,7 +35,7 @@ class EpisodeAdminTests(TestCase):
     def test_reprocess_action_shows_intermediate_page(self, mock_async):
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-2",
-            status=Episode.Status.NEEDS_REVIEW,
+            status=Episode.Status.FAILED,
         )
         mock_async.reset_mock()
 
@@ -55,7 +55,7 @@ class EpisodeAdminTests(TestCase):
     def test_reprocess_action_executes(self, mock_async):
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-2b",
-            status=Episode.Status.NEEDS_REVIEW,
+            status=Episode.Status.FAILED,
         )
         mock_async.reset_mock()
 
@@ -80,15 +80,15 @@ class EpisodeAdminTests(TestCase):
         self.assertEqual(episode.status, Episode.Status.SCRAPING)
 
     @patch("episodes.signals.async_task")
-    def test_metadata_fields_editable_in_needs_review(self, mock_async):
+    def test_metadata_fields_readonly_when_failed(self, mock_async):
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-3",
-            status=Episode.Status.NEEDS_REVIEW,
+            status=Episode.Status.FAILED,
         )
         response = self.client.get(f"/admin/episodes/episode/{episode.pk}/change/")
         content = response.content.decode()
-        # title field should be an input (editable), not in readonly
-        self.assertIn('name="title"', content)
+        # title field should be readonly (no editable input)
+        self.assertNotIn('name="title"', content)
 
 
 class EntityTypeAdminTests(TestCase):

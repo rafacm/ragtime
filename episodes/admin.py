@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.db.models import Count
 from django.template.response import TemplateResponse
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.html import format_html
 from django_q.tasks import async_task
 
@@ -14,8 +15,10 @@ from .models import (
     EntityMention,
     EntityType,
     Episode,
+    PipelineEvent,
     ProcessingRun,
     ProcessingStep,
+    RecoveryAttempt,
 )
 from .processing import create_run
 
@@ -87,6 +90,39 @@ class ProcessingRunInlineForEpisode(admin.TabularInline):
         return False
 
 
+class PipelineEventInlineForEpisode(admin.TabularInline):
+    model = PipelineEvent
+    extra = 0
+    readonly_fields = ("event_type_display", "step_name", "error_type", "error_message", "created_at")
+    fields = ("event_type_display", "step_name", "error_type", "error_message", "created_at")
+    show_change_link = True
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description="Event type")
+    def event_type_display(self, obj):
+        if obj.event_type == PipelineEvent.EventType.COMPLETED:
+            return format_html('<span style="color: green;">{}</span>', obj.event_type)
+        return format_html('<span style="color: red;">{}</span>', obj.event_type)
+
+
+class RecoveryAttemptInlineForEpisode(admin.TabularInline):
+    model = RecoveryAttempt
+    extra = 0
+    readonly_fields = ("strategy", "status", "success", "message", "created_at", "resolved_at", "resolved_by")
+    fields = ("strategy", "status", "success", "message", "created_at", "resolved_at", "resolved_by")
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Episode)
 class EpisodeAdmin(admin.ModelAdmin):
     list_display = ("title", "url", "language", "formatted_duration", "status", "created_at", "updated_at")
@@ -116,7 +152,9 @@ class EpisodeAdmin(admin.ModelAdmin):
     def get_inlines(self, request, obj=None):
         if obj is None:
             return []
-        inlines = [ProcessingRunInlineForEpisode]
+        inlines = [ProcessingRunInlineForEpisode, PipelineEventInlineForEpisode]
+        if obj.recovery_attempts.exists():
+            inlines.append(RecoveryAttemptInlineForEpisode)
         if obj.chunks.exists():
             inlines.insert(0, ChunkInlineForEpisode)
         if obj.entity_mentions.exists():
@@ -128,11 +166,8 @@ class EpisodeAdmin(admin.ModelAdmin):
         if obj is None:
             # Creating a new episode — only url is editable
             readonly += list(self.METADATA_FIELDS) + ["status", "scraped_html"]
-        elif obj.status == Episode.Status.NEEDS_REVIEW:
-            # Needs review — metadata editable, status read-only
-            readonly += ["status", "scraped_html"]
         else:
-            # All other statuses — everything read-only except url
+            # All statuses — everything read-only except url
             readonly += list(self.METADATA_FIELDS) + ["status", "scraped_html"]
         return readonly
 
@@ -251,6 +286,15 @@ class EpisodeAdmin(admin.ModelAdmin):
 
         count = 0
         for episode in episodes:
+            # Resolve any AWAITING_HUMAN recovery attempts
+            episode.recovery_attempts.filter(
+                status=RecoveryAttempt.Status.AWAITING_HUMAN
+            ).update(
+                status=RecoveryAttempt.Status.RESOLVED,
+                resolved_at=timezone.now(),
+                resolved_by="human:admin",
+            )
+
             resume_from = "" if from_step == Episode.Status.SCRAPING else from_step
             create_run(episode, resume_from=resume_from)
             episode.status = from_step
@@ -307,7 +351,7 @@ class ChunkAdmin(admin.ModelAdmin):
         def fmt(seconds):
             m, s = divmod(int(seconds), 60)
             return f"{m}:{s:02d}"
-        return f"{fmt(obj.start_time)} – {fmt(obj.end_time)}"
+        return f"{fmt(obj.start_time)} \u2013 {fmt(obj.end_time)}"
 
     @admin.display(description="Text")
     def short_text(self, obj):
@@ -561,6 +605,52 @@ class ProcessingRunAdmin(admin.ModelAdmin):
     def current_step(self, obj):
         step = obj.steps.filter(status=ProcessingStep.Status.RUNNING).first()
         return step.step_name if step else "\u2014"
+
+    def has_add_permission(self, request):
+        return False
+
+
+class NeedsHumanActionFilter(admin.SimpleListFilter):
+    title = "needs human action"
+    parameter_name = "needs_human"
+
+    def lookups(self, request, model_admin):
+        return [("yes", "Yes")]
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.filter(status=RecoveryAttempt.Status.AWAITING_HUMAN)
+        return queryset
+
+
+@admin.register(PipelineEvent)
+class PipelineEventAdmin(admin.ModelAdmin):
+    list_display = ("episode", "event_type_display", "step_name", "error_type", "created_at")
+    list_filter = ("event_type", "step_name", "error_type")
+    readonly_fields = (
+        "episode", "processing_step", "event_type", "step_name",
+        "error_type", "error_message", "http_status", "exception_class",
+        "context", "created_at",
+    )
+
+    @admin.display(description="Event type")
+    def event_type_display(self, obj):
+        if obj.event_type == PipelineEvent.EventType.COMPLETED:
+            return format_html('<span style="color: green;">{}</span>', obj.event_type)
+        return format_html('<span style="color: red;">{}</span>', obj.event_type)
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(RecoveryAttempt)
+class RecoveryAttemptAdmin(admin.ModelAdmin):
+    list_display = ("episode", "strategy", "status", "success", "created_at", "resolved_at")
+    list_filter = (NeedsHumanActionFilter, "strategy", "status")
+    readonly_fields = (
+        "episode", "pipeline_event", "strategy", "status", "success",
+        "message", "created_at", "resolved_at", "resolved_by",
+    )
 
     def has_add_permission(self, request):
         return False
