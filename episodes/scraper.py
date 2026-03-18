@@ -140,14 +140,20 @@ def scrape_episode(episode_id: int) -> None:
             complete_step(episode, Episode.Status.SCRAPING)
             episode.status = Episode.Status.DOWNLOADING
         else:
-            episode.status = Episode.Status.NEEDS_REVIEW
+            episode.error_message = "Incomplete metadata: missing required fields"
+            episode.status = Episode.Status.FAILED
+            fail_step(
+                episode, Episode.Status.SCRAPING,
+                "Incomplete metadata: missing required fields",
+            )
             logger.warning(
-                "Episode %s: incomplete metadata, needs review", episode_id
+                "Episode %s: incomplete metadata after scraping", episode_id
             )
 
         episode.save(
             update_fields=[
                 "status",
+                "error_message",
                 "title",
                 "description",
                 "image_url",
@@ -162,4 +168,4 @@ def scrape_episode(episode_id: int) -> None:
         logger.exception("Failed to scrape episode %s", episode_id)
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "updated_at"])
-        fail_step(episode, Episode.Status.SCRAPING, str(exc))
+        fail_step(episode, Episode.Status.SCRAPING, str(exc), exc=exc)
