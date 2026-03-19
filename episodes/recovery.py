@@ -37,7 +37,7 @@ class RecoveryStrategy(ABC):
 
 
 class AgentStrategy(RecoveryStrategy):
-    """Stub agent strategy — always escalates until implemented in Phase 4."""
+    """AI agent that uses Playwright to recover from scraping/downloading failures."""
 
     name = "agent"
 
@@ -48,11 +48,33 @@ class AgentStrategy(RecoveryStrategy):
         return event.step_name in ("scraping", "downloading")
 
     def attempt(self, event: StepFailureEvent) -> RecoveryResult:
-        return RecoveryResult(
-            success=False,
-            message="Agent recovery not yet implemented — escalating to human",
-            should_escalate=True,
-        )
+        try:
+            from .agents import run_recovery_agent
+
+            result = run_recovery_agent(event)
+            if result.success:
+                from .agents.resume import resume_pipeline
+
+                resume_pipeline(event, result)
+                return RecoveryResult(
+                    success=True,
+                    message=result.message,
+                    should_escalate=False,
+                )
+            return RecoveryResult(
+                success=False,
+                message=result.message or "Agent could not recover",
+                should_escalate=True,
+            )
+        except Exception as exc:
+            logger.exception(
+                "Agent recovery failed for episode %s", event.episode_id
+            )
+            return RecoveryResult(
+                success=False,
+                message=f"Agent error: {exc}",
+                should_escalate=True,
+            )
 
 
 class HumanEscalationStrategy(RecoveryStrategy):

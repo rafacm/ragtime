@@ -209,6 +209,9 @@ RAGTIME_LANGFUSE_HOST = os.getenv('RAGTIME_LANGFUSE_HOST', 'http://localhost:300
 # Recovery layer
 RAGTIME_RECOVERY_CHAIN = ["agent", "human"]
 RAGTIME_RECOVERY_AGENT_ENABLED = os.getenv('RAGTIME_RECOVERY_AGENT_ENABLED', 'false').lower() in ('true', '1', 'yes')
+RAGTIME_RECOVERY_AGENT_API_KEY = os.getenv('RAGTIME_RECOVERY_AGENT_API_KEY', '')
+RAGTIME_RECOVERY_AGENT_MODEL = os.getenv('RAGTIME_RECOVERY_AGENT_MODEL', 'openai:gpt-4.1-mini')
+RAGTIME_RECOVERY_AGENT_TIMEOUT = int(os.getenv('RAGTIME_RECOVERY_AGENT_TIMEOUT', '120'))
 
 CACHES = {
     'default': {

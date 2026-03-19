@@ -660,6 +660,107 @@ class RecoveryAttemptAdmin(admin.ModelAdmin):
         "episode", "pipeline_event", "strategy", "status", "success",
         "message", "created_at", "resolved_at", "resolved_by",
     )
+    actions = ["retry_agent_recovery"]
+
+    @admin.action(description="Retry with recovery agent")
+    def retry_agent_recovery(self, request, queryset):
+        awaiting = queryset.filter(status=RecoveryAttempt.Status.AWAITING_HUMAN)
+        if not awaiting.exists():
+            self.message_user(
+                request,
+                "No selected attempts are awaiting human action.",
+                level="warning",
+            )
+            return
+
+        count = 0
+        for attempt in awaiting.select_related("pipeline_event", "episode"):
+            pe = attempt.pipeline_event
+            attempt.status = RecoveryAttempt.Status.RESOLVED
+            attempt.resolved_at = timezone.now()
+            attempt.resolved_by = "human:admin-retry"
+            attempt.save(update_fields=["status", "resolved_at", "resolved_by"])
+
+            async_task(
+                "episodes.admin._run_agent_recovery_task",
+                attempt.episode_id,
+                pe.pk,
+            )
+            count += 1
+
+        self.message_user(
+            request,
+            f"Queued agent recovery for {count} attempt(s).",
+        )
 
     def has_add_permission(self, request):
         return False
+
+
+def _run_agent_recovery_task(episode_id, pipeline_event_id):
+    """Django Q2 task that retries agent recovery for a failed step."""
+    import logging
+
+    from .events import StepFailureEvent
+    from .models import Episode, PipelineEvent, RecoveryAttempt
+
+    logger = logging.getLogger(__name__)
+
+    pe = PipelineEvent.objects.select_related("processing_step").get(pk=pipeline_event_id)
+    episode = Episode.objects.get(pk=episode_id)
+
+    attempt_number = RecoveryAttempt.objects.filter(
+        episode_id=episode_id,
+        pipeline_event__step_name=pe.step_name,
+    ).count() + 1
+
+    event = StepFailureEvent(
+        episode_id=episode_id,
+        step_name=pe.step_name,
+        processing_run_id=pe.processing_step.run_id,
+        processing_step_id=pe.processing_step_id,
+        error_type=pe.error_type,
+        error_message=pe.error_message,
+        http_status=pe.http_status,
+        exception_class=pe.exception_class,
+        attempt_number=attempt_number,
+        cached_data=pe.context.get("cached_data", {}),
+        timestamp=timezone.now(),
+    )
+
+    try:
+        from .agents import run_recovery_agent
+        from .agents.resume import resume_pipeline
+
+        result = run_recovery_agent(event)
+        if result.success:
+            resume_pipeline(event, result)
+            RecoveryAttempt.objects.create(
+                episode=episode,
+                pipeline_event=pe,
+                strategy="agent",
+                status=RecoveryAttempt.Status.ATTEMPTED,
+                success=True,
+                message=result.message,
+            )
+            logger.info("Admin-triggered agent recovery succeeded for episode %s", episode_id)
+        else:
+            RecoveryAttempt.objects.create(
+                episode=episode,
+                pipeline_event=pe,
+                strategy="agent",
+                status=RecoveryAttempt.Status.AWAITING_HUMAN,
+                success=False,
+                message=result.message or "Agent could not recover",
+            )
+            logger.info("Admin-triggered agent recovery failed for episode %s", episode_id)
+    except Exception as exc:
+        RecoveryAttempt.objects.create(
+            episode=episode,
+            pipeline_event=pe,
+            strategy="agent",
+            status=RecoveryAttempt.Status.AWAITING_HUMAN,
+            success=False,
+            message=f"Agent error: {exc}",
+        )
+        logger.exception("Admin-triggered agent recovery error for episode %s", episode_id)

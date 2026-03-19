@@ -1,8 +1,9 @@
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
-from episodes.models import Entity, EntityType, Episode
+from episodes.models import Entity, EntityType, Episode, PipelineEvent, ProcessingRun, ProcessingStep, RecoveryAttempt
 
 
 class EpisodeAdminTests(TestCase):
@@ -239,6 +240,180 @@ class EntityAdminTests(TestCase):
         response = self.client.get(f"/admin/episodes/entity/{entity.pk}/change/")
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "wikidata.org")
+
+
+class RecoveryAttemptAdminTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth.models import User
+
+        cls.admin_user = User.objects.create_superuser(
+            username="admin", password="testpass"
+        )
+
+    def setUp(self):
+        self.client.login(username="admin", password="testpass")
+
+    def _make_awaiting_attempt(self, episode_url="https://example.com/rec/admin-1"):
+        episode = Episode.objects.create(url=episode_url, status=Episode.Status.FAILED)
+        run = ProcessingRun.objects.create(episode=episode, status=ProcessingRun.Status.FAILED)
+        step = ProcessingStep.objects.create(
+            run=run, step_name="scraping", status=ProcessingStep.Status.FAILED
+        )
+        pe = PipelineEvent.objects.create(
+            episode=episode, processing_step=step,
+            event_type=PipelineEvent.EventType.FAILED, step_name="scraping",
+            error_type="http", error_message="403 Forbidden", http_status=403,
+            exception_class="httpx.HTTPStatusError",
+        )
+        attempt = RecoveryAttempt.objects.create(
+            episode=episode, pipeline_event=pe,
+            strategy="human", status=RecoveryAttempt.Status.AWAITING_HUMAN,
+        )
+        return attempt
+
+    @patch("episodes.signals.async_task")
+    @patch("episodes.admin.async_task")
+    def test_retry_queues_task_and_resolves_attempt(self, mock_admin_async, _):
+        attempt = self._make_awaiting_attempt()
+
+        response = self.client.post(
+            "/admin/episodes/recoveryattempt/",
+            {
+                "action": "retry_agent_recovery",
+                "_selected_action": [attempt.pk],
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, RecoveryAttempt.Status.RESOLVED)
+        self.assertEqual(attempt.resolved_by, "human:admin-retry")
+        self.assertIsNotNone(attempt.resolved_at)
+
+        mock_admin_async.assert_called_once_with(
+            "episodes.admin._run_agent_recovery_task",
+            attempt.episode_id,
+            attempt.pipeline_event_id,
+        )
+
+    @patch("episodes.signals.async_task")
+    @patch("episodes.admin.async_task")
+    def test_retry_skips_non_awaiting_attempts(self, mock_admin_async, _):
+        attempt = self._make_awaiting_attempt(
+            episode_url="https://example.com/rec/admin-2"
+        )
+        attempt.status = RecoveryAttempt.Status.ATTEMPTED
+        attempt.save(update_fields=["status"])
+
+        response = self.client.post(
+            "/admin/episodes/recoveryattempt/",
+            {
+                "action": "retry_agent_recovery",
+                "_selected_action": [attempt.pk],
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        mock_admin_async.assert_not_called()
+
+
+class RunAgentRecoveryTaskTests(TestCase):
+    @patch("episodes.signals.async_task")
+    @patch("episodes.agents.run_recovery_agent")
+    def test_success_creates_resolved_attempt_and_resumes(self, mock_agent, _):
+        from episodes.admin import _run_agent_recovery_task
+        from episodes.agents.deps import RecoveryAgentResult
+
+        mock_agent.return_value = RecoveryAgentResult(
+            success=True,
+            audio_url="https://cdn.example.com/found.mp3",
+            message="Found audio via browser",
+        )
+
+        episode = Episode.objects.create(
+            url="https://example.com/task/1", status=Episode.Status.FAILED
+        )
+        run = ProcessingRun.objects.create(episode=episode, status=ProcessingRun.Status.FAILED)
+        step = ProcessingStep.objects.create(
+            run=run, step_name="scraping", status=ProcessingStep.Status.FAILED
+        )
+        pe = PipelineEvent.objects.create(
+            episode=episode, processing_step=step,
+            event_type=PipelineEvent.EventType.FAILED, step_name="scraping",
+            error_type="http", error_message="403 Forbidden",
+        )
+
+        with patch("episodes.agents.resume.resume_pipeline") as mock_resume:
+            _run_agent_recovery_task(episode.pk, pe.pk)
+
+        mock_resume.assert_called_once()
+        new_attempt = RecoveryAttempt.objects.filter(
+            episode=episode, strategy="agent"
+        ).first()
+        self.assertIsNotNone(new_attempt)
+        self.assertTrue(new_attempt.success)
+
+    @patch("episodes.signals.async_task")
+    @patch("episodes.agents.run_recovery_agent")
+    def test_failure_creates_awaiting_human_attempt(self, mock_agent, _):
+        from episodes.admin import _run_agent_recovery_task
+        from episodes.agents.deps import RecoveryAgentResult
+
+        mock_agent.return_value = RecoveryAgentResult(
+            success=False,
+            message="Could not find audio",
+        )
+
+        episode = Episode.objects.create(
+            url="https://example.com/task/2", status=Episode.Status.FAILED
+        )
+        run = ProcessingRun.objects.create(episode=episode, status=ProcessingRun.Status.FAILED)
+        step = ProcessingStep.objects.create(
+            run=run, step_name="scraping", status=ProcessingStep.Status.FAILED
+        )
+        pe = PipelineEvent.objects.create(
+            episode=episode, processing_step=step,
+            event_type=PipelineEvent.EventType.FAILED, step_name="scraping",
+            error_type="http", error_message="403 Forbidden",
+        )
+
+        _run_agent_recovery_task(episode.pk, pe.pk)
+
+        new_attempt = RecoveryAttempt.objects.filter(
+            episode=episode, strategy="agent"
+        ).first()
+        self.assertIsNotNone(new_attempt)
+        self.assertFalse(new_attempt.success)
+        self.assertEqual(new_attempt.status, RecoveryAttempt.Status.AWAITING_HUMAN)
+
+    @patch("episodes.signals.async_task")
+    @patch("episodes.agents.run_recovery_agent", side_effect=RuntimeError("Crash"))
+    def test_exception_creates_awaiting_human_attempt(self, _, __):
+        from episodes.admin import _run_agent_recovery_task
+
+        episode = Episode.objects.create(
+            url="https://example.com/task/3", status=Episode.Status.FAILED
+        )
+        run = ProcessingRun.objects.create(episode=episode, status=ProcessingRun.Status.FAILED)
+        step = ProcessingStep.objects.create(
+            run=run, step_name="scraping", status=ProcessingStep.Status.FAILED
+        )
+        pe = PipelineEvent.objects.create(
+            episode=episode, processing_step=step,
+            event_type=PipelineEvent.EventType.FAILED, step_name="scraping",
+            error_type="http", error_message="403 Forbidden",
+        )
+
+        _run_agent_recovery_task(episode.pk, pe.pk)
+
+        new_attempt = RecoveryAttempt.objects.filter(
+            episode=episode, strategy="agent"
+        ).first()
+        self.assertIsNotNone(new_attempt)
+        self.assertFalse(new_attempt.success)
+        self.assertIn("Agent error", new_attempt.message)
 
 
 @override_settings(

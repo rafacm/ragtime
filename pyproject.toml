@@ -16,3 +16,4 @@ dependencies = [
 
 [project.optional-dependencies]
 observability = ["langfuse>=4,<5"]
+recovery = ["pydantic-ai>=0.1", "playwright>=1.40"]

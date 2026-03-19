@@ -138,6 +138,35 @@ Generate multilingual embeddings for transcript chunks and store in [ChromaDB](h
 
 Episode fully processed and available for Scott to query.
 
+### Recovery
+
+When steps 2 (scraping) or 3 (downloading) fail, the [recovery layer](episodes/recovery.py) walks a configurable strategy chain before giving up:
+
+1. **Agent** — a [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation navigates the podcast page, finds audio URLs behind JavaScript players or CloudFlare blocks, and downloads files through a real browser. On success it resumes the pipeline from the next step automatically.
+2. **Human escalation** — if the agent fails (or is disabled), the failure is marked `awaiting_human` for manual resolution in Django admin.
+
+The agent strategy is **off by default**. To enable it:
+
+```
+uv sync --extra recovery
+uv run playwright install chromium
+```
+
+Configure via the wizard:
+```
+uv run python manage.py configure
+```
+or set these variables in `.env`:
+```
+RAGTIME_RECOVERY_AGENT_ENABLED=true
+RAGTIME_RECOVERY_AGENT_API_KEY=sk-your-key
+RAGTIME_RECOVERY_AGENT_MODEL=openai:gpt-4.1-mini
+```
+
+The agent's LLM provider is fully independent from other subsystems — configure any [Pydantic AI model string](https://ai.pydantic.dev/models/) (e.g., `anthropic:claude-sonnet-4-20250514`). A maximum of 15 LLM requests per recovery attempt prevents runaway costs. Screenshots taken during recovery are attached to [Langfuse](https://langfuse.com) traces when observability is enabled.
+
+The chain order and maximum retry count (default: 5) are configured in [`settings.py`](ragtime/settings.py). The agent tools — `navigate_to_url`, `find_audio_links`, `click_element`, `download_file`, and others — are defined in [`episodes/agents/tools.py`](episodes/agents/tools.py).
+
 ## How Scott Works
 
 Scott is a strict RAG (Retrieval-Augmented Generation) agent:
