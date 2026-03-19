@@ -1,6 +1,7 @@
 """Resume pipeline after successful agent recovery."""
 
 import logging
+import os
 
 from django.core.files import File
 from mutagen.mp3 import MP3
@@ -31,12 +32,21 @@ def resume_pipeline(event: StepFailureEvent, result: RecoveryAgentResult):
 
 def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult):
     """Set audio URL and restart pipeline from downloading."""
+    if not result.audio_url:
+        logger.error(
+            "Scraping recovery for episode %s returned empty audio_url", episode.pk
+        )
+        return
+
     episode.audio_url = result.audio_url
-    episode.status = Episode.Status.DOWNLOADING
     episode.error_message = ""
+
+    # Create run BEFORE saving status to avoid race with post_save signal
+    create_run(episode, resume_from=Episode.Status.DOWNLOADING)
+
+    episode.status = Episode.Status.DOWNLOADING
     episode.save(update_fields=["audio_url", "status", "error_message", "updated_at"])
 
-    create_run(episode, resume_from=Episode.Status.DOWNLOADING)
     logger.info(
         "Scraping recovery succeeded for episode %s — audio_url=%s, resuming from downloading",
         episode.pk,
@@ -46,24 +56,41 @@ def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult):
 
 def _resume_from_downloading(episode: Episode, result: RecoveryAgentResult):
     """Save downloaded file, extract duration, restart from transcribing."""
+    if not result.downloaded_file:
+        logger.error(
+            "Download recovery for episode %s returned empty downloaded_file",
+            episode.pk,
+        )
+        return
+
     filepath = result.downloaded_file
     filename = f"{episode.pk}.mp3"
 
-    with open(filepath, "rb") as f:
-        episode.audio_file.save(filename, File(f), save=False)
+    try:
+        with open(filepath, "rb") as f:
+            episode.audio_file.save(filename, File(f), save=False)
 
-    audio = MP3(episode.audio_file.path)
-    episode.duration = int(audio.info.length)
-    episode.status = Episode.Status.TRANSCRIBING
-    episode.error_message = ""
-    episode.save(
-        update_fields=["audio_file", "duration", "status", "error_message", "updated_at"]
-    )
+        audio = MP3(episode.audio_file.path)
+        episode.duration = int(audio.info.length)
+        episode.error_message = ""
 
-    create_run(episode, resume_from=Episode.Status.TRANSCRIBING)
-    logger.info(
-        "Download recovery succeeded for episode %s — file=%s, duration=%ss, resuming from transcribing",
-        episode.pk,
-        filename,
-        episode.duration,
-    )
+        # Create run BEFORE saving status to avoid race with post_save signal
+        create_run(episode, resume_from=Episode.Status.TRANSCRIBING)
+
+        episode.status = Episode.Status.TRANSCRIBING
+        episode.save(
+            update_fields=["audio_file", "duration", "status", "error_message", "updated_at"]
+        )
+
+        logger.info(
+            "Download recovery succeeded for episode %s — file=%s, duration=%ss, resuming from transcribing",
+            episode.pk,
+            filename,
+            episode.duration,
+        )
+    finally:
+        # Clean up the temp file from the agent download
+        try:
+            os.unlink(filepath)
+        except OSError:
+            pass

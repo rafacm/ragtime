@@ -10,7 +10,7 @@ async def recovery_browser(download_dir: str) -> Page:
     """Yield a fresh Playwright page configured for recovery.
 
     Headless-only, accepts downloads into *download_dir*, custom user-agent,
-    and a 30-second default timeout.  Cleans up page → context → browser →
+    and a 30-second default timeout.  Cleans up page -> context -> browser ->
     playwright in the ``finally`` block.
     """
     pw = await async_playwright().start()
@@ -23,6 +23,7 @@ async def recovery_browser(download_dir: str) -> Page:
             accept_downloads=True,
             user_agent="RAGtime/0.1 (podcast recovery agent)",
         )
+        # Route downloads to the specified directory
         page = await context.new_page()
         page.set_default_timeout(30_000)
         yield page

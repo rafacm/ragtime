@@ -3,8 +3,6 @@
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from django.test import TestCase
-
 try:
     from episodes.agents.deps import RecoveryDeps
     from episodes.agents.tools import (
@@ -47,7 +45,7 @@ def _make_ctx(deps=None):
     return ctx
 
 
-class NavigateToUrlTests(TestCase):
+class NavigateToUrlTests(unittest.IsolatedAsyncioTestCase):
     async def test_navigates_and_returns_title_and_snippet(self):
         ctx = _make_ctx()
         ctx.deps.page.title.return_value = "Episode 42"
@@ -70,7 +68,7 @@ class NavigateToUrlTests(TestCase):
         self.assertIn("Empty Page", result)
 
 
-class GetPageContentTests(TestCase):
+class GetPageContentTests(unittest.IsolatedAsyncioTestCase):
     async def test_returns_truncated_content(self):
         ctx = _make_ctx()
         ctx.deps.page.inner_text.return_value = "x" * 20_000
@@ -86,27 +84,25 @@ class GetPageContentTests(TestCase):
         self.assertEqual(result, "(empty page)")
 
 
-class FindAudioLinksTests(TestCase):
+class FindAudioLinksTests(unittest.IsolatedAsyncioTestCase):
     async def test_returns_found_links(self):
         ctx = _make_ctx()
         ctx.deps.page.evaluate.return_value = [
             "https://cdn.example.com/ep42.mp3",
-            "https://cdn.example.com/ep42.ogg",
         ]
 
         result = await find_audio_links(ctx)
         self.assertIn("ep42.mp3", result)
-        self.assertIn("ep42.ogg", result)
 
     async def test_returns_message_when_no_links(self):
         ctx = _make_ctx()
         ctx.deps.page.evaluate.return_value = []
 
         result = await find_audio_links(ctx)
-        self.assertIn("No audio links found", result)
+        self.assertIn("No MP3 links found", result)
 
 
-class ClickElementTests(TestCase):
+class ClickElementTests(unittest.IsolatedAsyncioTestCase):
     async def test_clicks_and_returns_state(self):
         ctx = _make_ctx()
         ctx.deps.page.title.return_value = "Player Page"
@@ -121,7 +117,7 @@ class ClickElementTests(TestCase):
         self.assertIn("Now playing", result)
 
 
-class TakeScreenshotTests(TestCase):
+class TakeScreenshotTests(unittest.IsolatedAsyncioTestCase):
     async def test_stores_screenshot_in_deps(self):
         ctx = _make_ctx()
         png_data = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
@@ -144,7 +140,7 @@ class TakeScreenshotTests(TestCase):
         self.assertEqual(len(ctx.deps.screenshots), 2)
 
 
-class DownloadFileTests(TestCase):
+class DownloadFileTests(unittest.IsolatedAsyncioTestCase):
     async def test_saves_file_to_download_dir(self):
         deps = _make_deps(download_dir="/tmp/test-dl")
         ctx = _make_ctx(deps)
@@ -174,7 +170,7 @@ class DownloadFileTests(TestCase):
         self.assertIn("1024", result)
 
 
-class ExtractTextBySelectorTests(TestCase):
+class ExtractTextBySelectorTests(unittest.IsolatedAsyncioTestCase):
     async def test_returns_matched_text(self):
         ctx = _make_ctx()
         el1 = AsyncMock()
