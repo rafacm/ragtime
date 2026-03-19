@@ -1,19 +1,23 @@
 """Tests for recovery agent Playwright tool functions."""
 
+import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from django.test import TestCase
 
-from episodes.agents.deps import RecoveryDeps
-from episodes.agents.tools import (
-    click_element,
-    download_file,
-    extract_text_by_selector,
-    find_audio_links,
-    get_page_content,
-    navigate_to_url,
-    take_screenshot,
-)
+try:
+    from episodes.agents.deps import RecoveryDeps
+    from episodes.agents.tools import (
+        click_element,
+        download_file,
+        extract_text_by_selector,
+        find_audio_links,
+        get_page_content,
+        navigate_to_url,
+        take_screenshot,
+    )
+except ImportError:
+    raise unittest.SkipTest("pydantic-ai/playwright not installed")
 
 
 def _make_deps(**overrides):
