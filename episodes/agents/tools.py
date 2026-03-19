@@ -104,7 +104,7 @@ async def click_element(ctx: RunContext[RecoveryDeps], selector: str) -> str:
 async def take_screenshot(ctx: RunContext[RecoveryDeps], label: str) -> str:
     """Take a screenshot and store it in deps.screenshots.
 
-    Injects a small red CSS dot at the cursor position for visual debugging.
+    Injects a small red CSS dot at the viewport center for visual debugging.
     Returns a confirmation message with the label.
     """
     page = ctx.deps.page

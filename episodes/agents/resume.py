@@ -14,29 +14,32 @@ from .deps import RecoveryAgentResult
 logger = logging.getLogger(__name__)
 
 
-def resume_pipeline(event: StepFailureEvent, result: RecoveryAgentResult):
+def resume_pipeline(event: StepFailureEvent, result: RecoveryAgentResult) -> bool:
     """Resume the pipeline after a successful recovery.
 
     For scraping recovery: sets the audio URL and resumes from downloading.
     For download recovery: saves the file, extracts duration, resumes from transcribing.
+
+    Returns True if the pipeline was actually resumed, False otherwise.
     """
     episode = Episode.objects.get(pk=event.episode_id)
 
     if event.step_name == "scraping":
-        _resume_from_scraping(episode, result)
+        return _resume_from_scraping(episode, result)
     elif event.step_name == "downloading":
-        _resume_from_downloading(episode, result)
+        return _resume_from_downloading(episode, result)
     else:
         logger.error("Cannot resume from step: %s", event.step_name)
+        return False
 
 
-def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult):
+def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult) -> bool:
     """Set audio URL and restart pipeline from downloading."""
     if not result.audio_url:
         logger.error(
             "Scraping recovery for episode %s returned empty audio_url", episode.pk
         )
-        return
+        return False
 
     episode.audio_url = result.audio_url
     episode.error_message = ""
@@ -52,16 +55,17 @@ def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult):
         episode.pk,
         result.audio_url,
     )
+    return True
 
 
-def _resume_from_downloading(episode: Episode, result: RecoveryAgentResult):
+def _resume_from_downloading(episode: Episode, result: RecoveryAgentResult) -> bool:
     """Save downloaded file, extract duration, restart from transcribing."""
     if not result.downloaded_file:
         logger.error(
             "Download recovery for episode %s returned empty downloaded_file",
             episode.pk,
         )
-        return
+        return False
 
     filepath = result.downloaded_file
     filename = f"{episode.pk}.mp3"
@@ -88,6 +92,7 @@ def _resume_from_downloading(episode: Episode, result: RecoveryAgentResult):
             filename,
             episode.duration,
         )
+        return True
     finally:
         # Clean up the temp file from the agent download
         try:

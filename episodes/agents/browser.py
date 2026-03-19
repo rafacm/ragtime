@@ -9,9 +9,10 @@ from playwright.async_api import Page, async_playwright
 async def recovery_browser(download_dir: str) -> Page:
     """Yield a fresh Playwright page configured for recovery.
 
-    Headless-only, accepts downloads into *download_dir*, custom user-agent,
-    and a 30-second default timeout.  Cleans up page -> context -> browser ->
-    playwright in the ``finally`` block.
+    Headless-only, with downloads enabled, custom user-agent, and a 30-second
+    default timeout.  Callers are responsible for saving downloads (e.g. into
+    *download_dir*) via ``download.save_as(...)``.  Cleans up page -> context
+    -> browser -> playwright in the ``finally`` block.
     """
     pw = await async_playwright().start()
     browser = None
