@@ -108,6 +108,9 @@ class ResumePipelineDownloadingTests(TestCase):
             self.assertEqual(episode.duration, 3600)
             self.assertEqual(episode.error_message, "")
 
+            # Temp file should be cleaned up by resume_pipeline
+            self.assertFalse(os.path.exists(tmp.name))
+
             # A new ProcessingRun resumed from transcribing
             run = ProcessingRun.objects.filter(
                 episode=episode
@@ -120,7 +123,6 @@ class ResumePipelineDownloadingTests(TestCase):
             self.assertEqual(steps["downloading"], ProcessingStep.Status.SKIPPED)
             self.assertEqual(steps["transcribing"], ProcessingStep.Status.PENDING)
         finally:
-            os.unlink(tmp.name)
             # Clean up saved audio file
             if episode.audio_file:
                 try:

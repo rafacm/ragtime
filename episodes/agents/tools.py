@@ -18,65 +18,72 @@ async def navigate_to_url(ctx: RunContext[RecoveryDeps], url: str) -> str:
     page = ctx.deps.page
     try:
         await page.goto(url, wait_until="domcontentloaded")
+        title = await page.title()
+        text = await page.inner_text("body")
+        snippet = text[:2000] if text else ""
+        return f"Title: {title}\n\nContent preview:\n{snippet}"
     except PlaywrightError as exc:
         return f"Navigation failed: {exc}"
-    title = await page.title()
-    text = await page.inner_text("body")
-    snippet = text[:2000] if text else ""
-    return f"Title: {title}\n\nContent preview:\n{snippet}"
 
 
 async def get_page_content(ctx: RunContext[RecoveryDeps]) -> str:
     """Return the current page's text content (truncated to 15k chars)."""
     page = ctx.deps.page
-    text = await page.inner_text("body")
-    return text[:MAX_PAGE_TEXT] if text else "(empty page)"
+    try:
+        text = await page.inner_text("body")
+        return text[:MAX_PAGE_TEXT] if text else "(empty page)"
+    except PlaywrightError as exc:
+        return f"Failed to get page content: {exc}"
 
 
 async def find_audio_links(ctx: RunContext[RecoveryDeps]) -> str:
-    """Extract audio-related URLs from the current page.
+    """Extract MP3 URLs from the current page.
 
     Looks in ``<audio>``, ``<source>``, ``<a>``, and ``<meta>`` tags for
-    URLs containing common audio file extensions.
+    URLs containing ``.mp3`` extensions.
     """
     page = ctx.deps.page
-    links = await page.evaluate("""() => {
-        const urls = new Set();
-        const audioExts = /\\.(mp3|m4a|ogg|wav|aac|flac|opus)(\\?|$)/i;
+    try:
+        links = await page.evaluate("""() => {
+            const urls = new Set();
+            const audioExt = /\\.mp3(\\?|$)/i;
 
-        // <audio src="..."> and <audio><source src="...">
-        document.querySelectorAll('audio[src], audio source[src]').forEach(el => {
-            urls.add(el.src || el.getAttribute('src'));
-        });
+            // <audio src="..."> and <audio><source src="...">
+            document.querySelectorAll('audio[src], audio source[src]').forEach(el => {
+                const src = el.src || el.getAttribute('src');
+                if (audioExt.test(src)) urls.add(src);
+            });
 
-        // <a href="..."> linking to audio files
-        document.querySelectorAll('a[href]').forEach(el => {
-            if (audioExts.test(el.href)) urls.add(el.href);
-        });
+            // <a href="..."> linking to audio files
+            document.querySelectorAll('a[href]').forEach(el => {
+                if (audioExt.test(el.href)) urls.add(el.href);
+            });
 
-        // <source> outside <audio> (some players)
-        document.querySelectorAll('source[src]').forEach(el => {
-            if (audioExts.test(el.src)) urls.add(el.src);
-        });
+            // <source> outside <audio> (some players)
+            document.querySelectorAll('source[src]').forEach(el => {
+                if (audioExt.test(el.src)) urls.add(el.src);
+            });
 
-        // <meta> tags with audio URLs (og:audio, etc.)
-        document.querySelectorAll('meta[content]').forEach(el => {
-            if (audioExts.test(el.content)) urls.add(el.content);
-        });
+            // <meta> tags with audio URLs (og:audio, etc.)
+            document.querySelectorAll('meta[content]').forEach(el => {
+                if (audioExt.test(el.content)) urls.add(el.content);
+            });
 
-        // data attributes that might contain audio URLs
-        document.querySelectorAll('[data-src], [data-url], [data-audio]').forEach(el => {
-            for (const attr of ['data-src', 'data-url', 'data-audio']) {
-                const val = el.getAttribute(attr);
-                if (val && audioExts.test(val)) urls.add(val);
-            }
-        });
+            // data attributes that might contain audio URLs
+            document.querySelectorAll('[data-src], [data-url], [data-audio]').forEach(el => {
+                for (const attr of ['data-src', 'data-url', 'data-audio']) {
+                    const val = el.getAttribute(attr);
+                    if (val && audioExt.test(val)) urls.add(val);
+                }
+            });
 
-        return [...urls].filter(Boolean);
-    }""")
+            return [...urls].filter(Boolean);
+        }""")
+    except PlaywrightError as exc:
+        return f"Failed to search for audio links: {exc}"
     if not links:
-        return "No audio links found on the current page."
-    return "Audio links found:\n" + "\n".join(f"  - {url}" for url in links)
+        return "No MP3 links found on the current page."
+    return "MP3 links found:\n" + "\n".join(f"  - {url}" for url in links)
 
 
 async def click_element(ctx: RunContext[RecoveryDeps], selector: str) -> str:
@@ -85,13 +92,13 @@ async def click_element(ctx: RunContext[RecoveryDeps], selector: str) -> str:
     try:
         await page.click(selector)
         await page.wait_for_load_state("domcontentloaded")
+        title = await page.title()
+        url = page.url
+        text = await page.inner_text("body")
+        snippet = text[:2000] if text else ""
+        return f"Clicked. Now at: {url}\nTitle: {title}\n\nContent preview:\n{snippet}"
     except PlaywrightError as exc:
         return f"Click failed for '{selector}': {exc}"
-    title = await page.title()
-    url = page.url
-    text = await page.inner_text("body")
-    snippet = text[:2000] if text else ""
-    return f"Clicked. Now at: {url}\nTitle: {title}\n\nContent preview:\n{snippet}"
 
 
 async def take_screenshot(ctx: RunContext[RecoveryDeps], label: str) -> str:
@@ -101,18 +108,22 @@ async def take_screenshot(ctx: RunContext[RecoveryDeps], label: str) -> str:
     Returns a confirmation message with the label.
     """
     page = ctx.deps.page
-    # Inject a visible cursor dot via CSS
-    await page.evaluate("""() => {
-        if (!document.getElementById('ragtime-cursor')) {
-            const dot = document.createElement('div');
-            dot.id = 'ragtime-cursor';
-            dot.style.cssText = 'position:fixed;width:12px;height:12px;' +
-                'background:red;border-radius:50%;pointer-events:none;z-index:99999;' +
-                'top:50%;left:50%;transform:translate(-50%,-50%);';
-            document.body.appendChild(dot);
-        }
-    }""")
-    png_bytes = await page.screenshot(full_page=False)
+    try:
+        # Inject a visible cursor dot via CSS
+        await page.evaluate("""() => {
+            if (!document.getElementById('ragtime-cursor')) {
+                const dot = document.createElement('div');
+                dot.id = 'ragtime-cursor';
+                dot.style.cssText = 'position:fixed;width:12px;height:12px;' +
+                    'background:red;border-radius:50%;pointer-events:none;z-index:99999;' +
+                    'top:50%;left:50%;transform:translate(-50%,-50%);';
+                document.body.appendChild(dot);
+            }
+        }""")
+        png_bytes = await page.screenshot(full_page=False)
+    except PlaywrightError as exc:
+        return f"Screenshot failed: {exc}"
+
     ctx.deps.screenshots.append(png_bytes)
 
     # Attach image to the current Langfuse span so it's visible in the UI
@@ -144,10 +155,12 @@ async def download_file(ctx: RunContext[RecoveryDeps], url: str) -> str:
             await page.goto(url)
         download = await download_info.value
         await download.save_as(dest_path)
+        size = os.path.getsize(dest_path)
     except PlaywrightError as exc:
         return f"Download failed for '{url}': {exc}"
+    except OSError as exc:
+        return f"File error after download of '{url}': {exc}"
 
-    size = os.path.getsize(dest_path)
     return f"Downloaded to {dest_path} ({size} bytes)"
 
 
@@ -162,9 +175,12 @@ async def extract_text_by_selector(
         return f"Selector query failed for '{selector}': {exc}"
     texts = []
     for el in elements:
-        text = await el.inner_text()
-        if text and text.strip():
-            texts.append(text.strip())
+        try:
+            text = await el.inner_text()
+            if text and text.strip():
+                texts.append(text.strip())
+        except PlaywrightError:
+            continue
     if not texts:
         return f"No elements found matching: {selector}"
     return "\n---\n".join(texts[:20])

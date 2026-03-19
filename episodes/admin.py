@@ -666,10 +666,12 @@ class RecoveryAttemptAdmin(admin.ModelAdmin):
     def retry_agent_recovery(self, request, queryset):
         awaiting = queryset.filter(status=RecoveryAttempt.Status.AWAITING_HUMAN)
         if not awaiting.exists():
+            from django.contrib import messages
+
             self.message_user(
                 request,
                 "No selected attempts are awaiting human action.",
-                level="warning",
+                level=messages.WARNING,
             )
             return
 

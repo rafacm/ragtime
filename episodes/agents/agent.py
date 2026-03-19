@@ -123,9 +123,10 @@ def _get_system_prompt(deps: RecoveryDeps) -> str:
 
 async def _run_agent_async(event: StepFailureEvent) -> RecoveryAgentResult:
     """Async implementation of agent recovery."""
+    import tempfile
+
     episode = await Episode.objects.aget(pk=event.episode_id)
-    download_dir = str(settings.MEDIA_ROOT / "episodes")
-    os.makedirs(download_dir, exist_ok=True)
+    download_dir = tempfile.mkdtemp(prefix="ragtime-recovery-")
 
     timeout = getattr(settings, "RAGTIME_RECOVERY_AGENT_TIMEOUT", 120)
 
@@ -145,7 +146,10 @@ async def _run_agent_async(event: StepFailureEvent) -> RecoveryAgentResult:
         system_prompt = _get_system_prompt(deps)
         agent = _build_agent()
 
-        result = await _run_with_langfuse(agent, system_prompt, deps, event)
+        result = await asyncio.wait_for(
+            _run_with_langfuse(agent, system_prompt, deps, event),
+            timeout=timeout,
+        )
 
         return result.output
 
