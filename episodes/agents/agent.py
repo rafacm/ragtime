@@ -126,32 +126,31 @@ async def _run_agent_async(event: StepFailureEvent) -> RecoveryAgentResult:
     import tempfile
 
     episode = await Episode.objects.aget(pk=event.episode_id)
-    download_dir = tempfile.mkdtemp(prefix="ragtime-recovery-")
-
     timeout = getattr(settings, "RAGTIME_RECOVERY_AGENT_TIMEOUT", 120)
 
-    async with recovery_browser(download_dir) as page:
-        deps = RecoveryDeps(
-            episode_id=event.episode_id,
-            episode_url=episode.url,
-            audio_url=episode.audio_url or "",
-            step_name=event.step_name,
-            error_message=event.error_message,
-            http_status=event.http_status,
-            download_dir=download_dir,
-            page=page,
-            screenshots=[],
-        )
+    with tempfile.TemporaryDirectory(prefix="ragtime-recovery-") as download_dir:
+        async with recovery_browser(download_dir) as page:
+            deps = RecoveryDeps(
+                episode_id=event.episode_id,
+                episode_url=episode.url,
+                audio_url=episode.audio_url or "",
+                step_name=event.step_name,
+                error_message=event.error_message,
+                http_status=event.http_status,
+                download_dir=download_dir,
+                page=page,
+                screenshots=[],
+            )
 
-        system_prompt = _get_system_prompt(deps)
-        agent = _build_agent()
+            system_prompt = _get_system_prompt(deps)
+            agent = _build_agent()
 
-        result = await asyncio.wait_for(
-            _run_with_langfuse(agent, system_prompt, deps, event),
-            timeout=timeout,
-        )
+            result = await asyncio.wait_for(
+                _run_with_langfuse(agent, system_prompt, deps, event),
+                timeout=timeout,
+            )
 
-        return result.output
+            return result.output
 
 
 async def _run_with_langfuse(agent, system_prompt, deps, event):

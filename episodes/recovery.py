@@ -55,11 +55,17 @@ class AgentStrategy(RecoveryStrategy):
             if result.success:
                 from .agents.resume import resume_pipeline
 
-                resume_pipeline(event, result)
+                resumed = resume_pipeline(event, result)
+                if resumed:
+                    return RecoveryResult(
+                        success=True,
+                        message=result.message,
+                        should_escalate=False,
+                    )
                 return RecoveryResult(
-                    success=True,
-                    message=result.message,
-                    should_escalate=False,
+                    success=False,
+                    message="Agent reported success but pipeline could not resume",
+                    should_escalate=True,
                 )
             return RecoveryResult(
                 success=False,

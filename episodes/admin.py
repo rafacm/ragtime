@@ -736,16 +736,27 @@ def _run_agent_recovery_task(episode_id, pipeline_event_id):
 
         result = run_recovery_agent(event)
         if result.success:
-            resume_pipeline(event, result)
-            RecoveryAttempt.objects.create(
-                episode=episode,
-                pipeline_event=pe,
-                strategy="agent",
-                status=RecoveryAttempt.Status.ATTEMPTED,
-                success=True,
-                message=result.message,
-            )
-            logger.info("Admin-triggered agent recovery succeeded for episode %s", episode_id)
+            resumed = resume_pipeline(event, result)
+            if resumed:
+                RecoveryAttempt.objects.create(
+                    episode=episode,
+                    pipeline_event=pe,
+                    strategy="agent",
+                    status=RecoveryAttempt.Status.ATTEMPTED,
+                    success=True,
+                    message=result.message,
+                )
+                logger.info("Admin-triggered agent recovery succeeded for episode %s", episode_id)
+            else:
+                RecoveryAttempt.objects.create(
+                    episode=episode,
+                    pipeline_event=pe,
+                    strategy="agent",
+                    status=RecoveryAttempt.Status.AWAITING_HUMAN,
+                    success=False,
+                    message="Agent reported success but pipeline could not resume",
+                )
+                logger.warning("Admin-triggered agent recovery: resume failed for episode %s", episode_id)
         else:
             RecoveryAttempt.objects.create(
                 episode=episode,
