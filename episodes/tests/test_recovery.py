@@ -36,6 +36,7 @@ def _make_failure_event(**overrides):
 
 
 class AgentStrategyTests(TestCase):
+    @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=False)
     def test_disabled_by_default(self):
         strategy = AgentStrategy()
         event = _make_failure_event(step_name="scraping")
@@ -97,6 +98,7 @@ class RecoveryChainTests(TestCase):
         self.assertIsInstance(chain[0], HumanEscalationStrategy)
 
 
+@override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=False)
 class HandleStepFailureTests(TestCase):
     @patch("episodes.signals.async_task")
     def test_creates_awaiting_human_attempt(self, _):
@@ -181,6 +183,7 @@ class HandleStepFailureTests(TestCase):
         self.assertEqual(RecoveryAttempt.objects.filter(episode=episode).count(), 5)
 
 
+@override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=False)
 class IntegrationTests(TestCase):
     """Test that pipeline failures trigger recovery via signals."""
 
