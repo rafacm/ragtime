@@ -7,7 +7,10 @@ from django.utils import timezone
 
 from episodes.models import Entity, EntityType, Episode, PipelineEvent, ProcessingRun, ProcessingStep, RecoveryAttempt
 
-_has_recovery_deps = importlib.util.find_spec("pydantic_ai") is not None
+_has_recovery_deps = (
+    importlib.util.find_spec("pydantic_ai") is not None
+    and importlib.util.find_spec("playwright") is not None
+)
 
 
 class EpisodeAdminTests(TestCase):

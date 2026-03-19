@@ -1843,8 +1843,8 @@ requires-dist = [
     { name = "langfuse", marker = "extra == 'observability'", specifier = ">=4,<5" },
     { name = "mutagen", specifier = ">=1.47,<2" },
     { name = "openai", specifier = ">=1.0,<2" },
-    { name = "playwright", marker = "extra == 'recovery'", specifier = ">=1.40" },
-    { name = "pydantic-ai", marker = "extra == 'recovery'", specifier = ">=0.1" },
+    { name = "playwright", marker = "extra == 'recovery'", specifier = ">=1.40,<2" },
+    { name = "pydantic-ai", marker = "extra == 'recovery'", specifier = ">=1.30,<2" },
     { name = "python-dotenv", specifier = ">=1.0,<2" },
     { name = "pyyaml", specifier = ">=6.0.3" },
 ]

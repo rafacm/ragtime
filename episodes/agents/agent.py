@@ -57,23 +57,38 @@ HTTP status: {http_status}
 
 
 def _build_model():
-    """Build the Pydantic AI model from settings."""
+    """Build a Pydantic AI model from settings.
+
+    Passes the API key directly to the provider constructor instead of
+    mutating ``os.environ``, so credentials don't leak to other tasks
+    in long-lived Django Q workers.
+    """
+    from pydantic_ai.providers.openai import OpenAIProvider
+
     model_str = getattr(settings, "RAGTIME_RECOVERY_AGENT_MODEL", "openai:gpt-4.1-mini")
     api_key = getattr(settings, "RAGTIME_RECOVERY_AGENT_API_KEY", "")
 
-    # Parse provider prefix to determine which API key env var to set
-    provider = model_str.split(":")[0] if ":" in model_str else "openai"
+    if not api_key:
+        # No explicit key — let Pydantic AI resolve from its own env vars
+        return model_str
 
-    # Set the API key in the environment for Pydantic AI's model constructor
+    provider_name = model_str.split(":")[0] if ":" in model_str else "openai"
+    model_name = model_str.split(":", 1)[1] if ":" in model_str else model_str
+
+    if provider_name == "openai":
+        from pydantic_ai.models.openai import OpenAIResponsesModel
+
+        return OpenAIResponsesModel(model_name, provider=OpenAIProvider(api_key=api_key))
+
+    # For other providers, fall back to env var (they may not be installed)
     env_key_map = {
-        "openai": "OPENAI_API_KEY",
         "anthropic": "ANTHROPIC_API_KEY",
         "google": "GOOGLE_API_KEY",
     }
-    env_var = env_key_map.get(provider)
-    if api_key and env_var:
+    env_var = env_key_map.get(provider_name)
+    if env_var:
+        _prev = os.environ.get(env_var)
         os.environ[env_var] = api_key
-
     return model_str
 
 

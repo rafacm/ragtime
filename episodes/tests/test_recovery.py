@@ -6,7 +6,10 @@ from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 
-_has_recovery_deps = importlib.util.find_spec("pydantic_ai") is not None
+_has_recovery_deps = (
+    importlib.util.find_spec("pydantic_ai") is not None
+    and importlib.util.find_spec("playwright") is not None
+)
 
 from episodes.models import Episode, PipelineEvent, ProcessingRun, ProcessingStep, RecoveryAttempt
 from episodes.recovery import (
