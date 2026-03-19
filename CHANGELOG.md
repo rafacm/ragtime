@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-03-19
+
+### Added
+
+- Agent Recovery Strategy — Pydantic AI agent with Playwright browser automation recovers from scraping and downloading failures by navigating podcast pages, finding audio URLs, and downloading files through a headless browser. Includes Django admin "Retry with recovery agent" action, Langfuse tracing with screenshot attachments, and 3 new configuration variables — [plan](doc/plans/agent-recovery-strategy.md), [feature](doc/features/agent-recovery-strategy.md), [planning session](doc/sessions/2026-03-19-agent-recovery-strategy-planning-session.md), [implementation session](doc/sessions/2026-03-19-agent-recovery-strategy-implementation-session.md)
+
 ## 2026-03-18
 
 ### Added

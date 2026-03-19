@@ -90,6 +90,9 @@ SYSTEMS = [
                 "label": "Recovery",
                 "fields": [
                     ("AGENT_ENABLED", "false", False),
+                    ("AGENT_API_KEY", "", True),
+                    ("AGENT_MODEL", "openai:gpt-4.1-mini", False),
+                    ("AGENT_TIMEOUT", "120", False),
                 ],
             },
         ],

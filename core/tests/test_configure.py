@@ -228,6 +228,7 @@ class ConfigureWizardTest(TestCase):
         mock_getpass.side_effect = [
             "sk-newkey123",   # Shared LLM API key
             "sk-newkey123",   # Transcription API key
+            "",               # Recovery agent API key (keep default)
             "",               # Langfuse secret key (keep default)
             "",               # Langfuse public key (keep default)
         ]
@@ -246,6 +247,8 @@ class ConfigureWizardTest(TestCase):
             "",               # Wikidata debounce ms (keep default)
             "",               # Wikidata min chars (keep default)
             "",               # Recovery agent enabled (keep default)
+            "",               # Recovery agent model (keep default)
+            "",               # Recovery agent timeout (keep default)
             "",               # Langfuse enabled (keep default)
             "",               # Langfuse host (keep default)
         ]
@@ -321,6 +324,7 @@ class ConfigureWizardTest(TestCase):
         mock_getpass.side_effect = [
             "sk-newkey123",   # Shared LLM API key
             "sk-newkey123",   # Transcription API key
+            "",               # Recovery agent API key (keep default)
             "",               # Langfuse secret key (keep default)
             "",               # Langfuse public key (keep default)
         ]
@@ -339,6 +343,8 @@ class ConfigureWizardTest(TestCase):
             "",               # Wikidata debounce ms (keep default)
             "",               # Wikidata min chars (keep default)
             "",               # Recovery agent enabled (keep default)
+            "",               # Recovery agent model (keep default)
+            "",               # Recovery agent timeout (keep default)
             "",               # Langfuse enabled (keep default)
             "",               # Langfuse host (keep default)
         ]

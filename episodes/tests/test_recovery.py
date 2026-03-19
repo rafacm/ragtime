@@ -61,12 +61,55 @@ class AgentStrategyTests(TestCase):
         self.assertFalse(strategy.can_handle(event))
 
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
-    def test_stub_always_escalates(self):
+    @patch("episodes.agents.run_recovery_agent")
+    def test_agent_success_calls_resume(self, mock_agent):
+        """Successful agent recovery calls resume_pipeline."""
+        from episodes.agents.deps import RecoveryAgentResult
+
+        mock_agent.return_value = RecoveryAgentResult(
+            success=True,
+            audio_url="https://cdn.example.com/ep.mp3",
+            message="Found it",
+        )
+        strategy = AgentStrategy()
+        event = _make_failure_event(step_name="scraping")
+
+        with patch("episodes.agents.resume.resume_pipeline") as mock_resume:
+            result = strategy.attempt(event)
+
+        self.assertTrue(result.success)
+        self.assertFalse(result.should_escalate)
+        mock_resume.assert_called_once()
+
+    @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
+    @patch("episodes.agents.run_recovery_agent")
+    def test_agent_failure_escalates(self, mock_agent):
+        """When the agent fails, it escalates to the next strategy."""
+        from episodes.agents.deps import RecoveryAgentResult
+
+        mock_agent.return_value = RecoveryAgentResult(
+            success=False,
+            message="Could not find audio URL",
+        )
         strategy = AgentStrategy()
         event = _make_failure_event(step_name="scraping")
         result = strategy.attempt(event)
+
         self.assertFalse(result.success)
         self.assertTrue(result.should_escalate)
+
+    @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
+    @patch("episodes.agents.run_recovery_agent", side_effect=RuntimeError("Browser crashed"))
+    def test_agent_exception_escalates(self, _mock_agent):
+        """When the agent raises, it escalates with error message."""
+        strategy = AgentStrategy()
+        event = _make_failure_event(step_name="scraping")
+        result = strategy.attempt(event)
+
+        self.assertFalse(result.success)
+        self.assertTrue(result.should_escalate)
+        self.assertIn("Agent error", result.message)
+        self.assertIn("Browser crashed", result.message)
 
 
 class HumanEscalationStrategyTests(TestCase):
@@ -126,9 +169,16 @@ class HandleStepFailureTests(TestCase):
         self.assertFalse(attempt.success)
 
     @patch("episodes.signals.async_task")
+    @patch("episodes.agents.run_recovery_agent")
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
-    def test_agent_escalates_to_human(self, _):
-        """When agent is enabled but stub, it escalates to human."""
+    def test_agent_escalates_to_human(self, mock_agent, _):
+        """When agent is enabled but fails, it escalates to human."""
+        from episodes.agents.deps import RecoveryAgentResult
+
+        mock_agent.return_value = RecoveryAgentResult(
+            success=False, message="Could not find audio"
+        )
+
         episode = Episode.objects.create(url="https://example.com/rec/2")
         run = ProcessingRun.objects.create(episode=episode)
         step = ProcessingStep.objects.create(

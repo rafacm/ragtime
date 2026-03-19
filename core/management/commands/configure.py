@@ -156,8 +156,8 @@ class Command(BaseCommand):
 
                 label = suffix.replace("_", " ").title()
 
-                # Offer to reuse the shared LLM API key for transcription
-                if suffix == "API_KEY" and shared_api_key:
+                # Offer to reuse the shared LLM API key
+                if suffix.endswith("API_KEY") and shared_api_key:
                     reuse_display = mask_secret(shared_api_key)
                     if current == shared_api_key or not current:
                         label = f"API key (Enter to reuse LLM key)"
