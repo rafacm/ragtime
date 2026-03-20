@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 ## Project
 
-RAGtime is a Django app for ingesting jazz podcast episodes — scraping metadata, transcribing audio, extracting jazz entities, and powering **Scott**, a strict RAG chatbot that answers questions only from ingested content. The full specification lives in `README.md`.
+RAGtime is a Django app for ingesting jazz podcast episodes — scraping metadata, transcribing audio, extracting jazz entities, and powering **Scott**, a strict RAG chatbot that answers questions only from ingested content. The project overview lives in `README.md`; detailed pipeline, Scott, and Langfuse documentation lives in `doc/README.md`.
 
 ## Commands
 
@@ -33,7 +33,7 @@ Use `uv` for everything — never `pip install` directly.
 
 **10-step pipeline** (steps defined in `episodes/models.py:PIPELINE_STEPS`, dispatched by `episodes/signals.py`): submit → scrape → download → transcribe → summarize → chunk → extract → resolve → embed → ready. Each step updates the episode status. Failures set status to `failed`. Runs async via Django Q2.
 
-> **Keep in sync:** When adding, removing, or changing a pipeline step, update the "Processing Pipeline" section in `README.md` (each step is a `####` subsection with its status and description).
+> **Keep in sync:** When adding, removing, or changing a pipeline step, update the summary table in `README.md` and the detailed step descriptions in `doc/README.md`.
 
 **Entity resolution:** After extraction, entities (artists, bands, albums, venues, sessions, labels, years) are resolved against existing DB records using LLM-based fuzzy matching to prevent duplicates.
 
