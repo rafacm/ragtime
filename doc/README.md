@@ -2,6 +2,15 @@
 
 > Back to [project README](../README.md)
 
+## Table of Contents
+
+- [Processing Pipeline](#processing-pipeline)
+  - [Steps](#steps) (1–10)
+  - [Recovery](#recovery)
+- [How Scott Works](#how-scott-works)
+- [LLM Observability (Langfuse)](#llm-observability-langfuse)
+- [Feature Documentation](#feature-documentation)
+
 ## Processing Pipeline
 
 [![Processing Pipeline](architecture/ragtime-processing-pipeline.svg)](https://app.excalidraw.com/s/3Cob4pHK6Ge/3zFsvWxbOWQ)
