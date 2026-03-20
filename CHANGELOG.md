@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- Split README into concise root overview (~120 lines) and detailed `doc/README.md` with full pipeline step descriptions, How Scott Works, and Langfuse observability sections. Move `ragtime.svg` and `ragtime.png` into `doc/`. Replace verbose pipeline steps with a compact summary table in root README — [plan](doc/plans/2026-03-20-readme-split.md), [feature](doc/features/2026-03-20-readme-split.md), [planning session](doc/sessions/2026-03-20-readme-split-planning-session.md), [implementation session](doc/sessions/2026-03-20-readme-split-implementation-session.md)
+- Split README into concise root overview and detailed `doc/README.md` with full pipeline step descriptions, How Scott Works, and Langfuse observability sections. Move `ragtime.svg` and `ragtime.png` into `doc/`. Replace verbose pipeline steps with a compact summary table in root README — [plan](doc/plans/2026-03-20-readme-split.md), [feature](doc/features/2026-03-20-readme-split.md), [planning session](doc/sessions/2026-03-20-readme-split-planning-session.md), [implementation session](doc/sessions/2026-03-20-readme-split-implementation-session.md)
 
 ## 2026-03-19
 

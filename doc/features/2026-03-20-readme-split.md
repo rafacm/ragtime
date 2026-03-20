@@ -12,7 +12,7 @@ The root README.md was 276 lines — too long for a project landing page. Detail
 - **Replaced** the ~90-line Processing Pipeline section in root README with a compact 10-row summary table linking to detailed docs.
 - **Removed** "How Scott Works" and "LLM Observability (Langfuse)" sections from root README (moved to doc/README.md).
 - **Added** a "Documentation" section in root README with links to doc/ subdirectories.
-- **Moved** the CHANGELOG.md link from the Status section into the new Documentation section.
+- **Kept** the CHANGELOG.md link at the end of the Status section (not duplicated under Documentation).
 - **Created** `doc/README.md` containing all detailed content: full pipeline step descriptions, Recovery section, How Scott Works, LLM Observability, and a new Feature Documentation section.
 - **Fixed** all relative links in `doc/README.md` to account for its `doc/` location (e.g., `episodes/signals.py` → `../episodes/signals.py`).
 - **Updated** CLAUDE.md to reference both `README.md` and `doc/README.md`, and updated the pipeline sync instruction.
