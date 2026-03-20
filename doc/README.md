@@ -15,7 +15,7 @@
 
 [![Processing Pipeline](architecture/ragtime-processing-pipeline.svg)](https://app.excalidraw.com/s/3Cob4pHK6Ge/3zFsvWxbOWQ)
 
-Each step is a standalone module (`../episodes/<step>.py`) that updates the episode's `status` field when it completes. A [`post_save` signal](../episodes/signals.py) watches for status changes and dispatches the next step as an async [Django Q2](https://django-q2.readthedocs.io/) task — no central orchestrator needed. Any failure sets `status` to `failed`, emits a structured `step_failed` signal, and triggers the [recovery layer](#recovery) which walks a configurable strategy chain (agent → human escalation).
+Each step is implemented by a dedicated function in the `episodes` package (e.g., [`scraper.scrape_episode`](../episodes/scraper.py), [`downloader.download_episode`](../episodes/downloader.py), [`transcriber.transcribe_episode`](../episodes/transcriber.py)) that updates the episode's `status` field when it completes. A [`post_save` signal](../episodes/signals.py) watches for status changes and dispatches the next step as an async [Django Q2](https://django-q2.readthedocs.io/) task — no central orchestrator needed. Any failure sets `status` to `failed`, emits a structured `step_failed` signal, and triggers the [recovery layer](#recovery) which walks a configurable strategy chain (agent → human escalation).
 
 ### Steps
 
@@ -104,10 +104,10 @@ Episode fully processed and available for Scott to query.
 
 ### Recovery
 
-When steps 2 (scraping) or 3 (downloading) fail, the [recovery layer](../episodes/recovery.py) walks a configurable strategy chain before giving up:
+When any pipeline step fails, the [`step_failed` handler](../episodes/recovery.py) triggers the recovery layer, which walks a configurable strategy chain before giving up:
 
-1. **Agent** — a [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation navigates the podcast page, finds audio URLs behind JavaScript players or CloudFlare blocks, and downloads files through a real browser. On success it resumes the pipeline from the next step automatically.
-2. **Human escalation** — if the agent fails (or is disabled), the failure is marked `awaiting_human` for manual resolution in Django admin.
+1. **Agent (steps 2–3 only)** — a [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation navigates the podcast page, finds audio URLs behind JavaScript players or CloudFlare blocks, and downloads files through a real browser. On success it resumes the pipeline from the next step automatically. Only applies to scraping and downloading failures.
+2. **Human escalation** — for all other failures, or when the agent fails or is disabled, the failure is marked `awaiting_human` for manual resolution in Django admin.
 
 The agent strategy is **off by default**. To enable it:
 
@@ -129,7 +129,7 @@ RAGTIME_RECOVERY_AGENT_MODEL=openai:gpt-4.1-mini
 
 The agent's LLM provider is fully independent from other subsystems — configure any [Pydantic AI model string](https://ai.pydantic.dev/models/) (e.g., `anthropic:claude-sonnet-4-20250514`). A maximum of 15 LLM requests per recovery attempt prevents runaway costs. Screenshots taken during recovery are attached to [Langfuse](https://langfuse.com) traces when observability is enabled.
 
-The chain order and maximum retry count (default: 5) are configured in [`settings.py`](../ragtime/settings.py). The agent tools — `navigate_to_url`, `find_audio_links`, `click_element`, `download_file`, and others — are defined in [`episodes/agents/tools.py`](../episodes/agents/tools.py).
+The chain order is configured in [`settings.py`](../ragtime/settings.py), and the maximum retry count (default: 5) is controlled by the `MAX_RECOVERY_ATTEMPTS` constant in [`episodes/recovery.py`](../episodes/recovery.py). The agent tools — `navigate_to_url`, `find_audio_links`, `click_element`, `download_file`, and others — are defined in [`episodes/agents/tools.py`](../episodes/agents/tools.py).
 
 ## How Scott Works
 
