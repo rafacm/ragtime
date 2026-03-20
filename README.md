@@ -119,17 +119,17 @@ Alternatively, copy [`.env.sample`](.env.sample) to `.env` and fill in your valu
 
 ## Tech Stack
 
-- **Runtime**: Python 3.13
-- **Framework**: Django 5.2
-- **Database**: SQLite
-- **Vector Store**: ChromaDB
-- **Task Queue**: Django Q2
-- **AI Agents**: Pydantic AI (recovery agent)
-- **Transcription**: Configurable — Whisper API (default), local Whisper, etc.
-- **LLM**: Configurable — Claude (Anthropic), GPT (OpenAI), etc.
+- **Runtime**: [Python 3.13](https://www.python.org/)
+- **Framework**: [Django 5.2](https://www.djangoproject.com/)
+- **Database**: [SQLite](https://www.sqlite.org/)
+- **Vector Store**: [ChromaDB](https://www.trychroma.com/)
+- **Task Queue**: [Django Q2](https://django-q2.readthedocs.io/)
+- **AI Agents**: [Pydantic AI](https://ai.pydantic.dev/) (recovery agent)
+- **Transcription**: Configurable — [Whisper API](https://platform.openai.com/docs/guides/speech-to-text) (default), local Whisper, etc.
+- **LLM**: Configurable — [Claude](https://www.anthropic.com/) (Anthropic), [GPT](https://openai.com/) (OpenAI), etc.
 - **Embeddings**: Configurable — must support multilingual models for cross-language retrieval
-- **Frontend**: Django templates + HTMX + Tailwind CSS
-- **Package Manager**: uv
+- **Frontend**: [Django templates](https://docs.djangoproject.com/en/5.2/topics/templates/) + [HTMX](https://htmx.org/) + [Tailwind CSS](https://tailwindcss.com/)
+- **Package Manager**: [uv](https://docs.astral.sh/uv/)
 
 ## License
 
