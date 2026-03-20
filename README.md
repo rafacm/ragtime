@@ -52,7 +52,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixe
 
 [![Processing Pipeline](doc/architecture/ragtime-processing-pipeline.svg)](https://app.excalidraw.com/s/3Cob4pHK6Ge/3zFsvWxbOWQ)
 
-Each step updates the episode's `status` field. A `post_save` signal dispatches the next step as an async Django Q2 task. Failures trigger the [recovery layer](doc/README.md#recovery).
+Each step updates the episode's `status` field. A `post_save` signal dispatches the next step as an async Django Q2 task. Failures with exceptions trigger the [recovery layer](doc/README.md#recovery).
 
 | # | Step | Status | Description |
 |---|------|--------|-------------|
@@ -66,6 +66,8 @@ Each step updates the episode's `status` field. A `post_save` signal dispatches 
 | 8 | 🧩 Resolve | `resolving` | Entity linking and deduplication via Wikidata |
 | 9 | 📐 Embed | `embedding` | Multilingual embeddings into ChromaDB |
 | 10 | ✅ Ready | `ready` | Episode available for Scott to query |
+
+_Steps 9–10 (Embed, Ready) are planned and not yet implemented._
 
 See the [full pipeline documentation](doc/README.md) for per-step details, entity types, and the recovery layer.
 

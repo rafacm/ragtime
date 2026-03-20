@@ -91,14 +91,14 @@ Search Wikidata from the CLI with:
 
 ```
 uv run python manage.py lookup_entity "Miles Davis"
-uv run python manage.py lookup_entity --type artist "Miles Davis"
+uv run python manage.py lookup_entity --type musician "Miles Davis"
 ```
 
-#### 9. 📐 Embed (status: `embedding`)
+#### 9. 📐 Embed (status: `embedding`) — *planned, not yet implemented*
 
 Generate multilingual embeddings for transcript chunks and store in [ChromaDB](https://www.trychroma.com/).
 
-#### 10. ✅ Ready (status: `ready`)
+#### 10. ✅ Ready (status: `ready`) — *planned, not yet implemented*
 
 Episode fully processed and available for Scott to query.
 
