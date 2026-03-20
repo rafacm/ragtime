@@ -39,6 +39,9 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 - **Episode management UI**: Django admin interface to view episode status and metadata and browse extracted entities.
 - **Configuration wizard**: interactive `manage.py configure` command for all `RAGTIME_*` env vars.
 - **LLM observability**: optional [Langfuse](https://langfuse.com) integration for tracing and monitoring LLM calls across the pipeline.
+- **Agent-based recovery**: [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation recovers from scraping and downloading failures automatically.
+
+See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixes, implementation plans, feature documentation and session transcripts.
 
 ### What's coming
 
@@ -77,8 +80,6 @@ Detailed documentation lives in the [`doc/`](doc/) directory:
 - [Feature documentation](doc/features/) — per-feature docs with problem, changes, and verification
 - [Plans](doc/plans/) — implementation plans
 - [Session transcripts](doc/sessions/) — planning and implementation session logs
-
-See [CHANGELOG.md](CHANGELOG.md) for the full history of changes.
 
 ## Getting Started
 
@@ -123,6 +124,7 @@ Alternatively, copy [`.env.sample`](.env.sample) to `.env` and fill in your valu
 - **Database**: SQLite
 - **Vector Store**: ChromaDB
 - **Task Queue**: Django Q2
+- **AI Agents**: Pydantic AI (recovery agent)
 - **Transcription**: Configurable — Whisper API (default), local Whisper, etc.
 - **LLM**: Configurable — Claude (Anthropic), GPT (OpenAI), etc.
 - **Embeddings**: Configurable — must support multilingual models for cross-language retrieval
