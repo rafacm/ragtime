@@ -1,5 +1,6 @@
 # Session: Refactor episode tests into a test package
 
+**Session ID:** 1150057e-7f65-4b47-a01c-d8ff4441b6a8
 **Date:** 2026-03-13
 
 ## Summary

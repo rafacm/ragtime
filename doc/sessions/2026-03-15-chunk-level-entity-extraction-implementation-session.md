@@ -1,6 +1,6 @@
 # Session: Chunk-level Entity Extraction — Implementation
 
-**Session ID:** (current session)
+**Session ID:** 66396f5d-2329-4f7b-9cbe-ad108bbaa9cf
 **Date:** 2026-03-15
 
 ## Summary

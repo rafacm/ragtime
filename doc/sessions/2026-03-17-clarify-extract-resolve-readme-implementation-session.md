@@ -1,5 +1,6 @@
 # Session: Clarify Extract and Resolve README — Implementation
 
+**Session ID:** a2ba7bc1-b12e-4f27-989a-cad6af5ed5ba
 **Date:** 2026-03-17
 
 ## Summary
@@ -15,8 +16,8 @@ Asked to implement the plan for clarifying the Extract and Resolve README sectio
 Checked the working tree — the README changes from the planning session were already present in the diff. Verified the content matched the agreed-upon plan: NER/NEL labels, example tables, per-chunk explanation, two-phase rationale paragraph, and preserved CLI command blocks.
 
 Created documentation:
-- `doc/plans/clarify-extract-resolve-readme.md`
-- `doc/features/clarify-extract-resolve-readme.md`
+- `doc/plans/2026-03-17-clarify-extract-resolve-readme.md`
+- `doc/features/2026-03-17-clarify-extract-resolve-readme.md`
 - `doc/sessions/2026-03-17-clarify-extract-resolve-readme-planning-session.md`
 - `doc/sessions/2026-03-17-clarify-extract-resolve-readme-implementation-session.md`
 

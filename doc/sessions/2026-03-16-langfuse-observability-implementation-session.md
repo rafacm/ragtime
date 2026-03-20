@@ -1,7 +1,7 @@
 # Langfuse Observability — Implementation Session
 
 ## Session ID
-implementation-session
+e4195dc3-3f40-451f-a8dc-03086f34458e
 
 ## Summary
 Implemented the Langfuse observability plan: optional dependency, settings, central observability module, OpenAI provider integration, step decorators, configure wizard, env sample, tests, and documentation.
@@ -63,7 +63,7 @@ Addressed all 5 review comments:
 
 2. **Use `side_effect` for `mock_getpass`** (`core/tests/test_configure.py`) — replaced constant `return_value="sk-newkey123"` with `side_effect` list returning the LLM key for shared/transcription calls and `""` for the two Langfuse secret fields, so the test accurately reflects the intended wizard interaction.
 
-3. **Fix plan doc default** (`doc/plans/langfuse-observability.md`) — changed `RAGTIME_LANGFUSE_HOST` default from `https://cloud.langfuse.com` to `http://localhost:3000` to match the implementation.
+3. **Fix plan doc default** (`doc/plans/2026-03-16-langfuse-observability.md`) — changed `RAGTIME_LANGFUSE_HOST` default from `https://cloud.langfuse.com` to `http://localhost:3000` to match the implementation.
 
 4. **Fix session doc description** (`doc/sessions/...implementation-session.md`) — corrected the `is_enabled()` description from "attempts Langfuse import, returns False on ImportError" to "checks Django settings and sets LANGFUSE_* env vars". ImportError fallback happens in `get_openai_client_class()` and `observe_step()`.
 

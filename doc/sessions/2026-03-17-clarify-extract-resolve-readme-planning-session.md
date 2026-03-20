@@ -32,4 +32,4 @@ Analyzed the blast radius: the term "extract" appears in status values (`extract
 Agreed. Asked to proceed with the documentation-only approach.
 
 ### Assistant
-Created the implementation plan and saved it to `doc/plans/clarify-extract-resolve-readme.md`.
+Created the implementation plan and saved it to `doc/plans/2026-03-17-clarify-extract-resolve-readme.md`.

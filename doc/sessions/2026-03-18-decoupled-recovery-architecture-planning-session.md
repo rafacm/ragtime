@@ -151,4 +151,4 @@ Key design decisions:
 - Agent strategy behind feature flag, stub in Phases 1-3
 - Langfuse SDK kept as-is with OTel coexistence for Pydantic AI
 
-Saved the plan to `doc/plans/decoupled-recovery-architecture.md`.
+Saved the plan to `doc/plans/2026-03-18-decoupled-recovery-architecture.md`.

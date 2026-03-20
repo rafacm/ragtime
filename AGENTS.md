@@ -64,17 +64,17 @@ When creating PRs, use the rebase strategy. Squash and merge-commit strategies a
 
 ### Planning phase
 
-When a plan is accepted, save it to `doc/plans/`, one Markdown file per plan.
+When a plan is accepted, save it to `doc/plans/`, one Markdown file per plan, with a `YYYY-MM-DD-` date prefix (e.g., `2026-03-15-my-feature.md`).
 
 Save the planning session transcript to `doc/sessions/` with a filename ending in `-planning-session.md`. Each transcript must include:
 
-- **Session ID** — the Claude Code session ID (UUID), at the top of the file.
+- **Session ID** — the actual Claude Code session UUID (e.g., `a150a5a3-218f-44b4-a02b-cf90912619d7`), at the top of the file. Do not use placeholders like "current session" or worktree names — retrieve the real UUID.
 - **Summary** — a short `## Summary` describing what was planned.
 - **Detailed conversation** — record the actual conversation as a sequence of `### User` and `### Assistant` sections using verbatim text. Include the assistant's reasoning steps (e.g. what it explored, what alternatives it considered, why it chose a particular approach).
 
 ### Implementation phase
 
-Feature documentation lives in `doc/features/`, one Markdown file per feature or significant change. Each document should include:
+Feature documentation lives in `doc/features/`, one Markdown file per feature or significant change, with a `YYYY-MM-DD-` date prefix matching the plan file (e.g., `2026-03-15-my-feature.md`). Each document should include:
 
 - **Problem** — what was wrong or what need the feature addresses.
 - **Changes** — what was modified, with enough detail that a reader can understand the approach without reading the diff.
@@ -83,6 +83,8 @@ Feature documentation lives in `doc/features/`, one Markdown file per feature or
 - **Files modified** — list of touched files with a one-line summary of each change.
 
 Save the implementation session transcript to `doc/sessions/` with a filename ending in `-implementation-session.md`. Same format as the planning transcript (session ID, summary, detailed conversation with reasoning steps).
+
+All doc files (features, plans, and session transcripts) must include a `**Date:** YYYY-MM-DD` line immediately after the `# Title` heading, before any `##` section.
 
 Keep prose concise. Prefer tables and lists over long paragraphs. Use code blocks for CLI commands and signal-flow diagrams.
 

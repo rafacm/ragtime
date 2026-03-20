@@ -34,4 +34,4 @@ Researched Wikidata Q-IDs for all 14 entity types. Found Q81091849 for recording
 Accepted the plan.
 
 ### Assistant
-Saved the plan to `doc/plans/wikidata-integration.md`.
+Saved the plan to `doc/plans/2026-03-15-wikidata-integration.md`.

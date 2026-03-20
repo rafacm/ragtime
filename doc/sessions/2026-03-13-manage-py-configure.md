@@ -19,7 +19,7 @@ Asked to design a `manage.py configure` command for interactively setting up the
 
 ### Assistant (session 1)
 
-Analyzed the existing `RAGTIME_*` env vars across `ragtime/settings.py` and the README. Produced a plan covering: interactive wizard flow, `--show` flag, shared credentials for scraping/summarization/extraction, Ctrl+C safety, registry-based design, and a new `core` app. Saved the plan to `doc/plans/manage-py-configure.md`.
+Analyzed the existing `RAGTIME_*` env vars across `ragtime/settings.py` and the README. Produced a plan covering: interactive wizard flow, `--show` flag, shared credentials for scraping/summarization/extraction, Ctrl+C safety, registry-based design, and a new `core` app. Saved the plan to `doc/plans/2026-03-13-manage-py-configure.md`.
 
 ### User (session 2)
 
@@ -44,4 +44,4 @@ Asked to create documentation files (plan, feature doc, session transcript).
 
 ### Assistant (session 2)
 
-Created `doc/plans/manage-py-configure.md`, `doc/features/manage-py-configure.md`, and `doc/sessions/2026-03-13-manage-py-configure.md`.
+Created `doc/plans/2026-03-13-manage-py-configure.md`, `doc/features/2026-03-13-manage-py-configure.md`, and `doc/sessions/2026-03-13-manage-py-configure.md`.
