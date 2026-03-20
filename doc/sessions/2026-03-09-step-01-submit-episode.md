@@ -1,5 +1,6 @@
 # Session: Step 1 — Submit Episode
 
+**Session ID:** da0710ab-70ef-4477-b261-c7844e6a9175
 **Date:** 2026-03-09
 
 ## Goal
@@ -112,7 +113,7 @@ Add the detailed plan in `doc/plans` as a markdown file.
 
 ### Assistant
 
-Created `doc/plans/step-01-submit-episode.md` with the full plan.
+Created `doc/plans/2026-03-09-step-01-submit-episode.md` with the full plan.
 
 ---
 

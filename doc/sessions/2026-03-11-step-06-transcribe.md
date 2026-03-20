@@ -1,5 +1,7 @@
 # Session: Step 6 — Transcribe
 
+**Session ID:** 1af1a874-33e0-40e1-9ef1-d77efa05dd05
+
 This session planned and implemented Step 6 of the RAGtime pipeline: audio transcription using the OpenAI Whisper API with pluggable provider abstraction.
 
 ## Planning Phase
@@ -14,7 +16,7 @@ The session began in plan mode. Key files were reviewed to understand the existi
 - `episodes/signals.py` — existing `queue_next_step` signal handler
 - `episodes/admin.py` — existing admin with conditional fieldsets
 
-The plan was written to `doc/plans/step-06-transcribe.md` covering 8 file changes across model fields, settings, provider, factory, task, signal, admin, and tests.
+The plan was written to `doc/plans/2026-03-11-step-06-transcribe.md` covering 8 file changes across model fields, settings, provider, factory, task, signal, admin, and tests.
 
 ## Implementation Phase
 

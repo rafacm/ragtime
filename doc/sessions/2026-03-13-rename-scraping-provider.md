@@ -57,4 +57,4 @@ Asked to switch to main, pull, and create plan + session transcript docs in a se
 
 ### Assistant
 
-Switched to main, pulled latest (which included the merged rename PR). Created `doc/plans/refactor-rename-scraping-provider.md` and `doc/sessions/2026-03-13-rename-scraping-provider.md`. Updated the README table entry with links to the new docs. Created branch `docs-rename-scraping-provider`, committed, pushed, and opened PR #22.
+Switched to main, pulled latest (which included the merged rename PR). Created `doc/plans/2026-03-13-refactor-rename-scraping-provider.md` and `doc/sessions/2026-03-13-rename-scraping-provider.md`. Updated the README table entry with links to the new docs. Created branch `docs-rename-scraping-provider`, committed, pushed, and opened PR #22.

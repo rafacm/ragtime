@@ -8,13 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- Agent Recovery Strategy — Pydantic AI agent with Playwright browser automation recovers from scraping and downloading failures by navigating podcast pages, finding audio URLs, and downloading files through a headless browser. Includes Django admin "Retry with recovery agent" action, Langfuse tracing with screenshot attachments, and 3 new configuration variables — [plan](doc/plans/agent-recovery-strategy.md), [feature](doc/features/agent-recovery-strategy.md), [planning session](doc/sessions/2026-03-19-agent-recovery-strategy-planning-session.md), [implementation session](doc/sessions/2026-03-19-agent-recovery-strategy-implementation-session.md)
+- Agent Recovery Strategy — Pydantic AI agent with Playwright browser automation recovers from scraping and downloading failures by navigating podcast pages, finding audio URLs, and downloading files through a headless browser. Includes Django admin "Retry with recovery agent" action, Langfuse tracing with screenshot attachments, and 3 new configuration variables — [plan](doc/plans/2026-03-19-agent-recovery-strategy.md), [feature](doc/features/2026-03-19-agent-recovery-strategy.md), [planning session](doc/sessions/2026-03-19-agent-recovery-strategy-planning-session.md), [implementation session](doc/sessions/2026-03-19-agent-recovery-strategy-implementation-session.md)
 
 ## 2026-03-18
 
 ### Added
 
-- Decoupled Recovery Architecture — structured pipeline events (StepCompletedEvent/StepFailureEvent), pluggable recovery layer with strategy chain (agent → human), PipelineEvent and RecoveryAttempt models for audit trail, admin integration with colour-coded events and "Needs Human Action" filter — [plan](doc/plans/decoupled-recovery-architecture.md), [feature](doc/features/decoupled-recovery-architecture.md), [planning session](doc/sessions/2026-03-18-decoupled-recovery-architecture-planning-session.md), [implementation session](doc/sessions/2026-03-18-decoupled-recovery-architecture-implementation-session.md)
+- Decoupled Recovery Architecture — structured pipeline events (StepCompletedEvent/StepFailureEvent), pluggable recovery layer with strategy chain (agent → human), PipelineEvent and RecoveryAttempt models for audit trail, admin integration with colour-coded events and "Needs Human Action" filter — [plan](doc/plans/2026-03-18-decoupled-recovery-architecture.md), [feature](doc/features/2026-03-18-decoupled-recovery-architecture.md), [planning session](doc/sessions/2026-03-18-decoupled-recovery-architecture-planning-session.md), [implementation session](doc/sessions/2026-03-18-decoupled-recovery-architecture-implementation-session.md)
 
 ### Removed
 
@@ -24,45 +24,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- Clarify Extract and Resolve README sections — rewrite pipeline steps 7 and 8 with NER/NEL labels, concrete example tables, and two-phase design rationale — [plan](doc/plans/clarify-extract-resolve-readme.md), [feature](doc/features/clarify-extract-resolve-readme.md), [planning session](doc/sessions/2026-03-17-clarify-extract-resolve-readme-planning-session.md), [implementation session](doc/sessions/2026-03-17-clarify-extract-resolve-readme-implementation-session.md)
+- Clarify Extract and Resolve README sections — rewrite pipeline steps 7 and 8 with NER/NEL labels, concrete example tables, and two-phase design rationale — [plan](doc/plans/2026-03-17-clarify-extract-resolve-readme.md), [feature](doc/features/2026-03-17-clarify-extract-resolve-readme.md), [planning session](doc/sessions/2026-03-17-clarify-extract-resolve-readme-planning-session.md), [implementation session](doc/sessions/2026-03-17-clarify-extract-resolve-readme-implementation-session.md)
 
 ## 2026-03-16
 
 ### Added
 
-- Optional Langfuse LLM Observability — trace all OpenAI API calls across the 5 LLM pipeline steps (scrape, transcribe, summarize, extract, resolve), grouped by ProcessingRun session. Zero overhead when disabled. Install with `uv sync --extra observability` — [plan](doc/plans/langfuse-observability.md), [feature](doc/features/langfuse-observability.md), [planning session](doc/sessions/2026-03-16-langfuse-observability-planning-session.md), [implementation session](doc/sessions/2026-03-16-langfuse-observability-implementation-session.md)
+- Optional Langfuse LLM Observability — trace all OpenAI API calls across the 5 LLM pipeline steps (scrape, transcribe, summarize, extract, resolve), grouped by ProcessingRun session. Zero overhead when disabled. Install with `uv sync --extra observability` — [plan](doc/plans/2026-03-16-langfuse-observability.md), [feature](doc/features/2026-03-16-langfuse-observability.md), [planning session](doc/sessions/2026-03-16-langfuse-observability-planning-session.md), [implementation session](doc/sessions/2026-03-16-langfuse-observability-implementation-session.md)
 
 ### Changed
 
-- Rename Entity Type Keys to Match Wikidata Labels — align 8 entity type keys, names, and descriptions with official Wikidata labels (e.g., artist -> musician, band -> musical_group), fix incorrect Q-ID for recording_session (was a galaxy, now Q98216532) — [plan](doc/plans/wikidata-entity-type-renames.md), [feature](doc/features/wikidata-entity-type-renames.md), [planning session](doc/sessions/2026-03-16-wikidata-entity-type-renames-planning-session.md), [implementation session](doc/sessions/2026-03-16-wikidata-entity-type-renames-implementation-session.md)
+- Rename Entity Type Keys to Match Wikidata Labels — align 8 entity type keys, names, and descriptions with official Wikidata labels (e.g., artist -> musician, band -> musical_group), fix incorrect Q-ID for recording_session (was a galaxy, now Q98216532) — [plan](doc/plans/2026-03-16-wikidata-entity-type-renames.md), [feature](doc/features/2026-03-16-wikidata-entity-type-renames.md), [planning session](doc/sessions/2026-03-16-wikidata-entity-type-renames-planning-session.md), [implementation session](doc/sessions/2026-03-16-wikidata-entity-type-renames-implementation-session.md)
 
 ## 2026-03-15
 
 ### Added
 
-- Wikidata Integration for Entity Resolution — add `wikidata_id` fields to EntityType and Entity models, Wikidata API client with database caching, candidate lookup during resolution (LLM confirms best Q-ID match), `lookup_entity` management command for CLI search, rename pipeline sections to "Extract entities" / "Resolve entities" — [plan](doc/plans/wikidata-integration.md), [feature](doc/features/wikidata-integration.md), [planning session](doc/sessions/2026-03-15-wikidata-integration-planning-session.md), [implementation session](doc/sessions/2026-03-15-wikidata-integration-implementation-session.md)
+- Wikidata Integration for Entity Resolution — add `wikidata_id` fields to EntityType and Entity models, Wikidata API client with database caching, candidate lookup during resolution (LLM confirms best Q-ID match), `lookup_entity` management command for CLI search, rename pipeline sections to "Extract entities" / "Resolve entities" — [plan](doc/plans/2026-03-15-wikidata-integration.md), [feature](doc/features/2026-03-15-wikidata-integration.md), [planning session](doc/sessions/2026-03-15-wikidata-integration-planning-session.md), [implementation session](doc/sessions/2026-03-15-wikidata-integration-implementation-session.md)
 
-- Adaptive Audio Resize Tiers — select the gentlest ffmpeg settings that fit under the Whisper API size limit based on episode duration, instead of always using the most aggressive compression — [plan](doc/plans/adaptive-audio-resize-tiers.md), [feature](doc/features/adaptive-audio-resize-tiers.md), [planning session](doc/sessions/2026-03-15-adaptive-audio-resize-tiers-planning-session.md), [implementation session](doc/sessions/2026-03-15-adaptive-audio-resize-tiers-implementation-session.md)
+- Adaptive Audio Resize Tiers — select the gentlest ffmpeg settings that fit under the Whisper API size limit based on episode duration, instead of always using the most aggressive compression — [plan](doc/plans/2026-03-15-adaptive-audio-resize-tiers.md), [feature](doc/features/2026-03-15-adaptive-audio-resize-tiers.md), [planning session](doc/sessions/2026-03-15-adaptive-audio-resize-tiers-planning-session.md), [implementation session](doc/sessions/2026-03-15-adaptive-audio-resize-tiers-implementation-session.md)
 
-- Chunk-level Entity Extraction — extract entities per chunk instead of per episode, linking each entity mention to the specific chunk (and timestamp) where it appeared. Resolution aggregates unique names across chunks before resolving — [plan](doc/plans/chunk-level-entity-extraction.md), [feature](doc/features/chunk-level-entity-extraction.md), [planning session](doc/sessions/2026-03-15-chunk-level-entity-extraction-planning-session.md), [implementation session](doc/sessions/2026-03-15-chunk-level-entity-extraction-implementation-session.md)
+- Chunk-level Entity Extraction — extract entities per chunk instead of per episode, linking each entity mention to the specific chunk (and timestamp) where it appeared. Resolution aggregates unique names across chunks before resolving — [plan](doc/plans/2026-03-15-chunk-level-entity-extraction.md), [feature](doc/features/2026-03-15-chunk-level-entity-extraction.md), [planning session](doc/sessions/2026-03-15-chunk-level-entity-extraction-planning-session.md), [implementation session](doc/sessions/2026-03-15-chunk-level-entity-extraction-implementation-session.md)
 
 ### Changed
 
-- Merge Resize into Transcribe — absorb ffmpeg downsampling into the transcribe step, reducing the pipeline from 11 to 10 steps. Resize was a transcription provider implementation detail, not a meaningful domain event — [plan](doc/plans/merge-resize-into-transcribe.md), [feature](doc/features/merge-resize-into-transcribe.md), [planning session](doc/sessions/2026-03-15-merge-resize-into-transcribe-planning-session.md), [implementation session](doc/sessions/2026-03-15-merge-resize-into-transcribe-implementation-session.md)
+- Merge Resize into Transcribe — absorb ffmpeg downsampling into the transcribe step, reducing the pipeline from 11 to 10 steps. Resize was a transcription provider implementation detail, not a meaningful domain event — [plan](doc/plans/2026-03-15-merge-resize-into-transcribe.md), [feature](doc/features/2026-03-15-merge-resize-into-transcribe.md), [planning session](doc/sessions/2026-03-15-merge-resize-into-transcribe-planning-session.md), [implementation session](doc/sessions/2026-03-15-merge-resize-into-transcribe-implementation-session.md)
 - Restructure README Processing Pipeline from table to numbered emoji list, fold Extracted Entities section into Step 9 — [PR](https://github.com/rafacm/ragtime/pull/43)
-- Convert README pipeline section from numbered list to `###` subsections, fix 7 step descriptions to match implementation — [plan](doc/plans/readme-pipeline-subsections.md), [feature](doc/features/readme-pipeline-subsections.md), [planning session](doc/sessions/2026-03-15-readme-pipeline-subsections-planning-session.md), [implementation session](doc/sessions/2026-03-15-readme-pipeline-subsections-implementation-session.md)
+- Convert README pipeline section from numbered list to `###` subsections, fix 7 step descriptions to match implementation — [plan](doc/plans/2026-03-15-readme-pipeline-subsections.md), [feature](doc/features/2026-03-15-readme-pipeline-subsections.md), [planning session](doc/sessions/2026-03-15-readme-pipeline-subsections-planning-session.md), [implementation session](doc/sessions/2026-03-15-readme-pipeline-subsections-implementation-session.md)
 
 ## 2026-03-14
 
 ### Added
 
-- Step 8: Chunk Transcript — split Whisper transcript into overlapping chunks by segment boundaries, with own `chunking` status and reordered pipeline placement before extraction — [plan](doc/plans/step-08-chunk.md), [feature](doc/features/step-08-chunk.md)
-- Processing Status Tracking — per-step tracking with ProcessingRun/ProcessingStep models, retry from failure point, unified reprocess action with intermediate page — [plan](doc/plans/processing-status-tracking.md), [feature](doc/features/processing-status-tracking.md), [session](doc/sessions/2026-03-14-processing-status-tracking.md)
-- Episode Duration — extract MP3 duration via mutagen after download, display as HH:MM:SS in admin, reorder list columns to lead with Title — [plan](doc/plans/episode-duration.md), [feature](doc/features/episode-duration.md), [planning session](doc/sessions/2026-03-14-episode-duration-planning-session.md), [implementation session](doc/sessions/2026-03-14-episode-duration-implementation-session.md)
+- Step 8: Chunk Transcript — split Whisper transcript into overlapping chunks by segment boundaries, with own `chunking` status and reordered pipeline placement before extraction — [plan](doc/plans/2026-03-14-step-08-chunk.md), [feature](doc/features/2026-03-14-step-08-chunk.md)
+- Processing Status Tracking — per-step tracking with ProcessingRun/ProcessingStep models, retry from failure point, unified reprocess action with intermediate page — [plan](doc/plans/2026-03-14-processing-status-tracking.md), [feature](doc/features/2026-03-14-processing-status-tracking.md), [session](doc/sessions/2026-03-14-processing-status-tracking.md)
+- Episode Duration — extract MP3 duration via mutagen after download, display as HH:MM:SS in admin, reorder list columns to lead with Title — [plan](doc/plans/2026-03-14-episode-duration.md), [feature](doc/features/2026-03-14-episode-duration.md), [planning session](doc/sessions/2026-03-14-episode-duration-planning-session.md), [implementation session](doc/sessions/2026-03-14-episode-duration-implementation-session.md)
 
 ### Changed
 
-- Move Entity Types from YAML to Database — DB-backed EntityType model with Django admin UI, PROTECT deletion, is_active flag, comma-separated examples input, `load_entity_types` management command — [plan](doc/plans/entity-types-to-db.md), [feature](doc/features/entity-types-to-db.md), [planning session](doc/sessions/2026-03-14-entity-types-to-db-planning-session.md), [implementation session](doc/sessions/2026-03-14-entity-types-to-db-implementation-session.md)
+- Move Entity Types from YAML to Database — DB-backed EntityType model with Django admin UI, PROTECT deletion, is_active flag, comma-separated examples input, `load_entity_types` management command — [plan](doc/plans/2026-03-14-entity-types-to-db.md), [feature](doc/features/2026-03-14-entity-types-to-db.md), [planning session](doc/sessions/2026-03-14-entity-types-to-db-planning-session.md), [implementation session](doc/sessions/2026-03-14-entity-types-to-db-implementation-session.md)
 - Replace httpx MP3 download with wget — avoids User-Agent blocking by podcast websites, adds wget to prerequisites — [PR](https://github.com/rafacm/ragtime/pull/28)
 
 ### Fixed
@@ -74,38 +74,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- Step 9: Resolve Entities — LLM-based entity resolution against existing DB records with fuzzy matching, canonical naming, and cross-language support — [plan](doc/plans/step-09-resolve-entities.md), [feature](doc/features/step-09-resolve-entities.md), [session](doc/sessions/2026-03-13-step-09-resolve-entities.md)
-- `manage.py configure` — Interactive setup wizard for RAGTIME_* environment variables with shared credentials, secret masking, and `--show` flag — [plan](doc/plans/manage-py-configure.md), [feature](doc/features/manage-py-configure.md), [session](doc/sessions/2026-03-13-manage-py-configure.md)
-- Step 8: Extract Entities — LLM-based entity extraction (artists, albums, venues, etc.) with independently configurable provider — [plan](doc/plans/step-08-extract-entities.md), [feature](doc/features/step-08-extract-entities.md), [session](doc/sessions/2026-03-13-step-08-extract-entities.md)
+- Step 9: Resolve Entities — LLM-based entity resolution against existing DB records with fuzzy matching, canonical naming, and cross-language support — [plan](doc/plans/2026-03-13-step-09-resolve-entities.md), [feature](doc/features/2026-03-13-step-09-resolve-entities.md), [session](doc/sessions/2026-03-13-step-09-resolve-entities.md)
+- `manage.py configure` — Interactive setup wizard for RAGTIME_* environment variables with shared credentials, secret masking, and `--show` flag — [plan](doc/plans/2026-03-13-manage-py-configure.md), [feature](doc/features/2026-03-13-manage-py-configure.md), [session](doc/sessions/2026-03-13-manage-py-configure.md)
+- Step 8: Extract Entities — LLM-based entity extraction (artists, albums, venues, etc.) with independently configurable provider — [plan](doc/plans/2026-03-13-step-08-extract-entities.md), [feature](doc/features/2026-03-13-step-08-extract-entities.md), [session](doc/sessions/2026-03-13-step-08-extract-entities.md)
 
 ### Changed
 
-- Rename RAGTIME_LLM_* → RAGTIME_SCRAPING_* — align scraping provider naming with RAGTIME_\<PURPOSE\>_* convention — [plan](doc/plans/refactor-rename-scraping-provider.md), [feature](doc/features/refactor-rename-scraping-provider.md), [session](doc/sessions/2026-03-13-rename-scraping-provider.md)
-- Multi-session transcript format — session IDs, reasoning steps, multi-session coverage — [feature](doc/features/session-transcript-format.md), [session](doc/sessions/2026-03-13-session-transcript-format.md)
+- Rename RAGTIME_LLM_* → RAGTIME_SCRAPING_* — align scraping provider naming with RAGTIME_\<PURPOSE\>_* convention — [plan](doc/plans/2026-03-13-refactor-rename-scraping-provider.md), [feature](doc/features/2026-03-13-refactor-rename-scraping-provider.md), [session](doc/sessions/2026-03-13-rename-scraping-provider.md)
+- Multi-session transcript format — session IDs, reasoning steps, multi-session coverage — [feature](doc/features/2026-03-13-session-transcript-format.md), [session](doc/sessions/2026-03-13-session-transcript-format.md)
 - Split episode tests into a test package — 9 focused modules under `episodes/tests/`, one per component — [session](doc/sessions/2026-03-13-refactor-episode-tests.md)
 
 ## 2026-03-11
 
 ### Added
 
-- Step 7: Summarize — LLM-generated episode summaries with independently configurable summarization provider — [plan](doc/plans/step-07-summarize.md), [feature](doc/features/step-07-summarize.md), [session](doc/sessions/2026-03-11-step-07-summarize.md)
-- Step 6: Transcribe — Whisper API transcription with segment and word timestamps, pluggable provider abstraction — [plan](doc/plans/step-06-transcribe.md), [feature](doc/features/step-06-transcribe.md), [session](doc/sessions/2026-03-11-step-06-transcribe.md)
+- Step 7: Summarize — LLM-generated episode summaries with independently configurable summarization provider — [plan](doc/plans/2026-03-11-step-07-summarize.md), [feature](doc/features/2026-03-11-step-07-summarize.md), [session](doc/sessions/2026-03-11-step-07-summarize.md)
+- Step 6: Transcribe — Whisper API transcription with segment and word timestamps, pluggable provider abstraction — [plan](doc/plans/2026-03-11-step-06-transcribe.md), [feature](doc/features/2026-03-11-step-06-transcribe.md), [session](doc/sessions/2026-03-11-step-06-transcribe.md)
 
 ### Fixed
 
-- Summarization respects episode language — summaries generated in the episode's language instead of defaulting to English — [feature](doc/features/fix-summarization-language.md), [session](doc/sessions/2026-03-11-fix-summarization-language.md)
+- Summarization respects episode language — summaries generated in the episode's language instead of defaulting to English — [feature](doc/features/2026-03-11-fix-summarization-language.md), [session](doc/sessions/2026-03-11-fix-summarization-language.md)
 
 ## 2026-03-10
 
 ### Added
 
-- CI: GitHub Actions — Automated test suite on PRs and pushes to main, README badges for build status, Python, Django, license — [feature](doc/features/ci-github-actions.md), [session](doc/sessions/2026-03-10-ci-github-actions.md)
+- CI: GitHub Actions — Automated test suite on PRs and pushes to main, README badges for build status, Python, Django, license — [feature](doc/features/2026-03-10-ci-github-actions.md), [session](doc/sessions/2026-03-10-ci-github-actions.md)
 
 ## 2026-03-09
 
 ### Added
 
-- Steps 4 & 5: Download & Resize — Audio download with streaming, ffmpeg downsampling for Whisper API limit, error tracking — [plan](doc/plans/step-04-05-download-resize.md), [feature](doc/features/step-04-05-download-resize.md), [session](doc/sessions/2026-03-09-step-04-05-download-resize.md)
-- Step 3: Scrape — LLM-based metadata extraction with Django Q2 async tasks, provider abstraction, and needs_review workflow — [plan](doc/plans/step-03-scrape.md), [feature](doc/features/step-03-scrape.md), [session](doc/sessions/2026-03-09-step-03-scrape.md)
-- Step 2: Dedup — Duplicate episode detection via unique URL constraint at database level — [plan](doc/plans/step-02-dedup.md), [feature](doc/features/step-02-dedup.md), [session](doc/sessions/2026-03-09-step-02-dedup.md)
-- Step 1: Submit Episode — Django project bootstrap, Episode model with status tracking, admin interface — [plan](doc/plans/step-01-submit-episode.md), [feature](doc/features/step-01-submit-episode.md), [session](doc/sessions/2026-03-09-step-01-submit-episode.md)
+- Steps 4 & 5: Download & Resize — Audio download with streaming, ffmpeg downsampling for Whisper API limit, error tracking — [plan](doc/plans/2026-03-09-step-04-05-download-resize.md), [feature](doc/features/2026-03-09-step-04-05-download-resize.md), [session](doc/sessions/2026-03-09-step-04-05-download-resize.md)
+- Step 3: Scrape — LLM-based metadata extraction with Django Q2 async tasks, provider abstraction, and needs_review workflow — [plan](doc/plans/2026-03-09-step-03-scrape.md), [feature](doc/features/2026-03-09-step-03-scrape.md), [session](doc/sessions/2026-03-09-step-03-scrape.md)
+- Step 2: Dedup — Duplicate episode detection via unique URL constraint at database level — [plan](doc/plans/2026-03-09-step-02-dedup.md), [feature](doc/features/2026-03-09-step-02-dedup.md), [session](doc/sessions/2026-03-09-step-02-dedup.md)
+- Step 1: Submit Episode — Django project bootstrap, Episode model with status tracking, admin interface — [plan](doc/plans/2026-03-09-step-01-submit-episode.md), [feature](doc/features/2026-03-09-step-01-submit-episode.md), [session](doc/sessions/2026-03-09-step-01-submit-episode.md)

@@ -1,5 +1,6 @@
 # Session: Step 7 — Summarize
 
+**Session ID:** 1afe9154-b94c-4c29-ac27-aa97c3a54e67
 **Date:** 2026-03-11
 
 ## Summary
@@ -26,7 +27,7 @@ Created branch `feature/step-07-summarize` and implemented all changes in a sing
 8. **Admin** — Added `summary_generated` to readonly fields with conditional "Summary" fieldset.
 9. **Fixtures** — Moved two `wdr-giant-steps-*-response.json` files from project root to `episodes/tests/fixtures/`.
 10. **Tests** — 7 new tests using real Whisper fixtures: success, not found, wrong status, empty transcript, provider error, correct args, signal wiring.
-11. **Plan doc** — Saved to `doc/plans/step-07-summarize.md`.
+11. **Plan doc** — Saved to `doc/plans/2026-03-11-step-07-summarize.md`.
 
 Generated migration, ran migrate, ran tests — all 55 passed (48 existing + 7 new). Committed, pushed, and opened PR #13.
 
@@ -43,7 +44,7 @@ Check the comments in the PR. Implement any suggested changes and add a comment 
 Fetched PR comments. Found one comment from the repo owner: "The feature description and the session transcript are missing from the documentation."
 
 Created the missing documentation:
-- `doc/features/step-07-summarize.md` — feature doc with Problem, Changes, Key Parameters, Verification, and Files Modified sections.
+- `doc/features/2026-03-11-step-07-summarize.md` — feature doc with Problem, Changes, Key Parameters, Verification, and Files Modified sections.
 - `doc/sessions/2026-03-11-step-07-summarize.md` — session transcript.
 - Updated `README.md` Features & Fixes table with a Step 7 row linking to plan, feature, and session docs.
 

@@ -30,4 +30,4 @@ Ran `uv run python manage.py check` — no issues found.
 Approved proceeding with branch creation, documentation, and PR.
 
 ### Assistant
-Created branch `docs/readme-pipeline-subsections`. Created plan document (`doc/plans/readme-pipeline-subsections.md`), feature document (`doc/features/readme-pipeline-subsections.md`), and both session transcripts. Updated `CHANGELOG.md` with the new entry under the existing 2026-03-15 date section.
+Created branch `docs/readme-pipeline-subsections`. Created plan document (`doc/plans/2026-03-15-readme-pipeline-subsections.md`), feature document (`doc/features/2026-03-15-readme-pipeline-subsections.md`), and both session transcripts. Updated `CHANGELOG.md` with the new entry under the existing 2026-03-15 date section.

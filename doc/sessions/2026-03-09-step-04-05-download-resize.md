@@ -1,5 +1,6 @@
 # Session: Steps 4 & 5 — Download & Resize Audio
 
+**Session ID:** 24f89e53-e785-4f37-a0bb-74b34206ac38
 **Date:** 2026-03-09
 
 ## Summary

@@ -1,5 +1,6 @@
 # Session: Fix summarization episode language
 
+**Session ID:** 59775a93-7de0-4f8a-9dec-c7feb45a5931
 **Date:** 2026-03-11
 
 ## Summary
@@ -28,7 +29,7 @@ Asked to generate documentation and create a PR.
 
 ### Assistant
 
-Created `doc/features/fix-summarization-language.md` and `doc/sessions/2026-03-11-fix-summarization-language.md`. Updated the Features & Fixes table in `README.md`. Created branch `fix/summarization-episode-language`, committed, pushed, and opened PR #15.
+Created `doc/features/2026-03-11-fix-summarization-language.md` and `doc/sessions/2026-03-11-fix-summarization-language.md`. Updated the Features & Fixes table in `README.md`. Created branch `fix/summarization-episode-language`, committed, pushed, and opened PR #15.
 
 ### User
 

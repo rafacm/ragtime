@@ -4,7 +4,7 @@
 
 ## Sessions
 
-- Session 1 (this session)
+- Session 89eeda14-a7f4-4e7c-bc25-066f28181385 (this session)
 
 ## Summary
 
@@ -29,4 +29,4 @@ Approved the changes and asked to document the change and create a PR.
 
 ### Assistant
 
-Created feature branch `docs/session-transcript-format`. Wrote feature documentation at `doc/features/session-transcript-format.md` and this session transcript. Added a row to the Features & Fixes table in `README.md`. Committed all changes and opened a PR.
+Created feature branch `docs/session-transcript-format`. Wrote feature documentation at `doc/features/2026-03-13-session-transcript-format.md` and this session transcript. Added a row to the Features & Fixes table in `README.md`. Committed all changes and opened a PR.

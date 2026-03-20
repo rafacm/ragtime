@@ -38,4 +38,4 @@ Planned 11 files to modify or create:
 Accepted the plan.
 
 ### Assistant
-Saved the plan to `doc/plans/langfuse-observability.md`.
+Saved the plan to `doc/plans/2026-03-16-langfuse-observability.md`.
