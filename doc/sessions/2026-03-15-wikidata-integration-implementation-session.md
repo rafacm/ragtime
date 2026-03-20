@@ -1,5 +1,7 @@
 # Wikidata Integration — Implementation Session
 
+**Date:** 2026-03-15
+
 ## Session ID
 unavailable
 

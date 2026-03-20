@@ -1,5 +1,7 @@
 # Wikidata Integration — Planning Session
 
+**Date:** 2026-03-15
+
 ## Session ID
 338ce28e-0518-499d-9202-0e280fe151bd
 
