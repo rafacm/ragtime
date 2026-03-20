@@ -1,5 +1,7 @@
 # Implementation Session: Rename Entity Type Keys to Match Wikidata Labels
 
+**Date:** 2026-03-16
+
 ## Session ID
 
 244fc552-853c-485c-8f67-63ed21881f13

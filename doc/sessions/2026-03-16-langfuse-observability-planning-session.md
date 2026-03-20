@@ -1,5 +1,7 @@
 # Langfuse Observability — Planning Session
 
+**Date:** 2026-03-16
+
 ## Session ID
 0f60528e-6b16-41a5-b9d0-13c277121673
 
