@@ -1,7 +1,7 @@
 # Session: Decoupled Recovery Architecture — Planning
 
-**Session ID:** d7842f79-ffa8-4b5c-aa5c-336122a4a70d
 **Date:** 2026-03-18
+**Session ID:** d7842f79-ffa8-4b5c-aa5c-336122a4a70d
 
 ## Summary
 
@@ -15,140 +15,232 @@ Sometimes in Step 2 (Scraping) we fail to find the URL for the episode MP3 audio
 
 ### Assistant
 
-Explored the current scraping and download implementation to understand failure modes. Read `episodes/models.py`, `episodes/signals.py`, `episodes/scraper.py`, `episodes/downloader.py`, `episodes/pipeline.py`, `episodes/processing.py`, `episodes/admin.py`, and the provider abstractions in `episodes/providers/`. Used sub-agents to research the codebase architecture and evaluate agentic framework options.
+Let me explore the current scraping and download implementation to understand the failure modes.
 
-Key findings from codebase exploration:
-- Pipeline is orchestrated via Django signals with status transitions and `ProcessingRun`/`ProcessingStep` tracking
-- Scraper uses `httpx` + `BeautifulSoup` to find audio URLs; fails if URL not found in HTML
-- Downloader fetches audio via `httpx`; fails on 403/CloudFlare blocks
-- Failures are permanent (`max_attempts: 1`), requiring manual admin intervention
-- Provider abstraction uses ABC base classes with a factory pattern in `episodes/providers/`
+Now let me get a Plan agent to analyze the agentic framework options given this architecture.
 
-Wrote the initial plan with framework analysis:
+Now let me read a couple of critical files to validate the plan details before writing it up.
 
-**Top recommendation: Pydantic AI** — model-agnostic, type-safe, lightweight, sync-compatible with Django Q2 via `agent.run_sync()`, right-sized for two single-agent recovery flows. Pydantic v2 already an indirect dependency, fully supports Python 3.13.
+Now I have a thorough understanding of the codebase and the framework landscape. Let me write the plan.
+
+Here's a summary of the analysis:
+
+**Top recommendation: Pydantic AI** — model-agnostic, type-safe, lightweight, sync-compatible with Django Q2, and right-sized for two single-agent recovery flows.
 
 **Runner-up: OpenAI Agents SDK** — zero new dependencies (reuses existing `openai` package), but locks you to OpenAI models.
 
-**Rejected alternatives:**
-- LangGraph — heavy dependencies, complex graph abstraction for a single-agent problem
-- CrewAI — multi-agent framework for what is fundamentally a single-agent task
-- smolagents — code-execution security concerns in a Django context
+**Key insight**: If the recovery strategies are deterministic ("try RSS, then headless browser, then give up"), you may not need a framework at all — a simple fallback chain would suffice. The agent approach pays off when the LLM needs to *reason* about which strategy to try based on the error and page content.
 
-**Key insight**: If the recovery strategies are deterministic ("try RSS, then headless browser, then give up"), a simple fallback chain would suffice. The agent approach pays off when the LLM needs to reason about which strategy to try based on the error and page content.
+The plan also covers failure analysis, what the agents would do, and which frameworks to avoid (LangGraph, CrewAI, smolagents) with reasons.
 
-### Assistant (browser automation analysis)
+Good question. There are a few browser automation options that work with Pydantic AI, and the headless vs. visible requirement is a key differentiator.
 
-Evaluated browser automation options for the recovery agent. Researched Playwright, Browser Use, Stagehand, Selenium, and Playwright MCP.
+Great findings. Let me update the plan with the browser automation analysis.
 
-**Playwright (direct)** emerged as the clear winner:
-- Headed/headless toggle is trivial — `launch(headless=False)` for dev, `True` for production, controlled via a single env var
-- Right separation of concerns — Pydantic AI is the brain (decides strategy), Playwright provides the hands (navigate, click, extract, capture network). Each browser action is a clean, testable tool function
-- No double-agent problem — Browser Use and Stagehand both have their own LLM agent loops, conflicting with Pydantic AI as orchestrator (double LLM calls, loss of control, cost multiplication)
-- Sync API works natively in Django Q2 tasks. Lightweight dependency (one package + Chromium binary)
+Here's the summary on browser automation:
 
-Rejected alternatives:
-- **Browser Use** — adds its own agent loop, conflicts with Pydantic AI as orchestrator
-- **Stagehand** — double LLM calls (every `act("click download")` triggers its own LLM), Python SDK is immature, no cursor in screenshots
-- **Selenium** — heavier, less modern API, superseded by Playwright
-- **Playwright MCP Server** — requires Node.js, accessibility-tree abstraction, reported latency issues with Pydantic AI (GitHub #2448)
+**Playwright (direct)** is the clear winner. Key reasons:
 
-### Assistant (headless-only with Langfuse observability)
+- **Headed/headless toggle** is trivial — `launch(headless=False)` lets you watch the agent work in real time, `True` for production. Controlled via a single env var.
+- **Right separation of concerns** — Pydantic AI is the brain (decides strategy), Playwright provides the hands (navigate, click, extract, capture network). Each browser action is a clean, testable tool function.
+- **No double-agent problem** — Browser Use and Stagehand both have their own LLM agent loops, which conflicts with Pydantic AI as orchestrator (double LLM calls, loss of control, cost multiplication).
+- **Sync API** works natively in Django Q2 tasks. Lightweight dependency (one package + Chromium binary).
 
-Clarified that headed mode is off the table (server-only deployment). The real requirement is step-by-step screenshots with cursor position sent to Langfuse for observability. Researched Langfuse integration and revisited Stagehand.
+The alternatives (Browser Use, Stagehand, Selenium, Playwright MCP) all have significant drawbacks — either architectural conflicts, heavy dependencies, or Node.js requirements.
 
-Rejected Stagehand even with its open-source local mode:
-1. **Double LLM calls**: Every `act("click download")` triggers Stagehand's own LLM to interpret the instruction — 2 LLM invocations per browser action (Pydantic AI + Stagehand). Expensive and opaque.
-2. **No Langfuse integration**: Stagehand's internal LLM calls are invisible to Langfuse.
+Good clarification — so headed mode is off the table (server-only), and the real requirement is **step-by-step screenshots with cursor position sent to Langfuse for observability**. That changes the evaluation. Let me research Langfuse integration and revisit Stagehand.
+
+Excellent research. Let me update the plan and address your questions directly.
+
+**Stagehand — not a good fit even with the open-source offering.** Here's why:
+
+1. **Double LLM calls**: Even the simple `act("click download")` and `extract(schema)` methods make their own internal LLM calls. So every browser action costs 2 LLM invocations — Pydantic AI deciding what to do, then Stagehand's own LLM interpreting the instruction. This is expensive and opaque.
+2. **No Langfuse integration**: You'd need to manually instrument Stagehand's internal LLM calls separately.
 3. **No cursor in screenshots**: `auto_screenshot` exists but without cursor overlay.
-4. **Python SDK is immature**: The TypeScript version is primary.
+4. **Python SDK is immature**: The TypeScript version is primary; the Python SDK is newer and less tested.
+5. **The open-source version works locally** (no Browserbase cloud required), but it still needs an LLM API key for every `act`/`extract` call — it's not just browser automation, it's AI-browser automation with its own reasoning layer.
 
-Recommended approach: **Custom Playwright wrapper + Langfuse**:
-- Pydantic AI has production-ready Langfuse integration via OpenTelemetry — `Agent.instrument_all()` and every tool call, LLM call, and agent step becomes a Langfuse trace
-- Screenshots with cursor: inject a small CSS overlay (~40 lines of JS) rendering a red dot at cursor position. `page.screenshot()` captures it.
-- Attach screenshots to Langfuse via `LangfuseMedia(content_bytes=png_bytes, content_type="image/png")` on each span
-- Single agent loop: only Pydantic AI reasons, Playwright executes deterministic actions. 1 LLM call per step, not 2.
+**The better approach: Custom Playwright wrapper + Langfuse.**
 
-### Assistant (Playwright integration approach)
+- **Pydantic AI has production-ready Langfuse integration** via OpenTelemetry — `Agent.instrument_all()` and every tool call, LLM call, and agent step becomes a Langfuse trace.
+- **Screenshots with cursor**: Inject a small CSS overlay (~40 lines of JS) that renders a red dot at the cursor position. `page.screenshot()` captures it. Playwright itself doesn't render cursors in headless mode, but this solved pattern works reliably.
+- **Attach screenshots to Langfuse**: Use `LangfuseMedia(content_bytes=png_bytes, content_type="image/png")` to attach each screenshot to the current span. You get a full visual trail in Langfuse: agent thought → tool call → screenshot → next thought.
+- **Single agent loop**: Only Pydantic AI reasons. Playwright just executes deterministic actions. 1 LLM call per step, not 2.
 
-Determined the integration is **direct Python API** — Playwright's `sync_playwright()` used inside Pydantic AI tool functions. Same process, same thread, zero overhead. No intermediary protocol (MCP) or CLI process needed.
+Let me update the plan.
 
-Each browser action becomes a plain Python function decorated as a Pydantic AI tool. The agent calls `navigate(url)` -> Pydantic AI invokes the Python function -> Playwright talks to Chromium via CDP -> returns HTML/screenshot -> screenshot attached to Langfuse span. All in one process.
+To answer your questions directly:
 
-Rejected MCP server (needs Node.js, accessibility-tree abstraction, latency issues) and CLI (meant for testing/codegen, not programmatic control).
+**Stagehand**: Even the open-source local mode has the double-LLM-call problem. Every `act("click download")` triggers Stagehand's own LLM to interpret the instruction — that's the core of what Stagehand does. You'd pay for 2 LLM calls per browser action (Pydantic AI + Stagehand), and Stagehand's internal calls are invisible to Langfuse. It also doesn't render cursor position in screenshots.
 
-### Assistant (decoupled architecture redesign)
+**Langfuse integration**: Pydantic AI has production-ready Langfuse support via OpenTelemetry. Screenshots attach to spans via `LangfuseMedia`. With a custom Playwright wrapper, every step gets: agent reasoning (traced) → tool call (traced) → screenshot with cursor (attached as image) → all visible in the Langfuse dashboard.
 
-Arrived at a key architectural insight: the pipeline and recovery are separate concerns. Redesigned the plan around three decoupled layers:
+The plan now reflects the updated requirements — headless-only with Langfuse observability replacing the headed "spy" mode.
 
-1. **Pipeline layer** (existing) — does its job, emits rich signals with detailed context via custom Django signals (`step_completed`, `step_failed`). Structured error context in `StepFailureEvent`, not just `str(exc)`.
-2. **Recovery layer** (new: `episodes/recovery.py`) — subscribes to failures, walks a configurable escalation chain: agent -> human. Each strategy implements `can_handle(event)` -> `attempt(event)`. Records every attempt in `RecoveryAttempt` model.
-3. **Agent layer** — just one pluggable strategy behind a feature flag (`RAGTIME_RECOVERY_AGENT_ENABLED=False`), not hardwired into the pipeline.
+Neither MCP server nor CLI — **direct Python API integration**. Here's how it works:
 
-Pipeline steps change minimally (add `exc=exc` to `fail_step()` calls). Heavy lifting is in new modules (`events.py`, `recovery.py`) and new models.
+### Playwright as Pydantic AI Tool Functions (direct Python)
 
-### Assistant (Langfuse integration with existing setup)
+Playwright has a native Python package with a **sync API** (`sync_playwright()`). Each browser action becomes a plain Python function decorated as a Pydantic AI tool. No intermediary protocol (MCP) or CLI process needed.
 
-Examined the existing Langfuse integration in `episodes/observability.py`. Found:
-- `is_enabled()`, `get_openai_client_class()`, `observe_step()`, `observe_provider()`, `set_observation_input/output()`, `_update_observation()`
+```python
+from pydantic_ai import Agent
+from playwright.sync_api import sync_playwright
+
+recovery_agent = Agent('openai:gpt-4o', tools=[navigate_and_render, find_audio_sources, ...])
+
+@recovery_agent.tool_plain
+def navigate_and_render(url: str) -> str:
+    """Navigate to URL, wait for JS to render, return full HTML."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.goto(url, wait_until="networkidle")
+        # inject cursor overlay, take screenshot, attach to Langfuse...
+        html = page.content()
+        browser.close()
+        return html
+```
+
+The Pydantic AI agent calls these functions directly — same process, same thread, no serialization overhead.
+
+### Why NOT the MCP server or CLI
+
+| Approach | Problem |
+|---|---|
+| **Playwright MCP Server** | Requires Node.js runtime. Operates on accessibility-tree snapshots (not raw HTML). Reported latency issues with Pydantic AI (GitHub #2448). Screenshot attachment to Langfuse is indirect. Adds process management complexity. |
+| **Playwright CLI** | The `npx playwright` CLI is for testing/codegen, not programmatic browser control. Can't capture network requests, inject JS, or return structured data. |
+| **Direct Python API** | Same process, zero overhead, full access to `page.content()`, `page.screenshot()`, `page.on("response", ...)` for network capture, JS injection for cursor overlay. Langfuse attachment is trivial. |
+
+Let me add this integration detail to the plan.
+
+The integration is **direct Python API** — Playwright's `sync_playwright()` used inside Pydantic AI tool functions. Same process, same thread, zero overhead. No MCP server (needs Node.js, accessibility-tree abstraction, latency issues), no CLI (meant for testing, not programmatic control).
+
+The agent calls `navigate(url)` → Pydantic AI invokes the Python function → Playwright talks to Chromium via CDP → returns HTML/screenshot → screenshot attached to Langfuse span. All in one process.
+
+That's a much better architectural insight. Let me rethink this around separation of concerns:
+
+1. **Pipeline** — does its job, emits rich signals with detailed context (what happened, why it failed, what was tried)
+2. **Recovery layer** — a separate concern that subscribes to failures and decides the strategy: automatic retry → agentic recovery → human-in-the-loop escalation
+3. The agent is just one of several possible recovery strategies, not hardwired into the pipeline
+
+Let me redesign the plan around this event-driven, decoupled architecture.
+
+Now let me redesign the plan around this decoupled architecture.
+
+This is a much better architecture. Let me rewrite the plan around this decoupled design.
+
+The plan is now restructured around three decoupled layers:
+
+1. **Pipeline** — emits rich `StepFailureEvent` via a custom Django signal (structured error context, not just `str(exc)`)
+2. **Recovery layer** — subscribes to failures, walks a configurable chain: retry (backoff) → agent (Pydantic AI) → human (escalation)
+3. **Agent** — just one pluggable strategy behind a feature flag, not hardwired into the pipeline
+
+The pipeline steps themselves change minimally (add `exc=exc` to `fail_step()` calls). The heavy lifting is in new modules (`events.py`, `recovery.py`) and a new `RecoveryAttempt` model. The agent is Phase 4, behind `RAGTIME_RECOVERY_AGENT_ENABLED=False`.
+
+Let me examine the new Langfuse integration to understand what's already in place.
+
+Good. The Langfuse integration is already in place with:
+
+- **`episodes/observability.py`** — `is_enabled()`, `get_openai_client_class()`, `observe_step()`, `observe_provider()`, `set_observation_input/output()`, `_update_observation()`
 - Uses Langfuse's **decorator-based approach** (`@observe()`, `propagate_attributes`) — not OpenTelemetry
 - `ProcessingRun.pk` is used as `session_id` to group traces per pipeline run
-- OpenAI client swapped to `langfuse.openai.OpenAI` when enabled (auto-traces all API calls)
+- The OpenAI client is swapped to `langfuse.openai.OpenAI` when enabled (auto-traces all API calls)
 - `langfuse>=4,<5` as optional dependency (`uv sync --extra observability`)
 
-Initially planned to use Pydantic AI's OTel-based `Agent.instrument_all()`, but realized it would conflict with the existing decorator-based approach. Updated plan to reuse existing observability module instead.
+This means the plan should:
+1. **Reuse** `observe_step()` and `observe_provider()` for recovery agent tracing
+2. **Use** `_update_observation()` / `langfuse_context` to attach screenshots (not OTel/`LangfuseMedia` as previously assumed)
+3. **Note**: Pydantic AI's OTel-based Langfuse integration would conflict with the existing decorator-based approach. The agent should use the existing observability module instead.
 
-### Assistant (OTel coexistence evaluation)
+Let me update the plan to reflect this.
 
-Explored whether to migrate existing Langfuse integration to OTel or keep the SDK. Key finding: **Langfuse v4 is already OTel-native under the hood** — the `@observe()` and `propagate_attributes()` decorators already produce OTel spans internally.
+Now let me update the plan to account for the existing Langfuse integration.
 
-Evaluated what would be lost with a full OTel migration (replacing decorators with raw OTel):
+The plan now accounts for the existing Langfuse integration. Key update: the agent won't use Pydantic AI's OTel-based `Agent.instrument_all()` (would conflict). Instead, it reuses the existing decorator-based approach — `@observe_step()` for the recovery function, `_update_observation()` for attaching screenshots, and `langfuse.openai.OpenAI` for auto-tracing LLM calls.
+
+Good question. There's a real trade-off here. Let me lay out the options:
+
+Good choice. The OTel migration becomes a prerequisite phase. Let me research how Langfuse's OTel endpoint works and what the migration entails, then update the plan.
+
+Key finding: **Langfuse v4 is already OTel-native under the hood.** The `@observe()` and `propagate_attributes()` decorators already produce OTel spans internally. The migration is much smaller than expected — mainly replacing the `langfuse.openai.OpenAI` wrapper with `OpenAIInstrumentor().instrument()` so Pydantic AI shares the same OTel context.
+
+Let me update the plan with this as a prerequisite phase.
+
+Now update the implementation phases to include the OTel migration as Phase 0 and fix the key files table.
+
+Also update the key files table to include the OTel migration files.
+
+Plan updated. The OTel migration is now Phase 0 — a small, contained prerequisite:
+
+1. Add `opentelemetry-instrumentation-openai` dependency
+2. Add `setup()` to `observability.py` (calls `langfuse.get_client()` + `OpenAIInstrumentor().instrument()`)
+3. Simplify OpenAI provider to use standard `openai.OpenAI` (instrumentation is now global)
+4. Call `setup()` at Django startup in `AppConfig.ready()`
+
+The existing `@observe_step()` and `@observe_provider()` decorators stay unchanged — they're already OTel-native in Langfuse v4. Pydantic AI's `Agent.instrument_all()` will then share the same OTel context automatically.
+
+Good questions. Let me address both.
+
+**On RetryStrategy:** You're right — if the pipeline steps don't typically fail transiently, a retry strategy adds complexity for little value. I'll remove it and simplify to just two strategies: agent → human.
+
+**On OTel migration — potential functionality loss:**
+
+The Langfuse docs reveal important nuances. Here's what I found:
+
+**Langfuse SDK v4 is already OTel-native.** The `@observe()` decorator and `propagate_attributes()` create OTel spans under the hood. The SDK automatically sets up an OTel `TracerProvider`. This means **Pydantic AI's `Agent.instrument_all()` should work alongside the existing decorators** — they share the same OTel context.
+
+**What we'd lose with a full OTel migration (replacing decorators with raw OTel):**
 
 | Feature | Native SDK (`@observe`) | Raw OTel spans |
 |---|---|---|
-| Token usage/cost tracking | Auto-captured by `langfuse.openai.OpenAI` | Must manually set attributes |
-| Input/output on observations | `langfuse_context.update_current_observation()` | Must set attributes manually |
+| Token usage/cost tracking | Auto-captured by `langfuse.openai.OpenAI` | Must manually set `langfuse.observation.usage_details` |
+| Input/output on observations | `langfuse_context.update_current_observation()` | Must set `langfuse.observation.input` attribute |
 | Session ID | `propagate_attributes(session_id=...)` | Must set `langfuse.session.id` attribute |
-| Metadata queryability | Top-level, filterable | Lands in `metadata.attributes` unless prefixed |
+| Metadata queryability | Top-level, filterable | Lands in `metadata.attributes` unless prefixed correctly |
 | Generation type detection | Automatic via wrapper | Only if span has `model` attribute |
 
-Decision: **keep the existing SDK, ensure coexistence**. Just add `setup()` for eager `TracerProvider` initialization so Pydantic AI's `Agent.instrument_all()` shares the same OTel context automatically. No functionality loss, no migration risk. Both codepaths (SDK decorators and Pydantic AI OTel) share the same `TracerProvider`.
+**Revised recommendation:** We may NOT need a full migration. Since Langfuse v4 is already OTel-native, the existing decorators can coexist with Pydantic AI's OTel spans. The only change needed might be ensuring the Langfuse SDK is properly initialized at startup so both codepaths share the same `TracerProvider`.
 
-### Assistant (simplification: drop RetryStrategy)
+Good — keep the SDK, ensure coexistence. Let me update the plan to reflect both decisions: drop RetryStrategy and simplify the Langfuse approach.
 
-Removed `RetryStrategy` from the recovery chain. Pipeline steps don't typically fail transiently — scraping failures are structural (URL not in HTML), download blocks are persistent (403/CloudFlare). A retry strategy with backoff adds complexity for little value.
+Now update the Langfuse section and the implementation phases.
 
-Recovery chain simplified to just two strategies: agent -> human.
+Now update the implementation phases to remove Phase 0 (OTel migration) and simplify.
 
-Also removed `is_transient` field and transient detection from `StepFailureEvent` and error classification. Cleaned up all retry references throughout the plan document.
+Also remove the `is_transient` and retry-related fields from `StepFailureEvent` since we're dropping RetryStrategy.
 
-### Assistant (success events and admin visibility)
+Also simplify the error classification since we don't need transient detection anymore.
 
-Added success events alongside failure events for full pipeline observability:
+Plan updated with both changes:
 
-- `StepCompletedEvent` + `StepFailureEvent`, both persisted as `PipelineEvent` records
-- `PipelineEventInline` on `EpisodeAdmin` for both event types
-- Standalone `PipelineEventAdmin` with filters
-- `RecoveryAttemptInline` on `EpisodeAdmin`
-- "Needs Human Action" list filter
-- Reprocess action that resolves `AWAITING_HUMAN` records
+1. **Dropped RetryStrategy** — recovery chain is now just: agent → human. Simpler.
+2. **No OTel migration** — Langfuse v4 is already OTel-native. Keep existing SDK decorators (`@observe_step`, `@observe_provider`, `langfuse.openai.OpenAI`). Just add `setup()` for eager TracerProvider initialization so Pydantic AI's `Agent.instrument_all()` shares the same OTel context automatically. No functionality loss.
 
-Removed `NEEDS_REVIEW` from `Episode.Status` entirely (pre-v1, no backwards compatibility needed).
+Good catches. Let me clean up all remaining retry references and add success events + admin exposure.
 
-### Assistant (final plan)
+I see several remaining "retry" references. Let me clean them all up, add success events, and add admin exposure for both event types.
 
-Cleaned up all remaining retry references and finalized the plan with four implementation phases:
+Now add success events and update the signals section.
 
-1. **Phase 1: Event infrastructure** — `events.py` with `StepCompletedEvent`/`StepFailureEvent` dataclasses, `classify_error()`, `PipelineEvent` and `RecoveryAttempt` models (migration), remove `NEEDS_REVIEW`, custom signals, modify `complete_step()`/`fail_step()` to emit events, pass `exc=exc` in each pipeline step's except block
-2. **Phase 2: Recovery layer** — `recovery.py` with `RecoveryStrategy` ABC, dispatcher, `HumanEscalationStrategy` creating `AWAITING_HUMAN` records, stub `AgentStrategy` (always escalates, behind feature flag), wire signal handler in `apps.py`, recovery settings in `settings.py`/`.env.sample`
-3. **Phase 3: Admin integration** — `PipelineEventInline` on `EpisodeAdmin`, standalone `PipelineEventAdmin` with filters, `RecoveryAttemptInline`, "Needs Human Action" filter, reprocess action resolves `AWAITING_HUMAN` records
-4. **Phase 4: Agent strategy (future PR)** — `episodes/agents/` package, Pydantic AI agent with Playwright browser tools, `Agent.instrument_all()` for Langfuse tracing
+Now update the signals section to include both success and failure signals.
 
-Key design decisions:
-- Pipeline events use custom Django signals (not model signals) for structured context
-- `PipelineEvent` model holds all structured data (no `error_context` on `ProcessingStep`)
-- Infinite loop prevention via attempt count ceiling (5 per episode+step)
-- Agent strategy behind feature flag, stub in Phases 1-3
-- Langfuse SDK kept as-is with OTel coexistence for Pydantic AI
+Now update the recovery tracking to remove the retry references, and add a `PipelineEvent` model for admin visibility of both success and failure events.
 
-Saved the plan to `doc/plans/2026-03-18-decoupled-recovery-architecture.md`.
+Now update the admin section to include both event types and the key files/phases.
+
+Now update the key files table and implementation phases.
+
+Let me do a final scan for any remaining "retry" references.
+
+Good — all retry references are gone. The plan now has:
+
+1. **Both success and failure events** — `StepCompletedEvent` + `StepFailureEvent`, both persisted as `PipelineEvent` records
+2. **Admin visibility for both** — `PipelineEventInline` on episodes, standalone `PipelineEventAdmin` with filters
+3. **Two recovery strategies** — agent → human (no retry)
+4. **`NEEDS_REVIEW` removed entirely** (pre-v1, no backwards compat needed)
+5. **Langfuse SDK kept as-is** — just add `setup()` for eager init + Pydantic AI coexistence
+
+### User
+
+[Request interrupted by user for tool use]
