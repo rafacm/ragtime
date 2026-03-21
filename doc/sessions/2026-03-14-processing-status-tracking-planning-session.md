@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Planned per-step processing status tracking with ProcessingRun and ProcessingStep models, enabling retry from the exact failure point instead of reprocessing from scratch. Designed a unified admin reprocess action with an intermediate step-selection page.
 
 ## Conversation
 
