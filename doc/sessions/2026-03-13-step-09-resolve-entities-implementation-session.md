@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Implemented Step 9 (Resolve Entities): LLM-based entity resolution with fuzzy matching against existing DB records, canonical Entity rows, EntityMention linking to episodes, cross-language support, and full test coverage including fixture-based integration tests.
 
 ## Conversation
 
