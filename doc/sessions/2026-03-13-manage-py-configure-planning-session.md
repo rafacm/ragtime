@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Planned the `manage.py configure` interactive setup wizard for RAGTIME_* environment variables. Discussed shared credentials across LLM-based systems, API key masking, and the decision to create a new `core` Django app to house project-wide management commands.
 
 ## Conversation
 
