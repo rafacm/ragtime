@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Implemented per-step processing status tracking with ProcessingRun and ProcessingStep models, retry from failure point, and a unified reprocess admin action with an intermediate page for selecting the starting step. Refactored the signal dispatcher to handle all steps uniformly.
 
 ## Conversation
 
