@@ -100,6 +100,9 @@ cd ragtime
 uv sync
 uv run python manage.py migrate
 
+# Create an admin user for the Django admin UI
+uv run python manage.py createsuperuser
+
 # Seed initial entity types
 uv run python manage.py load_entity_types
 
