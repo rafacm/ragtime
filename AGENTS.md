@@ -66,11 +66,11 @@ When creating PRs, use the rebase strategy. Squash and merge-commit strategies a
 
 When a plan is accepted, save it to `doc/plans/`, one Markdown file per plan, with a `YYYY-MM-DD-` date prefix (e.g., `2026-03-15-my-feature.md`).
 
-Save the planning session transcript to `doc/sessions/` with a filename ending in `-planning-session.md`. Each transcript must include:
+Save the planning session transcript to `doc/sessions/`, with a `YYYY-MM-DD-` date prefix and a filename ending in `-planning-session.md` (e.g., `2026-03-15-my-feature-planning-session.md`). Each transcript must include:
 
-- **Session ID** — the actual Claude Code session UUID (e.g., `a150a5a3-218f-44b4-a02b-cf90912619d7`), immediately after the `# Title`. Do not use placeholders like "current session" or worktree names — retrieve the real UUID. Use `unavailable` only when the UUID cannot be recovered from session logs.
+- **Session ID** — the actual Claude Code session UUID (e.g., `a150a5a3-218f-44b4-a02b-cf90912619d7`), after the `**Date:**` line. Do not use placeholders like "current session" or worktree names — retrieve the real UUID. Use `unavailable` only when the UUID cannot be recovered from session logs.
 - **Summary** — a short `## Summary` describing what was planned.
-- **Detailed conversation** — record the actual conversation as a sequence of `### User` and `### Assistant` sections using verbatim text. Include the assistant's reasoning steps (e.g. what it explored, what alternatives it considered, why it chose a particular approach).
+- **Detailed conversation** — record the actual conversation as a sequence of `### User` and `### Assistant` sections using verbatim, unedited text. Do not rephrase, summarize, or paraphrase — copy the exact messages. Include the assistant's reasoning steps (e.g. what it explored, what alternatives it considered, why it chose a particular approach).
 
 ### Implementation phase
 
@@ -82,9 +82,9 @@ Feature documentation lives in `doc/features/`, one Markdown file per feature or
 - **Verification** — how to test the change on-device (deploy command + expected behaviour).
 - **Files modified** — list of touched files with a one-line summary of each change.
 
-Save the implementation session transcript to `doc/sessions/` with a filename ending in `-implementation-session.md`. Same format as the planning session (session ID, summary, verbatim conversation with reasoning steps).
+Save the implementation session transcript to `doc/sessions/`, with a `YYYY-MM-DD-` date prefix and a filename ending in `-implementation-session.md` (e.g., `2026-03-15-my-feature-implementation-session.md`). Same format as the planning session (session ID, summary, verbatim conversation with reasoning steps).
 
-Every doc file must start with a `# Title` on the very first line. Metadata lines (`**Date:** YYYY-MM-DD` for all doc types; `**Session ID:**` for session transcripts) go immediately after the title, before any `## Section`. Never place metadata above the title. See the reference transcript for the canonical format.
+Every doc file must start with a `# Title` on the very first line. Metadata lines go immediately after the title, before any `## Section`: first `**Date:** YYYY-MM-DD` (all doc types), then `**Session ID:**` (session transcripts only). Never place metadata above the title.
 
 Keep prose concise. Prefer tables and lists over long paragraphs. Use code blocks for CLI commands and signal-flow diagrams.
 
