@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Planned and implemented Steps 4 and 5 (Download & Resize): streaming MP3 download with error tracking, ffmpeg-based audio downsampling for files exceeding the Whisper API size limit, and new Episode model fields for file path, size, and duration.
 
 ## Conversation
 
