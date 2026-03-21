@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Implemented Step 8 (Extract Entities): LLM-based entity extraction from episode transcripts with an independently configurable extraction provider, structured JSON output for 7 entity types, and Django admin visibility for extracted entities.
 
 ## Conversation
 
