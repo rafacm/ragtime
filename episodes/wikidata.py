@@ -2,6 +2,8 @@
 
 import hashlib
 import logging
+import threading
+import time
 import urllib.parse
 
 import httpx
@@ -11,6 +13,35 @@ from django.core.cache import caches
 logger = logging.getLogger(__name__)
 
 WIKIDATA_API_URL = "https://www.wikidata.org/w/api.php"
+
+
+class _TokenBucket:
+    """Simple token bucket rate limiter (thread-safe)."""
+
+    def __init__(self, rate: float, capacity: int):
+        self._rate = rate
+        self._capacity = capacity
+        self._tokens = float(capacity)
+        self._last = time.monotonic()
+        self._lock = threading.Lock()
+
+    def acquire(self):
+        with self._lock:
+            now = time.monotonic()
+            self._tokens = min(
+                self._capacity,
+                self._tokens + (now - self._last) * self._rate,
+            )
+            self._last = now
+            if self._tokens < 1:
+                sleep_time = (1 - self._tokens) / self._rate
+                time.sleep(sleep_time)
+                self._tokens = 0
+            else:
+                self._tokens -= 1
+
+
+_rate_limiter = _TokenBucket(rate=5, capacity=10)
 
 
 def _get_cache():
@@ -26,7 +57,7 @@ def _get_user_agent():
 
 
 def _make_request(params: dict) -> dict:
-    """Make a request to the Wikidata API with caching."""
+    """Make a request to the Wikidata API with caching and rate limiting."""
     cache = _get_cache()
     normalized = urllib.parse.urlencode(sorted(params.items()))
     cache_key = f"wikidata:{hashlib.sha256(normalized.encode()).hexdigest()}"
@@ -36,6 +67,7 @@ def _make_request(params: dict) -> dict:
 
     ttl = getattr(settings, "RAGTIME_WIKIDATA_CACHE_TTL", 604800)
 
+    _rate_limiter.acquire()
     try:
         response = httpx.get(
             WIKIDATA_API_URL,

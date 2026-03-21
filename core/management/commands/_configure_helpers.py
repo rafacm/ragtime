@@ -72,7 +72,7 @@ SYSTEMS = [
                 "label": "Wikidata",
                 "fields": [
                     ("USER_AGENT", "RAGtime/0.1 (https://github.com/rafacm/ragtime)", False),
-                    ("CACHE_BACKEND", "locmem", False),
+                    ("CACHE_BACKEND", "filebased", False),
                     ("CACHE_TTL", "604800", False),
                     ("DEBOUNCE_MS", "300", False),
                     ("MIN_CHARS", "3", False),
