@@ -9,7 +9,7 @@ def _normalize(text: str) -> str:
 
 def find_entity_start_time(
     entity_name: str,
-    words: list[dict],
+    words: list[dict] | None,
     chunk_start: float,
     chunk_end: float,
 ) -> float | None:

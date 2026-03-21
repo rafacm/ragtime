@@ -70,7 +70,7 @@ Save the planning session transcript to `doc/sessions/`, with a `YYYY-MM-DD-` da
 
 - **Session ID** — the actual Claude Code session UUID (e.g., `a150a5a3-218f-44b4-a02b-cf90912619d7`), after the `**Date:**` line. Do not use placeholders like "current session" or worktree names — retrieve the real UUID. Use `unavailable` only when the UUID cannot be recovered from session logs.
 - **Summary** — a short `## Summary` describing what was planned.
-- **Detailed conversation** — record the actual conversation as a sequence of `### User` and `### Assistant` sections using verbatim, unedited text. Do not rephrase, summarize, or paraphrase — copy the exact messages. Include the assistant's reasoning steps (e.g. what it explored, what alternatives it considered, why it chose a particular approach).
+- **Detailed conversation** — record the conversation as a sequence of `### User` and `### Assistant` sections. User messages must be verbatim, unedited text — copy the exact messages. Assistant sections may summarize tool calls, code changes, and internal reasoning into concise prose (since the raw output is tool invocations, not conversational text), but must capture what was done, what was explored, what alternatives were considered, and why a particular approach was chosen.
 
 ### Implementation phase
 

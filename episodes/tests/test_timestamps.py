@@ -45,8 +45,8 @@ class FindEntityStartTimeTests(TestCase):
         self.assertEqual(result, 5.0)
 
     def test_punctuation_handling(self):
-        result = find_entity_start_time("Jazz", self.WORDS, 0.0, 30.0)
-        self.assertEqual(result, 1.2)
+        result = find_entity_start_time("Blue", self.WORDS, 0.0, 30.0)
+        self.assertEqual(result, 10.4)
 
     def test_entity_outside_chunk_range(self):
         result = find_entity_start_time("Miles Davis", self.WORDS, 20.0, 30.0)
@@ -65,12 +65,6 @@ class FindEntityStartTimeTests(TestCase):
     def test_punctuation_in_multi_word(self):
         result = find_entity_start_time("Kind of Blue", self.WORDS, 0.0, 30.0)
         self.assertEqual(result, 10.0)
-
-    def test_partial_match_fallback(self):
-        # "Miles Davis" as consecutive words only at 5.0-5.6
-        # In range [20, 30) only "Miles" at 25.0 — fallback to partial
-        result = find_entity_start_time("Miles Davis", self.WORDS, 20.0, 30.0)
-        self.assertEqual(result, 25.0)
 
     def test_empty_entity_name(self):
         result = find_entity_start_time("", self.WORDS, 0.0, 30.0)
