@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Planned and implemented Step 7 (Summarize): LLM-generated episode summaries with an independently configurable summarization provider, language-aware prompt, and full test coverage.
 
 ## Conversation
 
