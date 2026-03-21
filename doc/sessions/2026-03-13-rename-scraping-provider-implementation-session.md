@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Renamed `RAGTIME_LLM_*` environment variables to `RAGTIME_SCRAPING_*` and `get_llm_provider()` to `get_scraping_provider()`. Updated settings, factory, scraper, tests, README, and `.env.sample`.
 
 ## Conversation
 
