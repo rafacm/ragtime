@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Planned and implemented Step 6 (Transcribe): OpenAI Whisper API integration with segment and word timestamps, a pluggable transcription provider abstraction, and storage of the full transcription JSON response in the database.
 
 ## Conversation
 
