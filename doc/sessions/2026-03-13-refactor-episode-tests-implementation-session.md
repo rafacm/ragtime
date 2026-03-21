@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Refactored `episodes/tests.py` into a test package with 9 focused modules under `episodes/tests/`, one per component (models, admin, scraper, signals, providers, etc.).
 
 ## Conversation
 
