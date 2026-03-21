@@ -10,30 +10,51 @@ Planned the implementation of Phase 4: replacing the `AgentStrategy` stub with a
 ## Conversation
 
 ### User
-Requested planning for Phase 4 of the recovery architecture — implementing the agent recovery strategy that was stubbed out in Phase 3 (PR #69).
+
+Phase 4: Agent Recovery Strategy for Pipeline Failures
+
+  Context: Phases 1-3 (merged in PR #69) introduced a decoupled recovery architecture:
+  - Pipeline steps emit structured step_failed signals with error classification
+  - A recovery layer walks a strategy chain: Agent → Human Escalation
+  - AgentStrategy in episodes/recovery.py is currently a stub — it always returns should_escalate=True and is gated behind
+  RAGTIME_RECOVERY_AGENT_ENABLED=False
+  - PipelineEvent and RecoveryAttempt models track all attempts with admin visibility
+
+  Goal: Replace the stub AgentStrategy with a real Pydantic AI agent that can autonomously recover from scraping (step 2) and download
+  (step 3) failures by finding audio URLs using browser automation.
+
+  Technology decisions (from planning session d7842f79):
+  - Pydantic AI — model-agnostic, type-safe, agent.run_sync() works in Django Q2 tasks
+  - Playwright (direct Python API) — browser tools as Pydantic AI tool functions, headless-only
+  - Langfuse integration — Agent.instrument_all() shares existing TracerProvider, screenshots attached as LangfuseMedia
+
+  Key files:
+  - Plan: doc/plans/decoupled-recovery-architecture.md (Phase 4 section)
+  - Recovery layer: episodes/recovery.py (stub AgentStrategy to replace)
+  - Events: episodes/events.py (StepFailureEvent with cached_data containing scraped HTML, error context)
+  - Observability: episodes/observability.py (existing Langfuse setup)
+  - Settings: RAGTIME_RECOVERY_AGENT_ENABLED, RAGTIME_RECOVERY_CHAIN
+
+  Scope from the plan:
+  - episodes/agents/ package
+  - Pydantic AI agent with Playwright browser tools
+  - Agent.instrument_all() for Langfuse tracing
+  - Screenshots with cursor overlay for observability
+
+Additionally to the above, we need to make sure that we can download the file. So we need to pass the directory where the files need to be downloaded to Playwright.
 
 ### Assistant
-Explored the codebase thoroughly: `episodes/recovery.py` (AgentStrategy stub), `episodes/models.py` (Episode, ProcessingRun, PIPELINE_STEPS), `episodes/processing.py` (create_run, fail_step), `episodes/events.py` (StepFailureEvent), `episodes/signals.py`, `episodes/downloader.py`, `episodes/observability.py`, `ragtime/settings.py`, `.env.sample`, `core/management/commands/_configure_helpers.py`, `pyproject.toml`, and existing tests.
 
-Key findings:
-- AgentStrategy stub always returns `should_escalate=True`
-- Only handles `scraping` and `downloading` steps
-- Recovery layer already has signal integration, max attempts (5), and RecoveryAttempt audit trail
-- Observability uses Langfuse with `propagate_attributes` for session grouping
-- `create_run(resume_from=...)` supports resuming pipeline from arbitrary steps
+Let me check a few more details before writing the plan.
 
-### Assistant
-Designed the implementation plan with 10 steps:
-1. Optional dependency group (`pydantic-ai`, `playwright`)
-2. Browser lifecycle context manager
-3. Dependencies dataclass + result model
-4. 7 Playwright browser tools
-5. Pydantic AI agent with dynamic system prompts
-6. Pipeline resume logic (scraping → downloading, downloading → transcribing)
-7. Replace AgentStrategy stub with lazy imports
-8. Settings + configuration wizard updates
-9. README documentation
-10. Comprehensive tests
+Now I have everything I need. Let me write the plan.
+
+Good call on the dedicated API key — it follows the existing per-subsystem pattern and keeps the agent provider fully independent. I'll set up `RAGTIME_RECOVERY_AGENT_API_KEY` that gets passed to the Pydantic AI model constructor explicitly, so it works regardless of which provider/model string is configured.
+
+Let me update the plan with both decisions.
+
+Now update the agent.py section to reflect the API key handling and JS cursor approach.
 
 ### User
-Approved the plan.
+
+[Request interrupted by user for tool use]
