@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Implemented the `manage.py configure` interactive CLI wizard: walks users through all 12 RAGTIME_* environment variables with shared credential support, secret masking, safe `.env` file writing, and a `--show` flag for displaying current configuration.
 
 ## Conversation
 
