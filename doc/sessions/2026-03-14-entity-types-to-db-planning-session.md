@@ -1,8 +1,7 @@
 # Session: Entity Types to DB — Planning
 
-**Session ID:** `66a82ba2-f434-43d3-ad62-6aa697eb6421`
-
 **Date:** 2026-03-14
+**Session ID:** 66a82ba2-f434-43d3-ad62-6aa697eb6421
 
 ## Summary
 
@@ -12,24 +11,16 @@ Planned the migration of entity types from a static YAML file to a database-back
 
 ### User
 
-Asked to plan moving entity types from the YAML file to the database so they can be managed via Django admin.
+We want the extracted entities to be persisted in the database, be exposed in the Django admin UI. The current file "entity_types.yaml" should actually be used as an initial list of entities and used to prepopulate the database. In the README, the section "Extracted Entities" should be adapted. The table should be removed and the text should be rephrased to say that an initial list of extracted entities can be found in file "initial_entity_types.yaml" but more entities can be added via the Django admin UI. We need to think what to do when a user changes existing entity types and we have already processed episodes.
 
 ### Assistant
 
-Entered plan mode. Read the current codebase: `episodes/models.py` (Entity model with CharField entity_type), `episodes/entity_types.yaml` (14 entity types), `episodes/extractor.py` (module-level YAML loading), `episodes/resolver.py` (string-based entity_type usage), `episodes/admin.py`, and both test files.
+Let me explore the codebase to understand the current state of entities and related code.
 
-Considered key design questions:
+Now let me design the implementation approach.
 
-1. **CharField vs ForeignKey** for `Entity.entity_type`: FK gives referential integrity and automatic cascade on rename. CharField would be simpler but loses DB-level consistency. Chose FK.
+Let me read the critical files to verify details before finalizing the plan.
 
-2. **Deletion strategy**: Considered CASCADE (too destructive — deletes all entities), SET_NULL (orphans entities), and PROTECT (safest). Chose PROTECT + `is_active` boolean so types can be disabled without deleting historical data.
+Now I have all the context I need. Let me write the plan.
 
-3. **examples field type**: Considered TextField with comma-separated values, JSONField, and ArrayField. Chose JSONField — matches YAML structure, clean for programmatic use, and works on SQLite.
-
-4. **Migration approach**: A direct field swap would lose data. Designed a 3-step migration: create table, rename old field + add nullable FK + populate, then finalize (drop old field, rename FK, make non-nullable).
-
-Wrote the full implementation plan with 11 steps covering model creation, YAML rename, migrations, management command, extractor/resolver updates, admin registration, test updates, and README changes.
-
-### User
-
-Accepted the plan and asked to implement it.
+This is the same task — the plan from the previous session is still relevant. It's comprehensive and ready. Let me exit plan mode so you can review and approve it.
