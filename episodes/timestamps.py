@@ -7,16 +7,31 @@ def _normalize(text: str) -> str:
     return _PUNCT_RE.sub("", text).lower()
 
 
-def find_entity_start_time(
-    entity_name: str,
+def filter_words_for_chunk(
     words: list[dict] | None,
     chunk_start: float,
     chunk_end: float,
+) -> list[dict]:
+    """Return words within ``[chunk_start, chunk_end)``."""
+    if not words:
+        return []
+    return [w for w in words if chunk_start <= w["start"] < chunk_end]
+
+
+def find_entity_start_time(
+    entity_name: str,
+    words: list[dict] | None,
+    chunk_start: float = 0.0,
+    chunk_end: float = float("inf"),
 ) -> float | None:
     """Find the timestamp where *entity_name* first appears in *words*.
 
     Tries a full consecutive-token match first, then falls back to matching
     just the first token of the entity name.
+
+    *words* may be the full episode word list (filtered internally) or a
+    pre-filtered chunk slice. Pass ``chunk_start=0, chunk_end=inf`` to skip
+    filtering when words are already scoped to a chunk.
 
     Returns the ``start`` value of the first matching word, or ``None``.
     """
