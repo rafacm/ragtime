@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Planned Step 9 (Resolve Entities): LLM-based entity resolution against existing database records using fuzzy matching, canonical Entity model with cross-language support, and idempotent reprocessing via EntityMention linking.
 
 ## Conversation
 
