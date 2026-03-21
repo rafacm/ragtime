@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Fixed the summarization step to generate summaries in the episode's language instead of defaulting to English. Updated the summarizer prompt to use the episode's language field and adjusted tests accordingly.
 
 ## Conversation
 
