@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Bootstrapped the Django project and implemented Step 1 (Submit Episode): created the Episode model with URL and status fields, configured Django admin, set up Django Q2 for async tasks, and added the initial migration and tests.
 
 ## Conversation
 
