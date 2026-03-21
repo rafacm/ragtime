@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Updated the session transcript guidelines in AGENTS.md to clarify that transcripts should cover all sessions for a feature (planning + implementation), include session IDs, and capture the assistant's reasoning steps. Created documentation and opened a PR.
 
 ## Conversation
 
