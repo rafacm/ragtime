@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Planned the rename of `RAGTIME_LLM_*` environment variables to `RAGTIME_SCRAPING_*` and `get_llm_provider()` to `get_scraping_provider()`, aligning the scraping provider with the `RAGTIME_<PURPOSE>_*` naming convention.
 
 ## Conversation
 
