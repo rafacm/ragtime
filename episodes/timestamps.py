@@ -39,7 +39,7 @@ def find_entity_start_time(
         return None
 
     # Filter words to chunk time range
-    filtered = [w for w in words if chunk_start <= w["start"] < chunk_end]
+    filtered = filter_words_for_chunk(words, chunk_start, chunk_end)
     if not filtered:
         return None
 
