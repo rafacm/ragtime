@@ -1,3 +1,4 @@
+import copy
 import logging
 
 from .languages import ISO_639_LANGUAGE_NAMES, ISO_639_RE
@@ -5,7 +6,7 @@ from .models import Chunk, EntityType, Episode
 from .observability import observe_step
 from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_extraction_provider
-from .timestamps import find_entity_start_time
+from .timestamps import filter_words_for_chunk, find_entity_start_time
 
 logger = logging.getLogger(__name__)
 
@@ -82,15 +83,18 @@ def build_response_schema() -> dict:
     }
 
 
-def _annotate_timestamps(entities_json, words, chunk_start, chunk_end):
-    """Add ``start_time`` to each entity dict in *entities_json*, in-place."""
+def _annotate_timestamps(entities_json, chunk_words, chunk_start):
+    """Add ``start_time`` to each entity dict in *entities_json*, in-place.
+
+    *chunk_words* should be pre-filtered to the chunk's time range.
+    """
     for _type_key, entities in entities_json.items():
         if entities is None:
             continue
         for entity in entities:
-            if words:
+            if chunk_words:
                 entity["start_time"] = find_entity_start_time(
-                    entity["name"], words, chunk_start, chunk_end,
+                    entity["name"], chunk_words,
                 )
             else:
                 entity["start_time"] = chunk_start
@@ -129,12 +133,13 @@ def extract_entities(episode_id: int) -> None:
         words = (episode.transcript_json or {}).get("words", [])
 
         for chunk in chunks:
-            entities = provider.structured_extract(
+            entities = copy.deepcopy(provider.structured_extract(
                 system_prompt=system_prompt,
                 user_content=chunk.text,
                 response_schema=schema,
-            )
-            _annotate_timestamps(entities, words, chunk.start_time, chunk.end_time)
+            ))
+            chunk_words = filter_words_for_chunk(words, chunk.start_time, chunk.end_time)
+            _annotate_timestamps(entities, chunk_words, chunk.start_time)
             chunk.entities_json = entities
 
         Chunk.objects.bulk_update(chunks, ["entities_json"])
