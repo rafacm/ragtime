@@ -1,7 +1,7 @@
 # Session: Chunk-level Entity Extraction — Planning
 
-**Session ID:** d8df4186-a362-415c-9d05-bc068bbd5fd0
 **Date:** 2026-03-15
+**Session ID:** d8df4186-a362-415c-9d05-bc068bbd5fd0
 
 ## Summary
 
@@ -9,28 +9,39 @@ Planned the transition from episode-level entity extraction to chunk-level extra
 
 ## Conversation
 
+### Assistant
+
+Already on `main`. Pulling latest changes.
+
+On `main`, already up to date. Ready to go.
+
 ### User
-Requested analysis of switching extraction and resolution from episode-level to chunk-level. Since chunking now runs before extraction, we should link entities back to where in the episode they were mentioned. Also noted a future requirement: showing users which resolved entities appear in a given episode.
+
+Let's focus on the "Extract" step. Yesterday we moved the chunking step before the Extract and Resolve steps. The current extraction and resolve logic operates at the episode transcript level and not at the chunk level. Since we will need to link the entities back to the place in the episode where they were mentioned we will need to change that logic to operate at the chunk level. Analyize the current implementation and provide pros and cons about switching to extraction and resolving at the chunk level. Please note that in the future we also want to be able to show users, for a given episodes which resolved entities are mentioned in that episode.
 
 ### Assistant
-Explored the current extraction (`episodes/extractor.py`) and resolution (`episodes/resolver.py`) implementation. Key findings:
 
-- Extraction runs on `episode.transcript` (full text), stores result in `episode.entities_json`
-- Resolution iterates `episode.entities_json`, creates `EntityMention` records linked only to episodes
-- `EntityMention` has unique constraint on `(entity, episode, context)` — no chunk linkage
-- Chunks have `text`, `start_time`, `end_time` fields — ideal for provenance
+Let me explore the current extraction and resolution implementation.
 
-Presented pros and cons comparison:
+Now let me read a few key files to confirm details before designing the plan.
 
-- **Episode-level pros:** Fewer LLM calls (1 per episode), full transcript context for disambiguation
-- **Chunk-level pros:** Entity provenance with timestamps, RAG alignment (entities and embeddings share the same unit), enables "entities per episode with position" queries
-- **Chunk-level cons:** More LLM calls (~40-60 per episode), less cross-chunk context for disambiguation
+Now let me design the approach with a Plan agent.
 
-Recommended approach: extract per-chunk (provenance is the point), then aggregate unique names and resolve once per entity type (same resolution cost as today). `EntityMention` records created per (entity, chunk) pair.
+Now let me write the plan file.
 
-Proposed model changes: `Chunk.entities_json` for raw extraction, `EntityMention.chunk` FK, constraint change from `(entity, episode, context)` to `(entity, chunk)`. Multi-step migration with data migration to delete existing mentions.
+Here's the summary of the analysis:
 
-Proposed handling "no entities in any chunk" as success (not failure), since it's a valid state.
+**Key tradeoff:** Chunk-level extraction costs ~40-60 LLM calls per episode (vs 1 today), but each call uses only ~150 words of input, so the cost increase is moderate. The payoff is entity-to-timestamp provenance and better RAG alignment.
+
+**Recommended hybrid approach:** Extract per-chunk (for provenance), but resolve once per entity type across the whole episode (same resolution cost as today). This gives chunk-level linking without multiplying resolution calls.
+
+**Main model changes:**
+- `Chunk.entities_json` — stores per-chunk extraction output
+- `EntityMention.chunk` FK — links each mention to its source chunk
+- Unique constraint shifts from `(entity, episode, context)` to `(entity, chunk)`
+
+**Context quality concern:** 150 words is usually enough for named entity extraction (names, places, albums are self-evident), though some entities that require broader context (e.g., an ambiguous pronoun reference) might be missed. This is a minor risk given the use case (jazz podcasts with explicit entity names).
 
 ### User
-Approved the plan.
+
+[Request interrupted by user for tool use]
