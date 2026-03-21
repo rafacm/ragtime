@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-03-21
+
+### Changed
+
+- Session transcript compliance — regenerate all 40 session transcripts with verbatim content from JSONL logs, fix metadata ordering (Date before Session ID), rename 15 files to `-planning-session.md`/`-implementation-session.md` convention, split 5 combined transcripts into separate planning+implementation files, update CHANGELOG references, tighten AGENTS.md format rules — [plan](doc/plans/2026-03-21-session-transcript-compliance.md), [feature](doc/features/2026-03-21-session-transcript-compliance.md), [planning session](doc/sessions/2026-03-21-session-transcript-compliance-planning-session.md), [implementation session](doc/sessions/2026-03-21-session-transcript-compliance-implementation-session.md)
+
 ## 2026-03-20
 
 ### Changed
@@ -63,7 +69,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - Step 8: Chunk Transcript — split Whisper transcript into overlapping chunks by segment boundaries, with own `chunking` status and reordered pipeline placement before extraction — [plan](doc/plans/2026-03-14-step-08-chunk.md), [feature](doc/features/2026-03-14-step-08-chunk.md)
-- Processing Status Tracking — per-step tracking with ProcessingRun/ProcessingStep models, retry from failure point, unified reprocess action with intermediate page — [plan](doc/plans/2026-03-14-processing-status-tracking.md), [feature](doc/features/2026-03-14-processing-status-tracking.md), [session](doc/sessions/2026-03-14-processing-status-tracking.md)
+- Processing Status Tracking — per-step tracking with ProcessingRun/ProcessingStep models, retry from failure point, unified reprocess action with intermediate page — [plan](doc/plans/2026-03-14-processing-status-tracking.md), [feature](doc/features/2026-03-14-processing-status-tracking.md), [planning session](doc/sessions/2026-03-14-processing-status-tracking-planning-session.md), [implementation session](doc/sessions/2026-03-14-processing-status-tracking-implementation-session.md)
 - Episode Duration — extract MP3 duration via mutagen after download, display as HH:MM:SS in admin, reorder list columns to lead with Title — [plan](doc/plans/2026-03-14-episode-duration.md), [feature](doc/features/2026-03-14-episode-duration.md), [planning session](doc/sessions/2026-03-14-episode-duration-planning-session.md), [implementation session](doc/sessions/2026-03-14-episode-duration-implementation-session.md)
 
 ### Changed
@@ -80,38 +86,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- Step 9: Resolve Entities — LLM-based entity resolution against existing DB records with fuzzy matching, canonical naming, and cross-language support — [plan](doc/plans/2026-03-13-step-09-resolve-entities.md), [feature](doc/features/2026-03-13-step-09-resolve-entities.md), [session](doc/sessions/2026-03-13-step-09-resolve-entities.md)
-- `manage.py configure` — Interactive setup wizard for RAGTIME_* environment variables with shared credentials, secret masking, and `--show` flag — [plan](doc/plans/2026-03-13-manage-py-configure.md), [feature](doc/features/2026-03-13-manage-py-configure.md), [session](doc/sessions/2026-03-13-manage-py-configure.md)
-- Step 8: Extract Entities — LLM-based entity extraction (artists, albums, venues, etc.) with independently configurable provider — [plan](doc/plans/2026-03-13-step-08-extract-entities.md), [feature](doc/features/2026-03-13-step-08-extract-entities.md), [session](doc/sessions/2026-03-13-step-08-extract-entities.md)
+- Step 9: Resolve Entities — LLM-based entity resolution against existing DB records with fuzzy matching, canonical naming, and cross-language support — [plan](doc/plans/2026-03-13-step-09-resolve-entities.md), [feature](doc/features/2026-03-13-step-09-resolve-entities.md), [planning session](doc/sessions/2026-03-13-step-09-resolve-entities-planning-session.md), [implementation session](doc/sessions/2026-03-13-step-09-resolve-entities-implementation-session.md)
+- `manage.py configure` — Interactive setup wizard for RAGTIME_* environment variables with shared credentials, secret masking, and `--show` flag — [plan](doc/plans/2026-03-13-manage-py-configure.md), [feature](doc/features/2026-03-13-manage-py-configure.md), [planning session](doc/sessions/2026-03-13-manage-py-configure-planning-session.md), [implementation session](doc/sessions/2026-03-13-manage-py-configure-implementation-session.md)
+- Step 8: Extract Entities — LLM-based entity extraction (artists, albums, venues, etc.) with independently configurable provider — [plan](doc/plans/2026-03-13-step-08-extract-entities.md), [feature](doc/features/2026-03-13-step-08-extract-entities.md), [implementation session](doc/sessions/2026-03-13-step-08-extract-entities-implementation-session.md)
 
 ### Changed
 
-- Rename RAGTIME_LLM_* → RAGTIME_SCRAPING_* — align scraping provider naming with RAGTIME_\<PURPOSE\>_* convention — [plan](doc/plans/2026-03-13-refactor-rename-scraping-provider.md), [feature](doc/features/2026-03-13-refactor-rename-scraping-provider.md), [session](doc/sessions/2026-03-13-rename-scraping-provider.md)
-- Multi-session transcript format — session IDs, reasoning steps, multi-session coverage — [feature](doc/features/2026-03-13-session-transcript-format.md), [session](doc/sessions/2026-03-13-session-transcript-format.md)
-- Split episode tests into a test package — 9 focused modules under `episodes/tests/`, one per component — [session](doc/sessions/2026-03-13-refactor-episode-tests.md)
+- Rename RAGTIME_LLM_* → RAGTIME_SCRAPING_* — align scraping provider naming with RAGTIME_\<PURPOSE\>_* convention — [plan](doc/plans/2026-03-13-refactor-rename-scraping-provider.md), [feature](doc/features/2026-03-13-refactor-rename-scraping-provider.md), [planning session](doc/sessions/2026-03-13-rename-scraping-provider-planning-session.md), [implementation session](doc/sessions/2026-03-13-rename-scraping-provider-implementation-session.md)
+- Multi-session transcript format — session IDs, reasoning steps, multi-session coverage — [feature](doc/features/2026-03-13-session-transcript-format.md), [implementation session](doc/sessions/2026-03-13-session-transcript-format-implementation-session.md)
+- Split episode tests into a test package — 9 focused modules under `episodes/tests/`, one per component — [implementation session](doc/sessions/2026-03-13-refactor-episode-tests-implementation-session.md)
 
 ## 2026-03-11
 
 ### Added
 
-- Step 7: Summarize — LLM-generated episode summaries with independently configurable summarization provider — [plan](doc/plans/2026-03-11-step-07-summarize.md), [feature](doc/features/2026-03-11-step-07-summarize.md), [session](doc/sessions/2026-03-11-step-07-summarize.md)
-- Step 6: Transcribe — Whisper API transcription with segment and word timestamps, pluggable provider abstraction — [plan](doc/plans/2026-03-11-step-06-transcribe.md), [feature](doc/features/2026-03-11-step-06-transcribe.md), [session](doc/sessions/2026-03-11-step-06-transcribe.md)
+- Step 7: Summarize — LLM-generated episode summaries with independently configurable summarization provider — [plan](doc/plans/2026-03-11-step-07-summarize.md), [feature](doc/features/2026-03-11-step-07-summarize.md), [implementation session](doc/sessions/2026-03-11-step-07-summarize-implementation-session.md)
+- Step 6: Transcribe — Whisper API transcription with segment and word timestamps, pluggable provider abstraction — [plan](doc/plans/2026-03-11-step-06-transcribe.md), [feature](doc/features/2026-03-11-step-06-transcribe.md), [implementation session](doc/sessions/2026-03-11-step-06-transcribe-implementation-session.md)
 
 ### Fixed
 
-- Summarization respects episode language — summaries generated in the episode's language instead of defaulting to English — [feature](doc/features/2026-03-11-fix-summarization-language.md), [session](doc/sessions/2026-03-11-fix-summarization-language.md)
+- Summarization respects episode language — summaries generated in the episode's language instead of defaulting to English — [feature](doc/features/2026-03-11-fix-summarization-language.md), [implementation session](doc/sessions/2026-03-11-fix-summarization-language-implementation-session.md)
 
 ## 2026-03-10
 
 ### Added
 
-- CI: GitHub Actions — Automated test suite on PRs and pushes to main, README badges for build status, Python, Django, license — [feature](doc/features/2026-03-10-ci-github-actions.md), [session](doc/sessions/2026-03-10-ci-github-actions.md)
+- CI: GitHub Actions — Automated test suite on PRs and pushes to main, README badges for build status, Python, Django, license — [feature](doc/features/2026-03-10-ci-github-actions.md), [implementation session](doc/sessions/2026-03-10-ci-github-actions-implementation-session.md)
 
 ## 2026-03-09
 
 ### Added
 
-- Steps 4 & 5: Download & Resize — Audio download with streaming, ffmpeg downsampling for Whisper API limit, error tracking — [plan](doc/plans/2026-03-09-step-04-05-download-resize.md), [feature](doc/features/2026-03-09-step-04-05-download-resize.md), [session](doc/sessions/2026-03-09-step-04-05-download-resize.md)
-- Step 3: Scrape — LLM-based metadata extraction with Django Q2 async tasks, provider abstraction, and needs_review workflow — [plan](doc/plans/2026-03-09-step-03-scrape.md), [feature](doc/features/2026-03-09-step-03-scrape.md), [session](doc/sessions/2026-03-09-step-03-scrape.md)
-- Step 2: Dedup — Duplicate episode detection via unique URL constraint at database level — [plan](doc/plans/2026-03-09-step-02-dedup.md), [feature](doc/features/2026-03-09-step-02-dedup.md), [session](doc/sessions/2026-03-09-step-02-dedup.md)
-- Step 1: Submit Episode — Django project bootstrap, Episode model with status tracking, admin interface — [plan](doc/plans/2026-03-09-step-01-submit-episode.md), [feature](doc/features/2026-03-09-step-01-submit-episode.md), [session](doc/sessions/2026-03-09-step-01-submit-episode.md)
+- Steps 4 & 5: Download & Resize — Audio download with streaming, ffmpeg downsampling for Whisper API limit, error tracking — [plan](doc/plans/2026-03-09-step-04-05-download-resize.md), [feature](doc/features/2026-03-09-step-04-05-download-resize.md), [implementation session](doc/sessions/2026-03-09-step-04-05-download-resize-implementation-session.md)
+- Step 3: Scrape — LLM-based metadata extraction with Django Q2 async tasks, provider abstraction, and needs_review workflow — [plan](doc/plans/2026-03-09-step-03-scrape.md), [feature](doc/features/2026-03-09-step-03-scrape.md), [implementation session](doc/sessions/2026-03-09-step-03-scrape-implementation-session.md)
+- Step 2: Dedup — Duplicate episode detection via unique URL constraint at database level — [plan](doc/plans/2026-03-09-step-02-dedup.md), [feature](doc/features/2026-03-09-step-02-dedup.md), [implementation session](doc/sessions/2026-03-09-step-02-dedup-implementation-session.md)
+- Step 1: Submit Episode — Django project bootstrap, Episode model with status tracking, admin interface — [plan](doc/plans/2026-03-09-step-01-submit-episode.md), [feature](doc/features/2026-03-09-step-01-submit-episode.md), [implementation session](doc/sessions/2026-03-09-step-01-submit-episode-implementation-session.md)
