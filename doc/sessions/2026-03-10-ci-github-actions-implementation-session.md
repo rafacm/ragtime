@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Implemented a GitHub Actions CI workflow to run the Django test suite on every PR and push to main. Added README badges for build status, Python version, Django version, and license.
 
 ## Conversation
 
