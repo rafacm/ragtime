@@ -195,6 +195,12 @@ if _wikidata_cache_backend == 'db':
         'TIMEOUT': RAGTIME_WIKIDATA_CACHE_TTL,
     }
 else:
+    if _wikidata_cache_backend != 'filebased':
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "Unknown RAGTIME_WIKIDATA_CACHE_BACKEND '%s', using 'filebased'",
+            _wikidata_cache_backend,
+        )
     _wikidata_cache = {
         'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
         'LOCATION': str(BASE_DIR / '.cache' / 'wikidata'),

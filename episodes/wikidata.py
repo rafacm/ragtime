@@ -26,19 +26,19 @@ class _TokenBucket:
         self._lock = threading.Lock()
 
     def acquire(self):
-        with self._lock:
-            now = time.monotonic()
-            self._tokens = min(
-                self._capacity,
-                self._tokens + (now - self._last) * self._rate,
-            )
-            self._last = now
-            if self._tokens < 1:
+        while True:
+            with self._lock:
+                now = time.monotonic()
+                self._tokens = min(
+                    self._capacity,
+                    self._tokens + (now - self._last) * self._rate,
+                )
+                if self._tokens >= 1:
+                    self._tokens -= 1
+                    self._last = now
+                    return
                 sleep_time = (1 - self._tokens) / self._rate
-                time.sleep(sleep_time)
-                self._tokens = 0
-            else:
-                self._tokens -= 1
+            time.sleep(sleep_time)
 
 
 _rate_limiter = _TokenBucket(rate=5, capacity=10)
