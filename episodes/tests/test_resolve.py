@@ -947,3 +947,92 @@ class ResolveEntitiesTests(TestCase):
         self.assertEqual(Entity.objects.count(), 1)
         # No wikidata_id since no candidates
         self.assertEqual(Entity.objects.first().wikidata_id, "")
+
+    @patch("episodes.resolver._fetch_wikidata_candidates", return_value={})
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_start_time_flows_to_mention(self, mock_factory, _mock_wd):
+        """start_time in entities_json flows through to EntityMention.start_time."""
+        from episodes.resolver import resolve_entities
+
+        mock_provider = MagicMock()
+        mock_factory.return_value = mock_provider
+
+        entities_json = {
+            "musician": [
+                {"name": "Miles Davis", "context": "trumpet", "start_time": 5.0},
+            ],
+        }
+
+        episode = self._create_episode(
+            url="https://example.com/ep/res-ts1",
+            status=Episode.Status.RESOLVING,
+        )
+        self._create_chunk(episode, index=0, entities_json=entities_json)
+
+        with patch("episodes.signals.async_task"):
+            resolve_entities(episode.pk)
+
+        mention = EntityMention.objects.get(episode=episode)
+        self.assertEqual(mention.start_time, 5.0)
+
+    @patch("episodes.resolver._fetch_wikidata_candidates", return_value={})
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_missing_start_time_is_none(self, mock_factory, _mock_wd):
+        """entities_json without start_time key results in None on EntityMention."""
+        from episodes.resolver import resolve_entities
+
+        mock_provider = MagicMock()
+        mock_factory.return_value = mock_provider
+
+        entities_json = {
+            "musician": [
+                {"name": "Miles Davis", "context": "trumpet"},
+            ],
+        }
+
+        episode = self._create_episode(
+            url="https://example.com/ep/res-ts2",
+            status=Episode.Status.RESOLVING,
+        )
+        self._create_chunk(episode, index=0, entities_json=entities_json)
+
+        with patch("episodes.signals.async_task"):
+            resolve_entities(episode.pk)
+
+        mention = EntityMention.objects.get(episode=episode)
+        self.assertIsNone(mention.start_time)
+
+    @patch("episodes.resolver._fetch_wikidata_candidates", return_value={})
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_start_time_per_chunk(self, mock_factory, _mock_wd):
+        """Same entity in multiple chunks gets different start_time per mention."""
+        from episodes.resolver import resolve_entities
+
+        mock_provider = MagicMock()
+        mock_factory.return_value = mock_provider
+
+        entities_chunk1 = {
+            "musician": [
+                {"name": "Miles Davis", "context": "early", "start_time": 5.0},
+            ],
+        }
+        entities_chunk2 = {
+            "musician": [
+                {"name": "Miles Davis", "context": "later", "start_time": 35.0},
+            ],
+        }
+
+        episode = self._create_episode(
+            url="https://example.com/ep/res-ts3",
+            status=Episode.Status.RESOLVING,
+        )
+        self._create_chunk(episode, index=0, entities_json=entities_chunk1)
+        self._create_chunk(episode, index=1, entities_json=entities_chunk2)
+
+        with patch("episodes.signals.async_task"):
+            resolve_entities(episode.pk)
+
+        mentions = EntityMention.objects.filter(episode=episode).order_by("chunk__index")
+        self.assertEqual(mentions.count(), 2)
+        self.assertEqual(mentions[0].start_time, 5.0)
+        self.assertEqual(mentions[1].start_time, 35.0)

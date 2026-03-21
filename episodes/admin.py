@@ -42,8 +42,8 @@ class ChunkInlineForEpisode(admin.TabularInline):
 class EntityMentionInlineForChunk(admin.TabularInline):
     model = EntityMention
     extra = 0
-    fields = ("entity", "context", "created_at")
-    readonly_fields = ("entity", "context", "created_at")
+    fields = ("entity", "context", "start_time", "created_at")
+    readonly_fields = ("entity", "context", "start_time", "created_at")
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -55,7 +55,7 @@ class EntityMentionInlineForChunk(admin.TabularInline):
 class EntityMentionInlineForEpisode(admin.TabularInline):
     model = EntityMention
     extra = 0
-    readonly_fields = ("entity", "chunk", "context", "created_at")
+    readonly_fields = ("entity", "chunk", "context", "start_time", "created_at")
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -67,7 +67,7 @@ class EntityMentionInlineForEpisode(admin.TabularInline):
 class EntityMentionInlineForEntity(admin.TabularInline):
     model = EntityMention
     extra = 0
-    readonly_fields = ("episode", "chunk", "context", "created_at")
+    readonly_fields = ("episode", "chunk", "context", "start_time", "created_at")
 
     def has_add_permission(self, request, obj=None):
         return False
@@ -560,10 +560,10 @@ class EntityAdmin(admin.ModelAdmin):
 
 @admin.register(EntityMention)
 class EntityMentionAdmin(admin.ModelAdmin):
-    list_display = ("entity", "episode_link", "chunk_link", "short_context", "created_at")
+    list_display = ("entity", "episode_link", "chunk_link", "short_context", "start_time", "created_at")
     list_filter = ("entity__entity_type__name",)
     search_fields = ("entity__name", "episode__title")
-    readonly_fields = ("entity", "episode", "chunk", "context", "created_at")
+    readonly_fields = ("entity", "episode", "chunk", "context", "start_time", "created_at")
 
     @admin.display(description="Episode", ordering="episode__title")
     def episode_link(self, obj):

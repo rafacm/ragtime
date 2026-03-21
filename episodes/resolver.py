@@ -116,7 +116,7 @@ def _build_system_prompt(entity_type_name, existing_entities, wikidata_candidate
 
 
 def _aggregate_entities_from_chunks(chunks):
-    """Aggregate entities across chunks into {type_key: {name: [(chunk, context), ...]}}.
+    """Aggregate entities across chunks into {type_key: {name: [(chunk, context, start_time), ...]}}.
 
     De-duplicates by (name, chunk) — keeps the first context seen per chunk.
     """
@@ -134,7 +134,8 @@ def _aggregate_entities_from_chunks(chunks):
                     continue
                 seen_chunks.add((name, chunk.pk))
                 context = entity.get("context") or ""
-                aggregated[type_key][name].append((chunk, context))
+                start_time = entity.get("start_time")
+                aggregated[type_key][name].append((chunk, context, start_time))
     return aggregated
 
 
@@ -146,7 +147,7 @@ def _collect_mentions(name, entity, names_dict, episode, seen):
     on (entity, chunk). ``seen`` tracks pairs already added across all names.
     """
     mentions = []
-    for chunk, context in names_dict.get(name, []):
+    for chunk, context, start_time in names_dict.get(name, []):
         key = (entity.pk, chunk.pk)
         if key in seen:
             continue
@@ -156,6 +157,7 @@ def _collect_mentions(name, entity, names_dict, episode, seen):
             episode=episode,
             chunk=chunk,
             context=context,
+            start_time=start_time,
         ))
     return mentions
 
