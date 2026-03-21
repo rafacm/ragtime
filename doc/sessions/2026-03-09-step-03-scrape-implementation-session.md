@@ -5,7 +5,7 @@
 
 ## Summary
 
-*(No summary available)*
+Planned and implemented Step 3 (Scrape): LLM-based metadata extraction from podcast episode pages using a pluggable provider abstraction, Django Q2 async task dispatching, and a needs_review workflow for incomplete metadata.
 
 ## Conversation
 
