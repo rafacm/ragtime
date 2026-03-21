@@ -5,6 +5,7 @@ from .models import Chunk, EntityType, Episode
 from .observability import observe_step
 from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_extraction_provider
+from .timestamps import find_entity_start_time
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,20 @@ def build_response_schema() -> dict:
     }
 
 
+def _annotate_timestamps(entities_json, words, chunk_start, chunk_end):
+    """Add ``start_time`` to each entity dict in *entities_json*, in-place."""
+    for _type_key, entities in entities_json.items():
+        if entities is None:
+            continue
+        for entity in entities:
+            if words:
+                entity["start_time"] = find_entity_start_time(
+                    entity["name"], words, chunk_start, chunk_end,
+                )
+            else:
+                entity["start_time"] = chunk_start
+
+
 @observe_step("extract_entities")
 def extract_entities(episode_id: int) -> None:
     try:
@@ -111,6 +126,7 @@ def extract_entities(episode_id: int) -> None:
         provider = get_extraction_provider()
         system_prompt = build_system_prompt(episode.language)
         schema = build_response_schema()
+        words = (episode.transcript_json or {}).get("words", [])
 
         for chunk in chunks:
             entities = provider.structured_extract(
@@ -118,6 +134,7 @@ def extract_entities(episode_id: int) -> None:
                 user_content=chunk.text,
                 response_schema=schema,
             )
+            _annotate_timestamps(entities, words, chunk.start_time, chunk.end_time)
             chunk.entities_json = entities
 
         Chunk.objects.bulk_update(chunks, ["entities_json"])

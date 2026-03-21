@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## 2026-03-21
 
+### Added
+
+- Entity mention timestamps — resolve word-level timestamps from Whisper transcripts during entity extraction so users can jump directly to where an entity is mentioned in a podcast episode. Adds `start_time` to EntityMention model, sliding window word matching with partial fallback, and 19 new tests — [plan](doc/plans/2026-03-21-entity-mention-timestamps.md), [feature](doc/features/2026-03-21-entity-mention-timestamps.md), [planning session](doc/sessions/2026-03-21-entity-mention-timestamps-planning-session.md), [implementation session](doc/sessions/2026-03-21-entity-mention-timestamps-implementation-session.md)
+
 ### Changed
 
 - Session transcript compliance — regenerate all 40 session transcripts with verbatim content from JSONL logs, fix metadata ordering (Date before Session ID), rename 15 files to `-planning-session.md`/`-implementation-session.md` convention, split 5 combined transcripts into separate planning+implementation files, update CHANGELOG references, tighten AGENTS.md format rules — [plan](doc/plans/2026-03-21-session-transcript-compliance.md), [feature](doc/features/2026-03-21-session-transcript-compliance.md), [planning session](doc/sessions/2026-03-21-session-transcript-compliance-planning-session.md), [implementation session](doc/sessions/2026-03-21-session-transcript-compliance-implementation-session.md)

@@ -131,6 +131,7 @@ class EntityMention(models.Model):
         "Chunk", on_delete=models.CASCADE, related_name="entity_mentions"
     )
     context = models.TextField()
+    start_time = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

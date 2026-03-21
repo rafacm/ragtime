@@ -277,3 +277,117 @@ class ExtractEntitiesTests(TestCase):
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
         self.assertIn("API error", episode.error_message)
+
+    @patch("episodes.extractor.get_extraction_provider")
+    def test_timestamps_annotated_with_words(self, mock_factory):
+        """When transcript has word-level timestamps, entities get start_time."""
+        from episodes.extractor import extract_entities
+
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = {
+            "musician": [
+                {"name": "Miles Davis", "context": "trumpet player"},
+            ],
+            "album": None,
+        }
+        mock_factory.return_value = mock_provider
+
+        transcript_json = {
+            "text": "Miles Davis played trumpet.",
+            "segments": [{"id": 0, "start": 0.0, "end": 5.0, "text": "Miles Davis played trumpet."}],
+            "words": [
+                {"word": "Miles", "start": 0.0, "end": 0.3},
+                {"word": "Davis", "start": 0.3, "end": 0.6},
+                {"word": "played", "start": 0.7, "end": 1.0},
+                {"word": "trumpet.", "start": 1.0, "end": 1.5},
+            ],
+        }
+
+        episode = self._create_episode(
+            url="https://example.com/ep/ext-ts1",
+            status=Episode.Status.EXTRACTING,
+            transcript="Miles Davis played trumpet.",
+            transcript_json=transcript_json,
+        )
+        self._create_chunks(episode, ["Miles Davis played trumpet."])
+
+        with patch("episodes.signals.async_task"):
+            extract_entities(episode.pk)
+
+        chunk = episode.chunks.first()
+        musician = chunk.entities_json["musician"][0]
+        self.assertEqual(musician["start_time"], 0.0)
+
+    @patch("episodes.extractor.get_extraction_provider")
+    def test_timestamps_fallback_no_words(self, mock_factory):
+        """When transcript lacks word-level timestamps, entities get chunk.start_time."""
+        from episodes.extractor import extract_entities
+
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = {
+            "musician": [
+                {"name": "Miles Davis", "context": "trumpet player"},
+            ],
+        }
+        mock_factory.return_value = mock_provider
+
+        transcript_json = {
+            "text": "Miles Davis played trumpet.",
+            "segments": [{"id": 0, "start": 0.0, "end": 5.0, "text": "Miles Davis played trumpet."}],
+        }
+
+        episode = self._create_episode(
+            url="https://example.com/ep/ext-ts2",
+            status=Episode.Status.EXTRACTING,
+            transcript="Miles Davis played trumpet.",
+            transcript_json=transcript_json,
+        )
+        self._create_chunks(episode, ["Miles Davis played trumpet."])
+
+        with patch("episodes.signals.async_task"):
+            extract_entities(episode.pk)
+
+        chunk = episode.chunks.first()
+        musician = chunk.entities_json["musician"][0]
+        self.assertEqual(musician["start_time"], chunk.start_time)
+
+    @patch("episodes.extractor.get_extraction_provider")
+    def test_timestamps_none_when_entity_not_in_words(self, mock_factory):
+        """When entity name not found in word array, start_time is None."""
+        from episodes.extractor import extract_entities
+
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = {
+            "music_genre": [
+                {"name": "Bebop", "context": "genre discussed"},
+            ],
+        }
+        mock_factory.return_value = mock_provider
+
+        transcript_json = {
+            "text": "The new style of fast jazz.",
+            "segments": [{"id": 0, "start": 0.0, "end": 5.0, "text": "The new style of fast jazz."}],
+            "words": [
+                {"word": "The", "start": 0.0, "end": 0.2},
+                {"word": "new", "start": 0.2, "end": 0.4},
+                {"word": "style", "start": 0.4, "end": 0.6},
+                {"word": "of", "start": 0.6, "end": 0.7},
+                {"word": "fast", "start": 0.7, "end": 0.9},
+                {"word": "jazz.", "start": 0.9, "end": 1.2},
+            ],
+        }
+
+        episode = self._create_episode(
+            url="https://example.com/ep/ext-ts3",
+            status=Episode.Status.EXTRACTING,
+            transcript="The new style of fast jazz.",
+            transcript_json=transcript_json,
+        )
+        self._create_chunks(episode, ["The new style of fast jazz."])
+
+        with patch("episodes.signals.async_task"):
+            extract_entities(episode.pk)
+
+        chunk = episode.chunks.first()
+        genre = chunk.entities_json["music_genre"][0]
+        self.assertIsNone(genre["start_time"])
