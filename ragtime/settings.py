@@ -205,6 +205,9 @@ else:
         'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
         'LOCATION': str(BASE_DIR / '.cache' / 'wikidata'),
         'TIMEOUT': RAGTIME_WIKIDATA_CACHE_TTL,
+        'OPTIONS': {
+            'MAX_ENTRIES': 5000,
+        },
     }
 
 # LLM Observability (Langfuse)
