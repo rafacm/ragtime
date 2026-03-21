@@ -94,26 +94,26 @@ Detailed documentation lives in the [`doc/`](doc/) directory:
 
 ### Installation
 
-```
+```bash
 git clone <repo-url>
 cd ragtime
 uv sync
+```
+
+Optional dependency groups:
+
+| Extra | Install command | Description |
+|-------|----------------|-------------|
+| `observability` | `uv sync --extra observability` | [LLM observability via Langfuse](doc/README.md#llm-observability-langfuse) |
+| `recovery` | `uv sync --extra recovery` | [Agent recovery with Pydantic AI + Playwright](doc/README.md#recovery) |
+
+```bash
 uv run python manage.py migrate
-
-# Create an admin user for the Django admin UI
-uv run python manage.py createsuperuser
-
-# Seed initial entity types
-uv run python manage.py load_entity_types
-
-# Interactive setup wizard for RAGTIME_* env vars
-uv run python manage.py configure
-
-# Start the web server
-uv run python manage.py runserver
-
-# Start the Django Q2 task worker (separate terminal)
-uv run python manage.py qcluster
+uv run python manage.py createsuperuser        # Create an admin user for the Django admin UI
+uv run python manage.py load_entity_types      # Seed initial entity types
+uv run python manage.py configure              # Interactive setup wizard for RAGTIME_* env vars
+uv run python manage.py runserver              # Start the web server
+uv run python manage.py qcluster              # Start the Django Q2 task worker (separate terminal)
 ```
 
 ### Configuration
