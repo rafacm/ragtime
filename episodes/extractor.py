@@ -83,10 +83,13 @@ def build_response_schema() -> dict:
     }
 
 
-def _annotate_timestamps(entities_json, chunk_words, chunk_start):
+def _annotate_timestamps(entities_json, chunk_words, chunk_start, has_words):
     """Add ``start_time`` to each entity dict in *entities_json*, in-place.
 
     *chunk_words* should be pre-filtered to the chunk's time range.
+    *has_words* indicates whether the episode has word-level timestamps at all.
+    When the episode has no word timestamps, falls back to ``chunk_start``.
+    When words exist but none fall in this chunk's range, sets ``None``.
     """
     for _type_key, entities in entities_json.items():
         if entities is None:
@@ -96,6 +99,8 @@ def _annotate_timestamps(entities_json, chunk_words, chunk_start):
                 entity["start_time"] = find_entity_start_time(
                     entity["name"], chunk_words,
                 )
+            elif has_words:
+                entity["start_time"] = None
             else:
                 entity["start_time"] = chunk_start
 
@@ -139,7 +144,7 @@ def extract_entities(episode_id: int) -> None:
                 response_schema=schema,
             ))
             chunk_words = filter_words_for_chunk(words, chunk.start_time, chunk.end_time)
-            _annotate_timestamps(entities, chunk_words, chunk.start_time)
+            _annotate_timestamps(entities, chunk_words, chunk.start_time, bool(words))
             chunk.entities_json = entities
 
         Chunk.objects.bulk_update(chunks, ["entities_json"])
