@@ -1,6 +1,7 @@
 # Session: Chunk-level Entity Extraction — Planning
 
 **Date:** 2026-03-15
+
 **Session ID:** d8df4186-a362-415c-9d05-bc068bbd5fd0
 
 ## Summary

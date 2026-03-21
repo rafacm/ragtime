@@ -1,6 +1,7 @@
 # Session: Langfuse Observability — Implementation
 
 **Date:** 2026-03-16
+
 **Session ID:** e4195dc3-3f40-451f-a8dc-03086f34458e
 
 ## Summary

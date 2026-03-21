@@ -84,7 +84,7 @@ Feature documentation lives in `doc/features/`, one Markdown file per feature or
 
 Save the implementation session transcript to `doc/sessions/`, with a `YYYY-MM-DD-` date prefix and a filename ending in `-implementation-session.md` (e.g., `2026-03-15-my-feature-implementation-session.md`). Same format as the planning session (session ID, summary, verbatim conversation with reasoning steps). The implementation transcript must include all interactions up to and including PR review feedback and any follow-up changes made after the PR is created.
 
-Every doc file must start with a `# Title` on the very first line. Metadata lines go immediately after the title, before any `## Section`: first `**Date:** YYYY-MM-DD` (all doc types), then `**Session ID:**` (session transcripts only). Never place metadata above the title.
+Every doc file must start with a `# Title` on the very first line. Metadata lines go immediately after the title, before any `## Section`: first `**Date:** YYYY-MM-DD` (all doc types), then `**Session ID:**` (session transcripts only). Never place metadata above the title. Separate each metadata line with a blank line so they render as distinct paragraphs in Markdown (e.g., a blank line between `**Date:**` and `**Session ID:**`).
 
 Keep prose concise. Prefer tables and lists over long paragraphs. Use code blocks for CLI commands and signal-flow diagrams.
 
