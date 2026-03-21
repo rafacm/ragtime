@@ -33,7 +33,7 @@ Use `uv` for everything — never `pip install` directly.
 
 **10-step pipeline** (steps defined in `episodes/models.py:PIPELINE_STEPS`, dispatched by `episodes/signals.py`): submit → scrape → download → transcribe → summarize → chunk → extract → resolve → embed → ready. Each step updates the episode status. Failures set status to `failed`. Runs async via Django Q2.
 
-> **Keep in sync:** When adding, removing, or changing a pipeline step, update the summary table in `README.md` and the detailed step descriptions in `doc/README.md`.
+> **Keep in sync:** When adding, removing, or changing a pipeline step, update the summary table in `README.md` and the detailed step descriptions in `doc/README.md`. If the change affects a diagram (e.g., Excalidraw files in `doc/`), flag it explicitly — diagrams cannot be auto-updated and may be out of sync after the change.
 
 **Entity resolution:** After extraction, entities (artists, bands, albums, venues, sessions, labels, years) are resolved against existing DB records using LLM-based fuzzy matching to prevent duplicates.
 
