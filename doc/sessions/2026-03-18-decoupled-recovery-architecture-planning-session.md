@@ -1,6 +1,7 @@
 # Session: Decoupled Recovery Architecture — Planning
 
 **Date:** 2026-03-18
+
 **Session ID:** d7842f79-ffa8-4b5c-aa5c-336122a4a70d
 
 ## Summary
