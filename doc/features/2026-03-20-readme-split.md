@@ -1,6 +1,6 @@
-**Date:** 2026-03-20
-
 # Feature: Split README into root overview + doc/README.md
+
+**Date:** 2026-03-20
 
 ## Problem
 

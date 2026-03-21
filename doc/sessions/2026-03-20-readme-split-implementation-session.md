@@ -1,7 +1,7 @@
+# README Split — Implementation Session
+
 **Session ID:** aa080a4f-3b10-4a71-baad-dd4170a334ac
 **Date:** 2026-03-20
-
-# README Split — Implementation Session
 
 ## Summary
 
