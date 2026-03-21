@@ -4,13 +4,13 @@
 
 ## Context
 
-An audit of all 40 files in `doc/sessions/` revealed widespread non-compliance with the AGENTS.md documentation guidelines. Issues fall into five categories: metadata ordering, Session ID format, filename conventions, conversation structure, and verbatim accuracy.
+An audit of all 40 original files in `doc/sessions/` revealed widespread non-compliance with the AGENTS.md documentation guidelines. Issues fall into five categories: metadata ordering, Session ID format, filename conventions, conversation structure, and verbatim accuracy. After splits, the final count is 45 transcript files.
 
 ## Issue Summary
 
-| Issue | Count |
+| Issue | Count (out of 40 original files) |
 |---|---|
-| Not verbatim (summarized/rephrased/paraphrased) | 26 of 40 |
+| Not verbatim (summarized/rephrased/paraphrased) | 26 |
 | SID before Date (should be Date→SID) | 28 |
 | Filename missing `-planning/implementation-session.md` | 14 |
 | SID under `##` heading or `## Sessions` list | 11 |
@@ -19,7 +19,7 @@ An audit of all 40 files in `doc/sessions/` revealed widespread non-compliance w
 
 ## Steps
 
-### 1. Regenerate all 40 session transcripts
+### 1. Regenerate all session transcripts (40 original → 45 after splits)
 
 Write a Python script that, for each session file:
 

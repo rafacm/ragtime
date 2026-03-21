@@ -4,10 +4,10 @@
 
 ## Problem
 
-An audit of all 40 session transcript files in `doc/sessions/` revealed widespread non-compliance with the AGENTS.md documentation guidelines:
+An audit of all 40 original session transcript files in `doc/sessions/` revealed widespread non-compliance with the AGENTS.md documentation guidelines (after splits, the final count is 45 files):
 
-- 26/40 files had rephrased, summarized, or paraphrased user messages instead of verbatim text
-- 28/40 files had Session ID before Date (should be Date first)
+- 26 files had rephrased, summarized, or paraphrased user messages instead of verbatim text
+- 28 files had Session ID before Date (should be Date first)
 - 14 files had filenames missing the `-planning-session.md` or `-implementation-session.md` suffix
 - 11 files had Session ID under a `## heading` or `## Sessions` list instead of inline `**Session ID:**`
 - 3 files were missing `## Summary` sections
@@ -40,7 +40,7 @@ Wrote a Python script that reads the Claude Code session JSONL logs, extracts us
 
 Pre-March-14 files that lacked the `-planning-session.md` / `-implementation-session.md` suffix were renamed. Single-session combined files became `-implementation-session.md`.
 
-### 3. Split 5 combined transcripts
+### 3. Split 4 combined transcripts
 
 Files that covered both planning and implementation in one document but had separate session UUIDs were split into two files:
 
@@ -50,7 +50,6 @@ Files that covered both planning and implementation in one document but had sepa
 | `rename-scraping-provider` | `75420318` | `3d8500b6` |
 | `step-09-resolve-entities` | `09ef4d53` | `5b6f037b` |
 | `processing-status-tracking` | `ebcf8a85` | `b64c02cc` |
-| `step-08-extract-entities` | `da971828` | *(single session, renamed only)* |
 
 ### 4. Fixed incorrect Session IDs
 
@@ -83,7 +82,8 @@ for f in sorted(os.listdir(SESSION_DIR)):
         lines = fh.read().split('\n')
     ok = lines[0].startswith('# ') and any(l.startswith('**Date:**') for l in lines[:10]) and any(l.startswith('**Session ID:**') for l in lines[:10])
     suffix_ok = f.endswith('-planning-session.md') or f.endswith('-implementation-session.md')
-    print(f'{'OK' if ok and suffix_ok else 'FAIL'}: {f}')
+    status = 'OK' if ok and suffix_ok else 'FAIL'
+    print(f'{status}: {f}')
 "
 ```
 
