@@ -172,15 +172,18 @@ class ExtractEntitiesTests(TestCase):
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.RESOLVING)
 
-        # Each chunk should have entities_json populated with start_time added
+        # Each chunk should have entities_json with original fields plus start_time
         for chunk in episode.chunks.all():
             for type_key, entities in chunk.entities_json.items():
+                sample = self.SAMPLE_ENTITIES[type_key]
                 if entities is None:
-                    self.assertIsNone(self.SAMPLE_ENTITIES[type_key])
+                    self.assertIsNone(sample)
                 else:
-                    for entity in entities:
+                    self.assertEqual(len(entities), len(sample))
+                    for entity, original in zip(entities, sample):
+                        self.assertEqual(entity["name"], original["name"])
+                        self.assertEqual(entity["context"], original["context"])
                         self.assertIn("start_time", entity)
-                        self.assertIn("name", entity)
 
     @patch("episodes.extractor.get_extraction_provider")
     def test_n_chunks_n_llm_calls(self, mock_factory):

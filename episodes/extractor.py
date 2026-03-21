@@ -135,7 +135,9 @@ def extract_entities(episode_id: int) -> None:
         provider = get_extraction_provider()
         system_prompt = build_system_prompt(episode.language)
         schema = build_response_schema()
-        words = (episode.transcript_json or {}).get("words", [])
+        transcript_json = episode.transcript_json or {}
+        words = transcript_json.get("words", [])
+        has_words = "words" in transcript_json
 
         for chunk in chunks:
             entities = copy.deepcopy(provider.structured_extract(
@@ -144,7 +146,7 @@ def extract_entities(episode_id: int) -> None:
                 response_schema=schema,
             ))
             chunk_words = filter_words_for_chunk(words, chunk.start_time, chunk.end_time)
-            _annotate_timestamps(entities, chunk_words, chunk.start_time, bool(words))
+            _annotate_timestamps(entities, chunk_words, chunk.start_time, has_words)
             chunk.entities_json = entities
 
         Chunk.objects.bulk_update(chunks, ["entities_json"])
