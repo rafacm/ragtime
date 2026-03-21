@@ -187,17 +187,18 @@ RAGTIME_WIKIDATA_DEBOUNCE_MS = int(os.getenv('RAGTIME_WIKIDATA_DEBOUNCE_MS', '30
 RAGTIME_WIKIDATA_MIN_CHARS = int(os.getenv('RAGTIME_WIKIDATA_MIN_CHARS', '3'))
 
 # Caches
-_wikidata_cache_backend = os.getenv('RAGTIME_WIKIDATA_CACHE_BACKEND', 'locmem')
+_wikidata_cache_backend = os.getenv('RAGTIME_WIKIDATA_CACHE_BACKEND', 'filebased')
 if _wikidata_cache_backend == 'db':
     _wikidata_cache = {
         'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
         'LOCATION': 'wikidata_cache',
-        'TIMEOUT': int(os.getenv('RAGTIME_WIKIDATA_CACHE_TTL', '604800')),
+        'TIMEOUT': RAGTIME_WIKIDATA_CACHE_TTL,
     }
 else:
     _wikidata_cache = {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'TIMEOUT': int(os.getenv('RAGTIME_WIKIDATA_CACHE_TTL', '604800')),
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': str(BASE_DIR / '.cache' / 'wikidata'),
+        'TIMEOUT': RAGTIME_WIKIDATA_CACHE_TTL,
     }
 
 # LLM Observability (Langfuse)

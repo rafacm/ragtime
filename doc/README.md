@@ -8,6 +8,7 @@
   - [Steps](#steps) (1–10)
   - [Recovery](#recovery)
 - [How Scott Works](#how-scott-works)
+- [Wikidata Cache](#wikidata-cache)
 - [LLM Observability (Langfuse)](#llm-observability-langfuse)
 - [Feature Documentation](#feature-documentation)
 
@@ -143,6 +144,23 @@ Scott is a strict RAG (Retrieval-Augmented Generation) agent:
 6. If no relevant content exists, Scott says so — no hallucinated answers
 
 Scott responds in the user's language, regardless of the source episode's language. Cross-language retrieval is handled by multilingual embeddings.
+
+## Wikidata Cache
+
+Wikidata API responses are cached to avoid repeated requests during entity resolution. Each unique entity name can trigger up to 11 API requests (1 search + up to 10 detail lookups), so caching is critical for performance and to avoid IP rate-limiting.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `RAGTIME_WIKIDATA_CACHE_BACKEND` | `filebased` | `filebased` (default, persistent) or `db` (requires `manage.py createcachetable`) |
+| `RAGTIME_WIKIDATA_CACHE_TTL` | `604800` | Cache TTL in seconds (7 days) |
+
+The file-based cache is stored in `.cache/wikidata/` (gitignored). To clear it:
+
+```bash
+rm -rf .cache/wikidata/
+```
+
+API requests are rate-limited via a token bucket (5 req/s sustained, bursts up to 10). Only cache misses count against the rate limit.
 
 ## LLM Observability (Langfuse)
 
