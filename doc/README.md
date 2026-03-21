@@ -160,7 +160,7 @@ The file-based cache is stored in `.cache/wikidata/` (gitignored). To clear it:
 rm -rf .cache/wikidata/
 ```
 
-API requests are rate-limited via a token bucket (5 req/s sustained, bursts up to 10). Only cache misses count against the rate limit.
+API requests are rate-limited per process via a token bucket (~5 req/s sustained, bursts up to 10). Only cache misses count against the rate limit.
 
 ## LLM Observability (Langfuse)
 

@@ -10,7 +10,32 @@ Planned switching the Wikidata API cache from in-memory (`locmem`) to file-based
 
 ### User
 
-Provided a detailed issue description for Wikidata cache persistence, including the problem (locmem loses cache on restart, ~650 requests per episode), current state of the code, and proposed changes (switch to filebased, add to .gitignore, update .env.sample and configure wizard, consider rate-limiting).
+Wikidata Cache Persistence
+
+Problem: The Wikidata cache defaults to locmem (in-memory), so all cached responses are lost on every Django restart. During entity resolution, each unique entity name triggers up to 11 Wikidata API requests (1 wbsearchentities + up to 10 get_entity calls for P31 verification). For an episode with ~60 entities, that's potentially ~650 requests. Without persistence, reprocessing an episode or restarting the server repeats all those requests, risking IP rate-limiting/blocking.
+
+Current state:
+- Cache backend configured in ragtime/settings.py:190-201 via RAGTIME_WIKIDATA_CACHE_BACKEND env var
+- Two options exist: locmem (default) and db (requires manage.py createcachetable)
+- TTL is 7 days (RAGTIME_WIKIDATA_CACHE_TTL=604800)
+- Cache key is SHA256 of sorted query params (episodes/wikidata.py:28-48)
+- find_candidates() in episodes/wikidata.py:128-158 is the hot path — called per unique entity name per entity type during resolution
+
+Proposed changes:
+1. Switch default cache backend from locmem to filebased (django.core.cache.backends.filebased.FileBasedCache) — no extra setup needed, survives restarts
+2. Add filebased as a third option in settings.py with a configurable LOCATION (e.g., .cache/wikidata/)
+3. Add .cache/ to .gitignore
+4. Update .env.sample and the configure wizard with the new option
+5. Consider adding request rate-limiting/backoff in _make_request() to be a good Wikidata API citizen
+
+Files involved:
+- ragtime/settings.py — add filebased backend option, change default
+- .env.sample — document new default
+- core/management/commands/_configure_helpers.py — update wizard
+- .gitignore — add .cache/
+- episodes/wikidata.py — optionally add rate-limiting
+
+Quick workaround (now): Set RAGTIME_WIKIDATA_CACHE_BACKEND=db in .env and run uv run python manage.py createcachetable.
 
 ### Assistant
 
@@ -28,7 +53,7 @@ Updated the plan to use a token bucket rate limiter instead of a simple sleep. T
 
 ### User
 
-The default cache approach should be this new one we are implementing now and not the memory-based one. What are the cons or tradoffs of removing that one?
+The default cache approach should be this new one we are implementing now and not the memory-based one. What are the cons or tradeoffs of removing that one?
 
 ### Assistant
 

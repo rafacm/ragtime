@@ -148,3 +148,23 @@ class WikidataClientTests(TestCase):
         results2 = search_entities("Miles Davis")
         self.assertEqual(mock_get.call_count, 1)  # No additional call
         self.assertEqual(results1, results2)
+
+    @patch("episodes.wikidata.httpx.get")
+    @patch("episodes.wikidata._rate_limiter")
+    def test_rate_limiter_called_on_cache_miss(self, mock_limiter, mock_get):
+        from episodes.wikidata import search_entities
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = self._mock_search_response([
+            {"qid": "Q93341", "label": "Miles Davis", "description": "trumpeter"},
+        ])
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        # First call: cache miss — rate limiter should be called
+        search_entities("Miles Davis")
+        mock_limiter.acquire.assert_called_once()
+
+        # Second call: cache hit — rate limiter should NOT be called again
+        search_entities("Miles Davis")
+        mock_limiter.acquire.assert_called_once()
