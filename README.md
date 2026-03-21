@@ -107,13 +107,15 @@ Optional dependency groups:
 | `observability` | `uv sync --extra observability` | [LLM observability via Langfuse](doc/README.md#llm-observability-langfuse) |
 | `recovery` | `uv sync --extra recovery` | [Agent recovery with Pydantic AI + Playwright](doc/README.md#recovery) |
 
+Set up the database, create an admin account, and start the services:
+
 ```bash
 uv run python manage.py migrate
-uv run python manage.py createsuperuser        # Create an admin user for the Django admin UI
-uv run python manage.py load_entity_types      # Seed initial entity types
-uv run python manage.py configure              # Interactive setup wizard for RAGTIME_* env vars
-uv run python manage.py runserver              # Start the web server
-uv run python manage.py qcluster              # Start the Django Q2 task worker (separate terminal)
+uv run python manage.py createsuperuser   # Create an admin user for the Django admin UI
+uv run python manage.py load_entity_types # Seed initial entity types
+uv run python manage.py configure         # Interactive setup wizard for RAGTIME_* env vars
+uv run python manage.py runserver         # Start the web server
+uv run python manage.py qcluster          # Start the Django Q2 task worker (separate terminal)
 ```
 
 ### Configuration
