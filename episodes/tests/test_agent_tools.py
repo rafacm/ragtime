@@ -199,10 +199,10 @@ class TranslateTextTests(unittest.IsolatedAsyncioTestCase):
         result = await translate_text(ctx, "Download")
         self.assertIn("language is unknown", result)
 
-    async def test_returns_error_for_unsupported_language(self):
-        ctx = _make_ctx(_make_deps(language="xx"))
+    async def test_returns_error_for_invalid_language_code(self):
+        ctx = _make_ctx(_make_deps(language="xyz"))
         result = await translate_text(ctx, "Download")
-        self.assertIn("unsupported language code", result)
+        self.assertIn("invalid language code", result)
 
     async def test_returns_text_unchanged_for_english(self):
         ctx = _make_ctx(_make_deps(language="en"))

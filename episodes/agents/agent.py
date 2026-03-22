@@ -49,7 +49,7 @@ LANGUAGE_SECTION = """
 Language: {language_name}
 The episode page is in {language_name}. UI labels like "Information",
 "More information", "Download", or similar words will appear in {language_name}.
-Use the translate_text tool to translate these labels if the page is not in English.
+Use the translate_text tool to translate these labels as needed.
 """
 
 
@@ -121,7 +121,7 @@ def _build_agent() -> Agent[RecoveryDeps, RecoveryAgentResult]:
 
 def _get_system_prompt(deps: RecoveryDeps) -> str:
     """Format the unified recovery system prompt."""
-    from ..languages import ISO_639_LANGUAGE_NAMES
+    from ..languages import ISO_639_LANGUAGE_NAMES, ISO_639_RE
 
     prompt = RECOVERY_SYSTEM_PROMPT.format(
         episode_url=deps.episode_url,
@@ -131,8 +131,8 @@ def _get_system_prompt(deps: RecoveryDeps) -> str:
         http_status=deps.http_status or "N/A",
     )
 
-    language_name = ISO_639_LANGUAGE_NAMES.get(deps.language, "")
-    if language_name:
+    if deps.language and ISO_639_RE.match(deps.language):
+        language_name = ISO_639_LANGUAGE_NAMES.get(deps.language, deps.language)
         prompt += LANGUAGE_SECTION.format(language_name=language_name)
 
     return prompt
