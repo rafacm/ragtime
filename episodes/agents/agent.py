@@ -16,43 +16,40 @@ from .deps import RecoveryAgentResult, RecoveryDeps
 
 logger = logging.getLogger(__name__)
 
-SCRAPING_SYSTEM_PROMPT = """\
+RECOVERY_SYSTEM_PROMPT = """\
 You are a recovery agent for the RAGtime podcast ingestion pipeline.
+A pipeline step failed while processing a podcast episode. Your job is to
+browse the episode page, find the audio file URL, and download it if needed.
 
-A scraping step failed — the system could not extract the audio URL from the
-podcast episode page. Your job is to browse the page, find the audio file URL,
-and return it.
+Context:
+- Episode URL: {episode_url}
+- Failed step: {step_name}
+- Error: {error_message}
+- Known audio URL: {audio_url}
+- HTTP status: {http_status}
+
+IMPORTANT: Take a screenshot after EVERY action you perform (navigation, click,
+download attempt, etc.). This is critical for debugging and observability.
 
 Strategy:
-1. Navigate to the episode page URL.
-2. Look for audio links using find_audio_links.
-3. If no links found, inspect the page content and try clicking play buttons
-   or expanding hidden players.
-4. Take screenshots for debugging when stuck.
-5. Return the audio URL if found, or explain why recovery failed.
-
-Episode URL: {episode_url}
-Error: {error_message}
+1. Navigate to the episode page URL first (this sets cookies and session state).
+2. If an audio URL is already known, navigate to it directly — the browser
+   cookies from step 1 often make the download work.
+3. If no audio URL is known, or the known URL fails, use find_audio_links to
+   locate audio URLs on the page.
+4. Audio downloads are sometimes hidden behind UI elements labeled
+   "Information", "More information", or "Download". Try clicking these
+   to reveal audio players or download links.
+5. If you find a working URL, use download_file to save it.
+6. Return the audio URL and/or downloaded file path if successful, or explain
+   why recovery failed.
 """
 
-DOWNLOADING_SYSTEM_PROMPT = """\
-You are a recovery agent for the RAGtime podcast ingestion pipeline.
-
-A download step failed — the system could not download the audio file.
-Your job is to find an alternative download URL or download the file through
-the browser.
-
-Strategy:
-1. Navigate to the episode page to find the audio URL.
-2. Try find_audio_links to locate alternative audio URLs.
-3. If you find a working URL, use download_file to save it.
-4. Take screenshots for debugging when stuck.
-5. Return the downloaded file path if successful, or explain why recovery failed.
-
-Episode URL: {episode_url}
-Audio URL that failed: {audio_url}
-Error: {error_message}
-HTTP status: {http_status}
+LANGUAGE_SECTION = """
+Language: {language_name}
+The episode page is in {language_name}. UI labels like "Information",
+"More information", or "Download" will appear in {language_name}. Use the
+translate_text tool to translate these labels if the page is not in English.
 """
 
 
@@ -117,23 +114,28 @@ def _build_agent() -> Agent[RecoveryDeps, RecoveryAgentResult]:
     agent.tool(tools.take_screenshot)
     agent.tool(tools.download_file)
     agent.tool(tools.extract_text_by_selector)
+    agent.tool(tools.translate_text)
 
     return agent
 
 
 def _get_system_prompt(deps: RecoveryDeps) -> str:
-    """Select and format the system prompt based on the failure step."""
-    if deps.step_name == "scraping":
-        return SCRAPING_SYSTEM_PROMPT.format(
-            episode_url=deps.episode_url,
-            error_message=deps.error_message,
-        )
-    return DOWNLOADING_SYSTEM_PROMPT.format(
+    """Format the unified recovery system prompt."""
+    from ..languages import ISO_639_LANGUAGE_NAMES
+
+    prompt = RECOVERY_SYSTEM_PROMPT.format(
         episode_url=deps.episode_url,
-        audio_url=deps.audio_url,
+        step_name=deps.step_name,
         error_message=deps.error_message,
+        audio_url=deps.audio_url or "N/A",
         http_status=deps.http_status or "N/A",
     )
+
+    language_name = ISO_639_LANGUAGE_NAMES.get(deps.language, "")
+    if language_name:
+        prompt += LANGUAGE_SECTION.format(language_name=language_name)
+
+    return prompt
 
 
 async def _run_agent_async(event: StepFailureEvent) -> RecoveryAgentResult:
@@ -149,6 +151,7 @@ async def _run_agent_async(event: StepFailureEvent) -> RecoveryAgentResult:
                 episode_id=event.episode_id,
                 episode_url=episode.url,
                 audio_url=episode.audio_url or "",
+                language=episode.language or "",
                 step_name=event.step_name,
                 error_message=event.error_message,
                 http_status=event.http_status,
