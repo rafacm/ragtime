@@ -48,8 +48,8 @@ Strategy:
 LANGUAGE_SECTION = """
 Language: {language_name}
 The episode page is in {language_name}. UI labels like "Information",
-"More information", or "Download" will appear in {language_name}. Use the
-translate_text tool to translate these labels if the page is not in English.
+"More information", "Download", or similar words will appear in {language_name}.
+Use the translate_text tool to translate these labels if the page is not in English.
 """
 
 
