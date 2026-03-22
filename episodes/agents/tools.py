@@ -203,22 +203,34 @@ async def translate_text(ctx: RunContext[RecoveryDeps], text: str) -> str:
     if language == "en":
         return text  # No translation needed
 
-    provider = get_translation_provider()
-    result = await asyncio.to_thread(
-        provider.structured_extract,
-        system_prompt=f"Translate the following text to {language_name}. Return only the translation.",
-        user_content=text,
-        response_schema={
-            "name": "translation",
-            "strict": True,
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "translated_text": {"type": "string"},
+    try:
+        provider = get_translation_provider()
+        result = await asyncio.to_thread(
+            provider.structured_extract,
+            system_prompt=f"Translate the following text to {language_name}.",
+            user_content=text,
+            response_schema={
+                "name": "translation",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "translated_text": {"type": "string"},
+                    },
+                    "required": ["translated_text"],
+                    "additionalProperties": False,
                 },
-                "required": ["translated_text"],
-                "additionalProperties": False,
             },
-        },
-    )
+        )
+    except Exception as exc:
+        logger.exception("Translation failed, returning original text: %s", exc)
+        return text
+
+    if not isinstance(result, dict):
+        logger.warning(
+            "Unexpected translation result type %s, returning original text.",
+            type(result),
+        )
+        return text
+
     return result.get("translated_text", text)
