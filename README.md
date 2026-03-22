@@ -28,6 +28,7 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 - 🔍 **Entity Extraction** — Identifies jazz entities: musicians, musical groups, albums, music venues, recording sessions, record labels, years. Entities are resolved against existing records using LLM-based matching.
 - 📇 **Episode Indexing** — Splits transcripts into segments and generates multilingual embeddings stored in ChromaDB. Enables cross-language semantic search so Scott can retrieve relevant content regardless of the question's language.
 - 🎷 **Scott — Your Jazz AI** — A conversational agent that answers questions strictly from ingested episode content. Scott responds in the user's language and provides references to specific episodes and timestamps. Responses stream in real-time.
+- 📊 **AI Evaluation** — Measures pipeline and Scott quality using [RAGAS](https://docs.ragas.io/) (faithfulness, answer relevancy, context precision/recall) with scores tracked in [Langfuse](https://langfuse.com/docs/scores/model-based-evals/ragas).
 
 ## Status
 
@@ -47,6 +48,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixe
 
 - **Embed step** (pipeline step 9): generate multilingual embeddings for transcript chunks and store them in [ChromaDB](https://www.trychroma.com/).
 - **Scott — the RAG chatbot** (pipeline step 10 + chat app): conversational agent that answers questions strictly from ingested content, with episode/timestamp references, multilingual support, and streaming responses.
+- **AI evaluation**: measure pipeline and Scott quality using [RAGAS](https://docs.ragas.io/) (faithfulness, answer relevancy, context precision/recall) with scores tracked in [Langfuse](https://langfuse.com/docs/scores/model-based-evals/ragas). Enables regression testing across prompt and model changes.
 
 ## Processing Pipeline
 
@@ -135,6 +137,7 @@ Alternatively, copy [`.env.sample`](.env.sample) to `.env` and fill in your valu
 - **Transcription**: Configurable — [Whisper API](https://platform.openai.com/docs/guides/speech-to-text) (default), local Whisper, etc.
 - **LLM**: Configurable — [Claude](https://www.anthropic.com/) (Anthropic), [GPT](https://openai.com/) (OpenAI), etc.
 - **Embeddings**: Configurable — must support multilingual models for cross-language retrieval
+- **AI Evaluation**: [RAGAS](https://docs.ragas.io/) + [Langfuse](https://langfuse.com/)
 - **Frontend**: [Django templates](https://docs.djangoproject.com/en/5.2/topics/templates/) + [HTMX](https://htmx.org/) + [Tailwind CSS](https://tailwindcss.com/)
 - **Package Manager**: [uv](https://docs.astral.sh/uv/)
 
