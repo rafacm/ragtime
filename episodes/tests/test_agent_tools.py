@@ -13,6 +13,7 @@ try:
         get_page_content,
         navigate_to_url,
         take_screenshot,
+        translate_text,
     )
 except ImportError:
     raise unittest.SkipTest("pydantic-ai/playwright not installed")
@@ -27,6 +28,7 @@ def _make_deps(**overrides):
         "episode_id": 1,
         "episode_url": "https://example.com/episode/1",
         "audio_url": "",
+        "language": "",
         "step_name": "scraping",
         "error_message": "403 Forbidden",
         "http_status": 403,
@@ -189,3 +191,36 @@ class ExtractTextBySelectorTests(unittest.IsolatedAsyncioTestCase):
 
         result = await extract_text_by_selector(ctx, "div.nonexistent")
         self.assertIn("No elements found", result)
+
+
+class TranslateTextTests(unittest.IsolatedAsyncioTestCase):
+    async def test_returns_error_when_language_unknown(self):
+        ctx = _make_ctx(_make_deps(language=""))
+        result = await translate_text(ctx, "Download")
+        self.assertIn("language is unknown", result)
+
+    async def test_returns_error_for_unsupported_language(self):
+        ctx = _make_ctx(_make_deps(language="xx"))
+        result = await translate_text(ctx, "Download")
+        self.assertIn("unsupported language code", result)
+
+    async def test_returns_text_unchanged_for_english(self):
+        ctx = _make_ctx(_make_deps(language="en"))
+        result = await translate_text(ctx, "Download")
+        self.assertEqual(result, "Download")
+
+    @patch("episodes.providers.factory.get_translation_provider")
+    async def test_translates_via_llm_provider(self, mock_factory):
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = {
+            "translated_text": "Herunterladen"
+        }
+        mock_factory.return_value = mock_provider
+
+        ctx = _make_ctx(_make_deps(language="de"))
+        result = await translate_text(ctx, "Download")
+
+        self.assertEqual(result, "Herunterladen")
+        mock_provider.structured_extract.assert_called_once()
+        call_kwargs = mock_provider.structured_extract.call_args
+        self.assertIn("German", call_kwargs.kwargs.get("system_prompt", call_kwargs.args[0] if call_kwargs.args else ""))

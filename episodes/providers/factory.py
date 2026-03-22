@@ -81,3 +81,19 @@ def get_resolution_provider() -> LLMProvider:
         return OpenAILLMProvider(api_key=api_key, model=model)
 
     raise ValueError(f"Unknown resolution provider: {provider_name}")
+
+
+def get_translation_provider() -> LLMProvider:
+    provider_name = settings.RAGTIME_TRANSLATION_PROVIDER
+    api_key = settings.RAGTIME_TRANSLATION_API_KEY
+    model = settings.RAGTIME_TRANSLATION_MODEL
+
+    if not api_key:
+        raise ValueError("RAGTIME_TRANSLATION_API_KEY is not set")
+
+    if provider_name == "openai":
+        from .openai import OpenAILLMProvider
+
+        return OpenAILLMProvider(api_key=api_key, model=model)
+
+    raise ValueError(f"Unknown translation provider: {provider_name}")

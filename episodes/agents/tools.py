@@ -1,5 +1,6 @@
 """Playwright browser tools for the recovery agent."""
 
+import asyncio
 import logging
 import os
 
@@ -184,3 +185,40 @@ async def extract_text_by_selector(
     if not texts:
         return f"No elements found matching: {selector}"
     return "\n---\n".join(texts[:20])
+
+
+async def translate_text(ctx: RunContext[RecoveryDeps], text: str) -> str:
+    """Translate *text* to the episode's language using the LLM provider."""
+    from ..languages import ISO_639_LANGUAGE_NAMES
+    from ..providers.factory import get_translation_provider
+
+    language = ctx.deps.language
+    if not language:
+        return "Cannot translate: episode language is unknown."
+
+    language_name = ISO_639_LANGUAGE_NAMES.get(language)
+    if not language_name:
+        return f"Cannot translate: unsupported language code '{language}'."
+
+    if language == "en":
+        return text  # No translation needed
+
+    provider = get_translation_provider()
+    result = await asyncio.to_thread(
+        provider.structured_extract,
+        system_prompt=f"Translate the following text to {language_name}. Return only the translation.",
+        user_content=text,
+        response_schema={
+            "name": "translation",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "translated_text": {"type": "string"},
+                },
+                "required": ["translated_text"],
+                "additionalProperties": False,
+            },
+        },
+    )
+    return result.get("translated_text", text)

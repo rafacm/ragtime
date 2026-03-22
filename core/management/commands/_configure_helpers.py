@@ -5,7 +5,7 @@ import getpass
 SYSTEMS = [
     {
         "name": "LLM",
-        "description": "Scraping, summarization, extraction, and resolution",
+        "description": "Scraping, summarization, extraction, resolution, and translation",
         "shareable": True,
         "subsystems": [
             {
@@ -38,6 +38,15 @@ SYSTEMS = [
             {
                 "prefix": "RAGTIME_RESOLUTION",
                 "label": "Resolution",
+                "fields": [
+                    ("PROVIDER", "openai", False),
+                    ("API_KEY", "", True),
+                    ("MODEL", "gpt-4.1-mini", False),
+                ],
+            },
+            {
+                "prefix": "RAGTIME_TRANSLATION",
+                "label": "Translation",
                 "fields": [
                     ("PROVIDER", "openai", False),
                     ("API_KEY", "", True),

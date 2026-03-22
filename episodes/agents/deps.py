@@ -13,6 +13,7 @@ class RecoveryDeps:
     episode_id: int
     episode_url: str
     audio_url: str
+    language: str
     step_name: str
     error_message: str
     http_status: int | None
