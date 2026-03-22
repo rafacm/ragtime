@@ -130,7 +130,12 @@ RAGTIME_RECOVERY_AGENT_MODEL=openai:gpt-4.1-mini
 
 The agent's LLM provider is fully independent from other subsystems — configure any [Pydantic AI model string](https://ai.pydantic.dev/models/) (e.g., `anthropic:claude-sonnet-4-20250514`). A maximum of 15 LLM requests per recovery attempt prevents runaway costs. Screenshots taken during recovery are attached to [Langfuse](https://langfuse.com) traces when observability is enabled.
 
-The `translate_text` tool uses a separate LLM provider (`RAGTIME_TRANSLATION_*`) to translate text to the episode's language. Configure it in `.env` or via the wizard — it is included in the shareable LLM provider group.
+The `translate_text` tool uses a separate LLM provider to translate UI labels to the episode's language. It is included in the shareable LLM provider group in the configuration wizard. To configure manually, set these variables in `.env`:
+```
+RAGTIME_TRANSLATION_PROVIDER=openai
+RAGTIME_TRANSLATION_API_KEY=sk-your-key
+RAGTIME_TRANSLATION_MODEL=gpt-4.1-mini
+```
 
 The chain order is configured in [`settings.py`](../ragtime/settings.py), and the maximum retry count (default: 5) is controlled by the `MAX_RECOVERY_ATTEMPTS` constant in [`episodes/recovery.py`](../episodes/recovery.py). The agent tools — `navigate_to_url`, `find_audio_links`, `click_element`, `download_file`, `translate_text`, and others — are defined in [`episodes/agents/tools.py`](../episodes/agents/tools.py).
 
