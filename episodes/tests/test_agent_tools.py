@@ -224,3 +224,23 @@ class TranslateTextTests(unittest.IsolatedAsyncioTestCase):
         mock_provider.structured_extract.assert_called_once()
         call_kwargs = mock_provider.structured_extract.call_args
         self.assertIn("German", call_kwargs.kwargs.get("system_prompt", call_kwargs.args[0] if call_kwargs.args else ""))
+
+    @patch("episodes.providers.factory.get_translation_provider")
+    async def test_returns_original_text_on_provider_error(self, mock_factory):
+        mock_factory.side_effect = ValueError("RAGTIME_TRANSLATION_API_KEY is not set")
+
+        ctx = _make_ctx(_make_deps(language="de"))
+        result = await translate_text(ctx, "Download")
+
+        self.assertEqual(result, "Download")
+
+    @patch("episodes.providers.factory.get_translation_provider")
+    async def test_returns_original_text_on_llm_error(self, mock_factory):
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.side_effect = Exception("API rate limit")
+        mock_factory.return_value = mock_provider
+
+        ctx = _make_ctx(_make_deps(language="de"))
+        result = await translate_text(ctx, "Download")
+
+        self.assertEqual(result, "Download")
