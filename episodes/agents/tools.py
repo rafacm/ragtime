@@ -189,16 +189,17 @@ async def extract_text_by_selector(
 
 async def translate_text(ctx: RunContext[RecoveryDeps], text: str) -> str:
     """Translate *text* to the episode's language using the LLM provider."""
-    from ..languages import ISO_639_LANGUAGE_NAMES
+    from ..languages import ISO_639_LANGUAGE_NAMES, ISO_639_RE
     from ..providers.factory import get_translation_provider
 
     language = ctx.deps.language
     if not language:
         return "Cannot translate: episode language is unknown."
 
-    language_name = ISO_639_LANGUAGE_NAMES.get(language)
-    if not language_name:
-        return f"Cannot translate: unsupported language code '{language}'."
+    if not ISO_639_RE.match(language):
+        return f"Cannot translate: invalid language code '{language}'."
+
+    language_name = ISO_639_LANGUAGE_NAMES.get(language, language)
 
     if language == "en":
         return text  # No translation needed
