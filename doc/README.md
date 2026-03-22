@@ -107,7 +107,7 @@ Episode fully processed and available for Scott to query.
 
 When any pipeline step fails, the [`step_failed` handler](../episodes/recovery.py) triggers the recovery layer, which walks a configurable strategy chain before giving up:
 
-1. **Agent (steps 2–3 only)** — a [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation navigates the podcast page, finds audio URLs behind JavaScript players or CloudFlare blocks, and downloads files through a real browser. On success it resumes the pipeline from the next step automatically. Only applies to scraping and downloading failures.
+1. **Agent (steps 2–3 only)** — a [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation navigates the podcast page, finds audio URLs behind JavaScript players or CloudFlare blocks, and downloads files through a real browser. The agent visits the episode page first to establish cookies and session state, then attempts the audio URL directly. When the episode language is known, the agent receives language context and can use a `translate_text` tool to translate UI labels (e.g. "Information", "Download") that may appear in the page's language. On success it resumes the pipeline from the next step automatically. Only applies to scraping and downloading failures. The agent takes a screenshot after every action for full observability.
 2. **Human escalation** — for all other failures, or when the agent fails or is disabled, the failure is marked `awaiting_human` for manual resolution in Django admin.
 
 The agent strategy is **off by default**. To enable it:
@@ -130,7 +130,9 @@ RAGTIME_RECOVERY_AGENT_MODEL=openai:gpt-4.1-mini
 
 The agent's LLM provider is fully independent from other subsystems — configure any [Pydantic AI model string](https://ai.pydantic.dev/models/) (e.g., `anthropic:claude-sonnet-4-20250514`). A maximum of 15 LLM requests per recovery attempt prevents runaway costs. Screenshots taken during recovery are attached to [Langfuse](https://langfuse.com) traces when observability is enabled.
 
-The chain order is configured in [`settings.py`](../ragtime/settings.py), and the maximum retry count (default: 5) is controlled by the `MAX_RECOVERY_ATTEMPTS` constant in [`episodes/recovery.py`](../episodes/recovery.py). The agent tools — `navigate_to_url`, `find_audio_links`, `click_element`, `download_file`, and others — are defined in [`episodes/agents/tools.py`](../episodes/agents/tools.py).
+The `translate_text` tool uses a separate LLM provider (`RAGTIME_TRANSLATION_*`) to translate text to the episode's language. Configure it in `.env` or via the wizard — it is included in the shareable LLM provider group.
+
+The chain order is configured in [`settings.py`](../ragtime/settings.py), and the maximum retry count (default: 5) is controlled by the `MAX_RECOVERY_ATTEMPTS` constant in [`episodes/recovery.py`](../episodes/recovery.py). The agent tools — `navigate_to_url`, `find_audio_links`, `click_element`, `download_file`, `translate_text`, and others — are defined in [`episodes/agents/tools.py`](../episodes/agents/tools.py).
 
 ## How Scott Works
 
