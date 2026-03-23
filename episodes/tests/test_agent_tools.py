@@ -150,8 +150,9 @@ class DownloadFileTests(unittest.IsolatedAsyncioTestCase):
         deps = _make_deps(download_dir="/tmp/test-dl")
         ctx = _make_ctx(deps)
 
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.ok = True
+        mock_response.headers = {"content-type": "audio/mpeg"}
         mock_response.body = AsyncMock(return_value=b"\x00" * 1024)
 
         mock_request_ctx = AsyncMock()
@@ -169,7 +170,7 @@ class DownloadFileTests(unittest.IsolatedAsyncioTestCase):
         deps = _make_deps(download_dir="/tmp/test-dl")
         ctx = _make_ctx(deps)
 
-        mock_response = AsyncMock()
+        mock_response = MagicMock()
         mock_response.ok = False
         mock_response.status = 403
 
@@ -181,6 +182,23 @@ class DownloadFileTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("403", result)
         self.assertIn("Download failed", result)
+
+    async def test_rejects_non_audio_content_type(self):
+        deps = _make_deps(download_dir="/tmp/test-dl")
+        ctx = _make_ctx(deps)
+
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.headers = {"content-type": "text/html; charset=utf-8"}
+
+        mock_request_ctx = AsyncMock()
+        mock_request_ctx.get = AsyncMock(return_value=mock_response)
+        ctx.deps.page.context.request = mock_request_ctx
+
+        result = await download_file(ctx, "https://cdn.example.com/ep1.mp3")
+
+        self.assertIn("Download rejected", result)
+        self.assertIn("text/html", result)
 
 
 class ExtractTextBySelectorTests(unittest.IsolatedAsyncioTestCase):

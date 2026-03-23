@@ -167,6 +167,12 @@ async def download_file(ctx: RunContext[RecoveryDeps], url: str) -> str:
         response = await page.context.request.get(url)
         if not response.ok:
             return f"Download failed for '{url}': HTTP {response.status}"
+        content_type = response.headers.get("content-type", "")
+        if content_type and not content_type.startswith("audio/"):
+            return (
+                f"Download rejected for '{url}': expected audio content but "
+                f"got '{content_type}'. This may be a login page or error page."
+            )
         body = await response.body()
         with open(dest_path, "wb") as f:
             f.write(body)
@@ -321,29 +327,25 @@ async def intercept_audio_requests(
     """
     page = ctx.deps.page
     audio_urls: list[str] = []
+    audio_found = asyncio.Event()
 
     audio_extensions = (".mp3", ".ogg", ".wav", ".aac", ".m4a", ".opus")
     audio_mimes = ("audio/", "application/ogg")
 
+    def _record(url: str):
+        audio_urls.append(url)
+        audio_found.set()
+
     def on_request(request):
         url = request.url
-        resource = request.resource_type
-        # Check resource type
-        if resource in ("media", "fetch", "xhr", "other"):
-            # Check by extension
-            path = url.split("?")[0].lower()
-            if any(path.endswith(ext) for ext in audio_extensions):
-                audio_urls.append(url)
-                return
-        # Also check any request with audio-like URL patterns
         path = url.split("?")[0].lower()
         if any(path.endswith(ext) for ext in audio_extensions):
-            audio_urls.append(url)
+            _record(url)
 
     def on_response(response):
         content_type = response.headers.get("content-type", "")
         if any(mime in content_type for mime in audio_mimes):
-            audio_urls.append(response.url)
+            _record(response.url)
 
     page.on("request", on_request)
     page.on("response", on_response)
@@ -357,8 +359,11 @@ async def intercept_audio_requests(
         else:
             await page.click(action_selector)
 
-        # Wait for network activity to settle
-        await asyncio.sleep(3)
+        # Wait for audio request or timeout after 5 seconds
+        try:
+            await asyncio.wait_for(audio_found.wait(), timeout=5)
+        except asyncio.TimeoutError:
+            pass
 
     except PlaywrightError as exc:
         return f"Action failed for '{action_selector}': {exc}"
