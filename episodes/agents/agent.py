@@ -223,9 +223,10 @@ async def _run_with_langfuse(agent, system_prompt, deps, event):
             token = attach(OTelContext())
 
             try:
+                ts = event.timestamp.strftime("%Y-%m-%d-%H-%M")
                 session_id = (
                     f"recovery-run-{event.processing_run_id}-episode-{event.episode_id}"
-                    f"-attempt-{event.attempt_number}"
+                    f"-attempt-{event.attempt_number}-{ts}"
                 )
                 user_id = f"episode-{event.episode_id}"
                 metadata = {
