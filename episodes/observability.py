@@ -113,7 +113,19 @@ def set_observation_input(*args, **kwargs):
     """
     if args:
         # Chat-style: positional (system_prompt, user_content)
-        system_prompt, user_content = args[0], args[1]
+        if len(args) != 2:
+            raise TypeError(
+                "set_observation_input() chat-style expects exactly 2 positional "
+                "arguments: system_prompt, user_content"
+            )
+        allowed_kwargs = {"response_schema"}
+        unexpected_kwargs = set(kwargs) - allowed_kwargs
+        if unexpected_kwargs:
+            raise TypeError(
+                "set_observation_input() chat-style does not accept keyword "
+                f"arguments: {', '.join(sorted(unexpected_kwargs))}"
+            )
+        system_prompt, user_content = args
         response_schema = kwargs.get("response_schema")
         update_kwargs = {
             "input": [

@@ -4,7 +4,12 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
 
-from episodes.observability import get_openai_client_class, is_enabled, observe_step
+from episodes.observability import (
+    get_openai_client_class,
+    is_enabled,
+    observe_step,
+    set_observation_input,
+)
 
 
 class IsEnabledTest(TestCase):
@@ -150,3 +155,53 @@ class ObserveStepTest(TestCase):
 
         self.assertEqual(result, "ok")
         self.assertEqual(called, [99])
+
+
+class SetObservationInputTest(TestCase):
+    """Tests for set_observation_input() calling conventions."""
+
+    def test_chat_style_requires_exactly_two_positional_args(self):
+        """Passing 1 or 3+ positional args raises TypeError."""
+        with self.assertRaises(TypeError):
+            set_observation_input("only_one")
+        with self.assertRaises(TypeError):
+            set_observation_input("one", "two", "three")
+
+    def test_chat_style_rejects_unexpected_kwargs(self):
+        """Chat-style only accepts response_schema as keyword arg."""
+        with self.assertRaises(TypeError):
+            set_observation_input("system", "user", bad_kwarg="nope")
+
+    @patch("episodes.observability._update_observation")
+    def test_chat_style_formats_messages(self, mock_update):
+        """Chat-style logs input as chat messages."""
+        set_observation_input("You are a bot", "Hello")
+        mock_update.assert_called_once_with(
+            input=[
+                {"role": "system", "content": "You are a bot"},
+                {"role": "user", "content": "Hello"},
+            ]
+        )
+
+    @patch("episodes.observability._update_observation")
+    def test_chat_style_with_response_schema(self, mock_update):
+        """Chat-style stores response_schema in metadata."""
+        schema = {"name": "test", "schema": {}}
+        set_observation_input("system", "user", response_schema=schema)
+        mock_update.assert_called_once_with(
+            input=[
+                {"role": "system", "content": "system"},
+                {"role": "user", "content": "user"},
+            ],
+            metadata={"response_schema": schema},
+        )
+
+    @patch("episodes.observability._update_observation")
+    def test_dict_style_logs_kwargs_as_dict(self, mock_update):
+        """Dict-style (keyword args only) logs input as a plain dict."""
+        set_observation_input(
+            audio_file="ep.mp3", model="whisper-1", language="en"
+        )
+        mock_update.assert_called_once_with(
+            input={"audio_file": "ep.mp3", "model": "whisper-1", "language": "en"}
+        )
