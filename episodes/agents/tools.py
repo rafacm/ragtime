@@ -88,7 +88,14 @@ async def find_audio_links(ctx: RunContext[RecoveryDeps]) -> str:
 
 
 async def click_element(ctx: RunContext[RecoveryDeps], selector: str) -> str:
-    """Click the element matching *selector* and return the resulting page state."""
+    """Click the element matching *selector* and return the resulting page state.
+
+    Use Playwright selector syntax. To match by text content use:
+      button:has-text("Download")    — button containing "Download"
+      a:has-text("Information")      — link containing "Information"
+      text="Exact text"              — exact text match
+    Do NOT use CSS :contains() — it is not supported.
+    """
     page = ctx.deps.page
     try:
         await page.click(selector)
