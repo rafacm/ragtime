@@ -58,6 +58,13 @@ Then use the translated labels in your selectors to find and click elements.
 Do NOT use the English words above directly — they will not match on the page.
 """
 
+ENGLISH_LANGUAGE_SECTION = """
+Language: English
+The episode page is in English. Audio downloads are sometimes hidden behind
+UI elements labeled "Information", "More information", or "Download".
+Use these labels directly in your selectors to find and click elements.
+"""
+
 
 def _build_model():
     """Build a Pydantic AI model from settings.
@@ -138,8 +145,11 @@ def _get_system_prompt(deps: RecoveryDeps) -> str:
     )
 
     if deps.language and ISO_639_RE.match(deps.language):
-        language_name = ISO_639_LANGUAGE_NAMES.get(deps.language, deps.language)
-        prompt += LANGUAGE_SECTION.format(language_name=language_name)
+        if deps.language == "en":
+            prompt += ENGLISH_LANGUAGE_SECTION
+        else:
+            language_name = ISO_639_LANGUAGE_NAMES.get(deps.language, deps.language)
+            prompt += LANGUAGE_SECTION.format(language_name=language_name)
 
     return prompt
 
