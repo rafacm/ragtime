@@ -1,4 +1,5 @@
 import logging
+import re
 from collections import defaultdict
 
 from django.db import transaction
@@ -9,6 +10,21 @@ from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_resolution_provider
 
 logger = logging.getLogger(__name__)
+
+_QID_RE = re.compile(r"Q\d+")
+
+
+def _sanitize_qid(value: str) -> str:
+    """Extract a Wikidata Q-ID from an LLM response.
+
+    Handles bare IDs ("Q93341"), full URLs ("https://www.wikidata.org/wiki/Q93341"),
+    and other noisy formats. Returns empty string if no valid Q-ID found.
+    """
+    if not value:
+        return ""
+    m = _QID_RE.search(value)
+    return m.group(0) if m else ""
+
 
 RESOLUTION_RESPONSE_SCHEMA = {
     "name": "resolution_result",
@@ -237,7 +253,7 @@ def resolve_entities(episode_id: int) -> None:
                         for match in result["matches"]:
                             extracted_name = match["extracted_name"]
                             handled_names.add(extracted_name)
-                            wikidata_id = match.get("wikidata_id") or ""
+                            wikidata_id = _sanitize_qid(match.get("wikidata_id") or "")
                             canonical_name = match.get("canonical_name") or extracted_name
 
                             entity, _created = Entity.objects.get_or_create(
@@ -312,7 +328,7 @@ def resolve_entities(episode_id: int) -> None:
                         matched_id = match["matched_entity_id"]
                         extracted_name = match["extracted_name"]
                         handled_names.add(extracted_name)
-                        wikidata_id = match.get("wikidata_id") or ""
+                        wikidata_id = _sanitize_qid(match.get("wikidata_id") or "")
 
                         if wikidata_id:
                             # Try to find existing entity by wikidata_id (O(1) dict lookup)
