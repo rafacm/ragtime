@@ -197,13 +197,23 @@ async def _run_agent_async(event: StepFailureEvent) -> RecoveryAgentResult:
             output = result.output
 
             # Move downloaded file out of the temp dir before it's cleaned up,
-            # so resume_pipeline() can still access it.
+            # so resume_pipeline() can still access it.  On failure, clear the
+            # path so resume logic falls back to the audio_url-only path.
             if output.downloaded_file and os.path.isfile(output.downloaded_file):
-                fd, stable_path = tempfile.mkstemp(suffix=".mp3", prefix="ragtime-recovered-")
-                os.close(fd)
-                os.unlink(stable_path)
-                shutil.move(output.downloaded_file, stable_path)
-                output.downloaded_file = stable_path
+                try:
+                    fd, stable_path = tempfile.mkstemp(suffix=".mp3", prefix="ragtime-recovered-")
+                    os.close(fd)
+                    os.unlink(stable_path)
+                    shutil.move(output.downloaded_file, stable_path)
+                    output.downloaded_file = stable_path
+                except OSError:
+                    logger.warning(
+                        "Failed to persist recovered file for episode %s, "
+                        "resume will fall back to audio_url",
+                        event.episode_id,
+                        exc_info=True,
+                    )
+                    output.downloaded_file = ""
 
             return output
 

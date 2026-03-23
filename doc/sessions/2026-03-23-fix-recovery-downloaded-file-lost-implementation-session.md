@@ -60,3 +60,19 @@ Addressed both comments:
 2. **Portable mkstemp (`agent.py`):** Added `os.unlink(stable_path)` after `os.close(fd)` so `shutil.move` targets a non-existent path, avoiding cross-platform rename-over-existing issues.
 
 All 3 agent resume tests pass.
+
+### User
+
+Review second round of PR comments and implement fixes.
+
+### Assistant
+
+Reviewed three new comments from Copilot:
+
+1. **Unhandled exception in temp-file persistence (`agent.py:206`):** The `shutil.move` / `os.unlink` block could raise and abort the entire recovery. Wrapped the file persistence block in try/except OSError, logging a warning and clearing `output.downloaded_file` to fall back to the audio_url-only resume path.
+
+2. **AGENTS.md change not mentioned in PR description:** The SQLite → PostgreSQL one-liner and diagram changes were not scoped in the PR description. Updated the PR description with an "Additional housekeeping" section listing all non-fix changes (diagrams, AGENTS.md, ToC fix, README extras note).
+
+3. **Diagram deletions not explained:** Recovery-related elements were moved to the new `ragtime-processing-pipeline-with-recovery` diagram (included in this PR), not deleted. Explained this in the PR description and replied to the comment.
+
+All 3 agent resume tests pass.
