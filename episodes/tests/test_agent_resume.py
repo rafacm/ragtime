@@ -71,6 +71,64 @@ class ResumePipelineScrapingTests(TestCase):
         self.assertEqual(steps["downloading"], ProcessingStep.Status.PENDING)
 
 
+    @patch("episodes.signals.async_task")
+    @patch("episodes.agents.resume.MP3")
+    def test_skips_download_when_file_already_downloaded(self, mock_mp3, _mock_task):
+        """When scraping recovery also downloaded the file, skip to transcribing."""
+        episode = Episode.objects.create(
+            url="https://example.com/pod/skip-dl",
+            status=Episode.Status.FAILED,
+        )
+
+        mock_mp3_instance = mock_mp3.return_value
+        mock_mp3_instance.info.length = 1800  # 30 min
+
+        tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+        try:
+            tmp.write(b"\x00" * 1024)
+            tmp.close()
+
+            event = _make_failure_event(
+                episode_id=episode.pk, step_name="scraping"
+            )
+            result = RecoveryAgentResult(
+                success=True,
+                audio_url="https://cdn.example.com/episode-skip.mp3",
+                downloaded_file=tmp.name,
+                message="Found audio URL and downloaded file",
+            )
+
+            resume_pipeline(event, result)
+
+            episode.refresh_from_db()
+            self.assertEqual(episode.audio_url, "https://cdn.example.com/episode-skip.mp3")
+            self.assertEqual(episode.status, Episode.Status.TRANSCRIBING)
+            self.assertTrue(episode.audio_file)
+            self.assertEqual(episode.duration, 1800)
+            self.assertEqual(episode.error_message, "")
+
+            # Temp file should be cleaned up
+            self.assertFalse(os.path.exists(tmp.name))
+
+            # Run should resume from transcribing, not downloading
+            run = ProcessingRun.objects.filter(
+                episode=episode
+            ).order_by("-started_at").first()
+            self.assertIsNotNone(run)
+            self.assertEqual(run.resumed_from_step, Episode.Status.TRANSCRIBING)
+
+            steps = {s.step_name: s.status for s in run.steps.all()}
+            self.assertEqual(steps["scraping"], ProcessingStep.Status.SKIPPED)
+            self.assertEqual(steps["downloading"], ProcessingStep.Status.SKIPPED)
+            self.assertEqual(steps["transcribing"], ProcessingStep.Status.PENDING)
+        finally:
+            if episode.audio_file:
+                try:
+                    os.unlink(episode.audio_file.path)
+                except OSError:
+                    pass
+
+
 class ResumePipelineDownloadingTests(TestCase):
     @patch("episodes.signals.async_task")
     @patch("episodes.agents.resume.MP3")

@@ -165,6 +165,7 @@ def _get_system_prompt(deps: RecoveryDeps) -> str:
 
 async def _run_agent_async(event: StepFailureEvent) -> RecoveryAgentResult:
     """Async implementation of agent recovery."""
+    import shutil
     import tempfile
 
     episode = await Episode.objects.aget(pk=event.episode_id)
@@ -193,7 +194,17 @@ async def _run_agent_async(event: StepFailureEvent) -> RecoveryAgentResult:
                 timeout=timeout,
             )
 
-            return result.output
+            output = result.output
+
+            # Move downloaded file out of the temp dir before it's cleaned up,
+            # so resume_pipeline() can still access it.
+            if output.downloaded_file and os.path.isfile(output.downloaded_file):
+                fd, stable_path = tempfile.mkstemp(suffix=".mp3", prefix="ragtime-recovered-")
+                os.close(fd)
+                shutil.move(output.downloaded_file, stable_path)
+                output.downloaded_file = stable_path
+
+            return output
 
 
 async def _run_with_langfuse(agent, system_prompt, deps, event):
