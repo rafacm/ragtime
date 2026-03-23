@@ -1,4 +1,5 @@
 import json
+import os
 
 from episodes.observability import (
     get_openai_client_class,
@@ -54,7 +55,7 @@ class OpenAITranscriptionProvider(TranscriptionProvider):
     @observe_provider
     def transcribe(self, audio_path: str, language: str | None = None) -> dict:
         set_observation_input(
-            audio_path=audio_path,
+            audio_file=os.path.basename(audio_path),
             model=self.model,
             language=language,
             response_format="verbose_json",
@@ -71,7 +72,20 @@ class OpenAITranscriptionProvider(TranscriptionProvider):
         try:
             response = self.client.audio.transcriptions.create(**kwargs)
             result = response.model_dump()
-            set_observation_output(result)
+            # Log a summary instead of the full verbose_json to avoid
+            # shipping large word/segment arrays to Langfuse.
+            summary = {
+                "text": result.get("text"),
+                "duration": result.get("duration"),
+                "language": result.get("language"),
+            }
+            words = result.get("words")
+            if isinstance(words, list):
+                summary["words_count"] = len(words)
+            segments = result.get("segments")
+            if isinstance(segments, list):
+                summary["segments_count"] = len(segments)
+            set_observation_output(summary)
             return result
         finally:
             kwargs["file"].close()
