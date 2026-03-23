@@ -167,12 +167,30 @@ async def download_file(ctx: RunContext[RecoveryDeps], url: str) -> str:
         response = await page.context.request.get(url)
         if not response.ok:
             return f"Download failed for '{url}': HTTP {response.status}"
-        content_type = response.headers.get("content-type", "")
-        if content_type and not content_type.startswith("audio/"):
-            return (
-                f"Download rejected for '{url}': expected audio content but "
-                f"got '{content_type}'. This may be a login page or error page."
-            )
+        raw_content_type = response.headers.get("content-type")
+        content_type = ""
+        if raw_content_type:
+            content_type = raw_content_type.split(";", 1)[0].strip().lower()
+        allowed_mp3_types = {"audio/mpeg", "audio/mp3"}
+        if content_type:
+            if content_type not in allowed_mp3_types:
+                if content_type.startswith("audio/"):
+                    return (
+                        f"Download rejected for '{url}': unsupported audio "
+                        f"Content-Type '{raw_content_type}'. Only MP3 audio "
+                        "('audio/mpeg' or 'audio/mp3') is supported."
+                    )
+                return (
+                    f"Download rejected for '{url}': expected MP3 audio content "
+                    f"but got '{raw_content_type}'. This may be a login page or error page."
+                )
+        else:
+            url_path = url.split("?", 1)[0].lower()
+            if not url_path.endswith(".mp3"):
+                return (
+                    f"Download rejected for '{url}': missing Content-Type header "
+                    "and URL does not look like an MP3 file. Only MP3 downloads are supported."
+                )
         body = await response.body()
         with open(dest_path, "wb") as f:
             f.write(body)

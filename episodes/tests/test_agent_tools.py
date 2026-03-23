@@ -200,6 +200,57 @@ class DownloadFileTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Download rejected", result)
         self.assertIn("text/html", result)
 
+    async def test_rejects_non_mp3_audio_content_type(self):
+        deps = _make_deps(download_dir="/tmp/test-dl")
+        ctx = _make_ctx(deps)
+
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.headers = {"content-type": "audio/ogg"}
+
+        mock_request_ctx = AsyncMock()
+        mock_request_ctx.get = AsyncMock(return_value=mock_response)
+        ctx.deps.page.context.request = mock_request_ctx
+
+        result = await download_file(ctx, "https://cdn.example.com/ep1.mp3")
+
+        self.assertIn("unsupported audio", result)
+        self.assertIn("audio/ogg", result)
+
+    async def test_rejects_missing_content_type_non_mp3_url(self):
+        deps = _make_deps(download_dir="/tmp/test-dl")
+        ctx = _make_ctx(deps)
+
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.headers = {}
+
+        mock_request_ctx = AsyncMock()
+        mock_request_ctx.get = AsyncMock(return_value=mock_response)
+        ctx.deps.page.context.request = mock_request_ctx
+
+        result = await download_file(ctx, "https://cdn.example.com/stream/audio")
+
+        self.assertIn("missing Content-Type", result)
+
+    async def test_allows_missing_content_type_mp3_url(self):
+        deps = _make_deps(download_dir="/tmp/test-dl")
+        ctx = _make_ctx(deps)
+
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.headers = {}
+        mock_response.body = AsyncMock(return_value=b"\x00" * 512)
+
+        mock_request_ctx = AsyncMock()
+        mock_request_ctx.get = AsyncMock(return_value=mock_response)
+        ctx.deps.page.context.request = mock_request_ctx
+
+        with patch("builtins.open", unittest.mock.mock_open()):
+            result = await download_file(ctx, "https://cdn.example.com/ep1.mp3")
+
+        self.assertIn("Downloaded to", result)
+
 
 class ExtractTextBySelectorTests(unittest.IsolatedAsyncioTestCase):
     async def test_returns_matched_text(self):
