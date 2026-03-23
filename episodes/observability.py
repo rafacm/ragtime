@@ -104,7 +104,7 @@ def set_observation_input(*args, **kwargs):
 
     **Dict-style** (keyword args only)::
 
-        set_observation_input(audio_path="/tmp/ep.mp3", model="whisper-1", ...)
+        set_observation_input(audio_file="ep.mp3", model="whisper-1", ...)
 
     Logs input as a plain dictionary — useful for non-chat providers such
     as transcription.
