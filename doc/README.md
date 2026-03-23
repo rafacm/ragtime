@@ -198,6 +198,8 @@ RAGtime optionally integrates with [Langfuse](https://langfuse.com) to trace all
 
    See [this walk through guide](https://langfuse.com/self-hosting/deployment/docker-compose).
 
+   **Port conflict:** Langfuse's docker-compose.yml exposes its own PostgreSQL on port 5432, which conflicts with RAGtime's PostgreSQL. Change the Langfuse PostgreSQL port mapping to a different port (e.g. `5433:5432`) in their compose file.
+
 3. Configure via the wizard or `.env`:
    ```
    uv run python manage.py configure
