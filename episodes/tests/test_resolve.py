@@ -1036,3 +1036,80 @@ class ResolveEntitiesTests(TestCase):
         self.assertEqual(mentions.count(), 2)
         self.assertEqual(mentions[0].start_time, 5.0)
         self.assertEqual(mentions[1].start_time, 35.0)
+
+    @patch("episodes.resolver._fetch_wikidata_candidates")
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_noisy_wikidata_id_is_sanitized(self, mock_factory, mock_wd):
+        """LLM returns malformed wikidata_id — stored as bare Q-ID, no DB error."""
+        from episodes.resolver import resolve_entities
+
+        musician_type = _get_entity_type("musician")
+
+        # Wikidata candidates so the LLM path is triggered
+        mock_wd.return_value = {
+            "Miles Davis": [{"qid": "Q93341", "label": "Miles Davis", "description": "trumpeter"}],
+        }
+
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = {
+            "matches": [
+                {
+                    "extracted_name": "Miles Davis",
+                    "canonical_name": "Miles Davis",
+                    "matched_entity_id": None,
+                    "wikidata_id": 'Q93341}]} Explanation: this is Miles',
+                },
+            ],
+        }
+        mock_factory.return_value = mock_provider
+
+        entities_json = {
+            "musician": [
+                {"name": "Miles Davis", "context": "trumpet player"},
+            ],
+        }
+
+        episode = self._create_episode(
+            url="https://example.com/ep/res-qid",
+            status=Episode.Status.RESOLVING,
+        )
+        self._create_chunk(episode, index=0, entities_json=entities_json)
+
+        with patch("episodes.signals.async_task"):
+            resolve_entities(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.EMBEDDING)
+
+        entity = Entity.objects.get(entity_type=musician_type, name="Miles Davis")
+        self.assertEqual(entity.wikidata_id, "Q93341")
+
+
+class SanitizeQidTests(TestCase):
+    """Unit tests for _sanitize_qid."""
+
+    def test_bare_qid(self):
+        from episodes.resolver import _sanitize_qid
+        self.assertEqual(_sanitize_qid("Q93341"), "Q93341")
+
+    def test_full_url(self):
+        from episodes.resolver import _sanitize_qid
+        self.assertEqual(
+            _sanitize_qid("https://www.wikidata.org/wiki/Q93341"), "Q93341"
+        )
+
+    def test_trailing_garbage(self):
+        from episodes.resolver import _sanitize_qid
+        self.assertEqual(_sanitize_qid('Q172}]} Explanation: '), "Q172")
+
+    def test_empty_string(self):
+        from episodes.resolver import _sanitize_qid
+        self.assertEqual(_sanitize_qid(""), "")
+
+    def test_none_like(self):
+        from episodes.resolver import _sanitize_qid
+        self.assertEqual(_sanitize_qid("null"), "")
+
+    def test_no_match(self):
+        from episodes.resolver import _sanitize_qid
+        self.assertEqual(_sanitize_qid("not a qid at all"), "")
