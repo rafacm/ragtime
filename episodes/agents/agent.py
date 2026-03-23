@@ -174,8 +174,10 @@ async def _run_agent_async(event: StepFailureEvent) -> RecoveryAgentResult:
 async def _run_with_langfuse(agent, system_prompt, deps, event):
     """Run the agent, propagating Langfuse session/user attributes when enabled.
 
-    Screenshots are attached inside the trace context so they appear as
-    child events of the recovery trace.
+    Detaches from the parent Langfuse/OTel context (e.g. the pipeline step
+    trace) so the recovery agent gets its own independent trace. Screenshots
+    are attached inside the trace context so they appear as child events of
+    the recovery trace.
     """
     from .. import observability
 
@@ -188,25 +190,34 @@ async def _run_with_langfuse(agent, system_prompt, deps, event):
     if observability.is_enabled():
         try:
             from langfuse import propagate_attributes
+            from opentelemetry.context import attach, detach
+            from opentelemetry.context import Context as OTelContext
 
-            session_id = (
-                f"recovery-run-{event.processing_run_id}-episode-{event.episode_id}"
-                f"-attempt-{event.attempt_number}"
-            )
-            user_id = f"episode-{event.episode_id}"
-            metadata = {
-                "episode_id": str(event.episode_id),
-                "step_name": event.step_name,
-                "error_type": event.error_type,
-                "attempt_number": str(event.attempt_number),
-            }
+            # Detach from the parent trace (e.g. scrape_episode) so the
+            # recovery agent creates its own root trace in Langfuse.
+            token = attach(OTelContext())
 
-            with propagate_attributes(
-                session_id=session_id, user_id=user_id, metadata=metadata
-            ):
-                result = await agent.run(**run_kwargs)
-                _attach_screenshots(deps.screenshots, event.episode_id)
-                return result
+            try:
+                session_id = (
+                    f"recovery-run-{event.processing_run_id}-episode-{event.episode_id}"
+                    f"-attempt-{event.attempt_number}"
+                )
+                user_id = f"episode-{event.episode_id}"
+                metadata = {
+                    "episode_id": str(event.episode_id),
+                    "step_name": event.step_name,
+                    "error_type": event.error_type,
+                    "attempt_number": str(event.attempt_number),
+                }
+
+                with propagate_attributes(
+                    session_id=session_id, user_id=user_id, metadata=metadata
+                ):
+                    result = await agent.run(**run_kwargs)
+                    _attach_screenshots(deps.screenshots, event.episode_id)
+                    return result
+            finally:
+                detach(token)
         except ImportError:
             pass
 
