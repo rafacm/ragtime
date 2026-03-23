@@ -52,20 +52,23 @@ class OpenAITranscriptionProvider(TranscriptionProvider):
         self.client = OpenAI(api_key=api_key)
         self.model = model
 
+    TRANSCRIPTION_RESPONSE_FORMAT = "verbose_json"
+    TRANSCRIPTION_TIMESTAMP_GRANULARITIES = ["word", "segment"]
+
     @observe_provider
     def transcribe(self, audio_path: str, language: str | None = None) -> dict:
         set_observation_input(
             audio_file=os.path.basename(audio_path),
             model=self.model,
             language=language,
-            response_format="verbose_json",
-            timestamp_granularities=["word", "segment"],
+            response_format=self.TRANSCRIPTION_RESPONSE_FORMAT,
+            timestamp_granularities=self.TRANSCRIPTION_TIMESTAMP_GRANULARITIES,
         )
         kwargs = {
             "model": self.model,
             "file": open(audio_path, "rb"),
-            "response_format": "verbose_json",
-            "timestamp_granularities": ["word", "segment"],
+            "response_format": self.TRANSCRIPTION_RESPONSE_FORMAT,
+            "timestamp_granularities": self.TRANSCRIPTION_TIMESTAMP_GRANULARITIES,
         }
         if language:
             kwargs["language"] = language
