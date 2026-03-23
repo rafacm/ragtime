@@ -150,29 +150,37 @@ class DownloadFileTests(unittest.IsolatedAsyncioTestCase):
         deps = _make_deps(download_dir="/tmp/test-dl")
         ctx = _make_ctx(deps)
 
-        mock_download = AsyncMock()
-        mock_download.save_as = AsyncMock()
+        mock_response = AsyncMock()
+        mock_response.ok = True
+        mock_response.body = AsyncMock(return_value=b"\x00" * 1024)
 
-        # Playwright's expect_download() returns a context manager.
-        # __aenter__ yields an event object whose .value is awaitable and
-        # resolves to the Download object.
-        download_event = MagicMock()
+        mock_request_ctx = AsyncMock()
+        mock_request_ctx.get = AsyncMock(return_value=mock_response)
+        ctx.deps.page.context.request = mock_request_ctx
 
-        async def _get_download():
-            return mock_download
-
-        download_event.value = _get_download()
-
-        download_cm = MagicMock()
-        download_cm.__aenter__ = AsyncMock(return_value=download_event)
-        download_cm.__aexit__ = AsyncMock(return_value=False)
-        ctx.deps.page.expect_download = MagicMock(return_value=download_cm)
-
-        with patch("episodes.agents.tools.os.path.getsize", return_value=1024):
+        with patch("builtins.open", unittest.mock.mock_open()):
             result = await download_file(ctx, "https://cdn.example.com/ep1.mp3")
 
+        mock_request_ctx.get.assert_awaited_once_with("https://cdn.example.com/ep1.mp3")
         self.assertIn("/tmp/test-dl/1.mp3", result)
         self.assertIn("1024", result)
+
+    async def test_returns_error_on_http_failure(self):
+        deps = _make_deps(download_dir="/tmp/test-dl")
+        ctx = _make_ctx(deps)
+
+        mock_response = AsyncMock()
+        mock_response.ok = False
+        mock_response.status = 403
+
+        mock_request_ctx = AsyncMock()
+        mock_request_ctx.get = AsyncMock(return_value=mock_response)
+        ctx.deps.page.context.request = mock_request_ctx
+
+        result = await download_file(ctx, "https://cdn.example.com/ep1.mp3")
+
+        self.assertIn("403", result)
+        self.assertIn("Download failed", result)
 
 
 class ExtractTextBySelectorTests(unittest.IsolatedAsyncioTestCase):

@@ -152,6 +152,10 @@ async def take_screenshot(ctx: RunContext[RecoveryDeps], label: str) -> str:
 async def download_file(ctx: RunContext[RecoveryDeps], url: str) -> str:
     """Download a file from *url* and save it to the download directory.
 
+    Uses the browser's API request context, which shares cookies and
+    session state with the page. This handles both direct downloads and
+    streaming audio that wouldn't trigger a browser download event.
+
     Saves as ``<episode_id>.mp3`` in ``deps.download_dir``.
     Returns the absolute path to the downloaded file.
     """
@@ -160,11 +164,13 @@ async def download_file(ctx: RunContext[RecoveryDeps], url: str) -> str:
     dest_path = os.path.join(ctx.deps.download_dir, filename)
 
     try:
-        async with page.expect_download() as download_info:
-            await page.goto(url)
-        download = await download_info.value
-        await download.save_as(dest_path)
-        size = os.path.getsize(dest_path)
+        response = await page.context.request.get(url)
+        if not response.ok:
+            return f"Download failed for '{url}': HTTP {response.status}"
+        body = await response.body()
+        with open(dest_path, "wb") as f:
+            f.write(body)
+        size = len(body)
     except PlaywrightError as exc:
         return f"Download failed for '{url}': {exc}"
     except OSError as exc:
