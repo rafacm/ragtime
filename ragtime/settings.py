@@ -82,11 +82,12 @@ WSGI_APPLICATION = 'ragtime.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        'OPTIONS': {
-            'timeout': 30,
-        },
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('RAGTIME_DB_NAME', 'ragtime'),
+        'USER': os.getenv('RAGTIME_DB_USER', 'ragtime'),
+        'PASSWORD': os.getenv('RAGTIME_DB_PASSWORD', 'ragtime'),
+        'HOST': os.getenv('RAGTIME_DB_HOST', 'localhost'),
+        'PORT': os.getenv('RAGTIME_DB_PORT', '5432'),
     }
 }
 

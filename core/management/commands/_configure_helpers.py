@@ -4,6 +4,24 @@ import getpass
 
 SYSTEMS = [
     {
+        "name": "Database",
+        "description": "PostgreSQL connection (defaults match docker-compose.yml)",
+        "shareable": False,
+        "subsystems": [
+            {
+                "prefix": "RAGTIME_DB",
+                "label": "Database",
+                "fields": [
+                    ("NAME", "ragtime", False),
+                    ("USER", "ragtime", False),
+                    ("PASSWORD", "ragtime", True),
+                    ("HOST", "localhost", False),
+                    ("PORT", "5432", False),
+                ],
+            },
+        ],
+    },
+    {
         "name": "LLM",
         "description": "Scraping, summarization, extraction, resolution, and translation",
         "shareable": True,

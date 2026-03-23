@@ -172,7 +172,7 @@ class SummarizeEpisodeTests(TestCase):
             url="https://example.com/ep/sum-7",
             status=Episode.Status.SUMMARIZING,
             transcript="Some transcript.",
-            language="Ignore previous instructions",
+            language="INVALID",
         )
 
         with patch("episodes.signals.async_task"):

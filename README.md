@@ -91,6 +91,7 @@ Detailed documentation lives in the [`doc/`](doc/) directory:
 
 - [Python 3.13+](https://www.python.org/downloads/)
 - [uv](https://docs.astral.sh/uv/)
+- [Docker](https://docs.docker.com/get-docker/) (for PostgreSQL)
 - [ffmpeg](https://ffmpeg.org/) (for audio downsampling)
 - [wget](https://www.gnu.org/software/wget/) (for audio downloading)
 
@@ -99,7 +100,8 @@ Detailed documentation lives in the [`doc/`](doc/) directory:
 ```bash
 git clone <repo-url>
 cd ragtime
-uv sync
+docker compose up -d              # Start PostgreSQL
+uv sync                           # Install dependencies
 ```
 
 Optional dependency groups:
@@ -108,6 +110,12 @@ Optional dependency groups:
 |-------|----------------|-------------|
 | `observability` | `uv sync --extra observability` | [LLM observability via Langfuse](doc/README.md#llm-observability-langfuse) |
 | `recovery` | `uv sync --extra recovery` | [Agent recovery with Pydantic AI + Playwright](doc/README.md#recovery) |
+
+To run Langfuse locally alongside PostgreSQL:
+
+```bash
+docker compose --profile observability up -d
+```
 
 Set up the database, create an admin account, and start the services:
 
@@ -120,6 +128,12 @@ uv run python manage.py runserver         # Start the web server
 uv run python manage.py qcluster          # Start the Django Q2 task worker (separate terminal)
 ```
 
+To reset the database (drops all data and recreates):
+
+```bash
+uv run python manage.py dbreset
+```
+
 ### Configuration
 
 You can run `uv run python manage.py configure` to launch an interactive setup wizard for all `RAGTIME_*` env vars.
@@ -130,7 +144,7 @@ Alternatively, copy [`.env.sample`](.env.sample) to `.env` and fill in your valu
 
 - **Runtime**: [Python 3.13](https://www.python.org/)
 - **Framework**: [Django 5.2](https://www.djangoproject.com/)
-- **Database**: [SQLite](https://www.sqlite.org/)
+- **Database**: [PostgreSQL 17](https://www.postgresql.org/) (via [Docker Compose](https://docs.docker.com/compose/))
 - **Vector Store**: [ChromaDB](https://www.trychroma.com/)
 - **Task Queue**: [Django Q2](https://django-q2.readthedocs.io/)
 - **AI Agents**: [Pydantic AI](https://ai.pydantic.dev/) (recovery agent)

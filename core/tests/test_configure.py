@@ -226,6 +226,7 @@ class ConfigureWizardTest(TestCase):
     def test_shared_mode_wizard(self, mock_input, mock_getpass):
         """Test wizard with shared LLM provider/key."""
         mock_getpass.side_effect = [
+            "",               # DB password (keep default)
             "sk-newkey123",   # Shared LLM API key
             "sk-newkey123",   # Transcription API key
             "",               # Recovery agent API key (keep default)
@@ -233,6 +234,10 @@ class ConfigureWizardTest(TestCase):
             "",               # Langfuse public key (keep default)
         ]
         mock_input.side_effect = [
+            "",               # DB name (keep default)
+            "",               # DB user (keep default)
+            "",               # DB host (keep default)
+            "",               # DB port (keep default)
             "Y",              # Share provider/key? Yes
             "openai",         # Provider
             "gpt-4.1-mini",  # Scraping model
@@ -326,6 +331,7 @@ class ConfigureWizardTest(TestCase):
     def test_rerun_preserves_non_ragtime_lines(self, mock_input, mock_getpass):
         """Test that re-running preserves non-RAGTIME lines."""
         mock_getpass.side_effect = [
+            "",               # DB password (keep default)
             "sk-newkey123",   # Shared LLM API key
             "sk-newkey123",   # Transcription API key
             "",               # Recovery agent API key (keep default)
@@ -333,6 +339,10 @@ class ConfigureWizardTest(TestCase):
             "",               # Langfuse public key (keep default)
         ]
         mock_input.side_effect = [
+            "",               # DB name (keep default)
+            "",               # DB user (keep default)
+            "",               # DB host (keep default)
+            "",               # DB port (keep default)
             "Y",              # Share provider/key? Yes
             "openai",         # Provider
             "gpt-4.1-mini",  # Scraping model
