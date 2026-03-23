@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Log Pydantic AI tool definitions to Langfuse — the recovery agent's OTel instrumentation captures conversation flow but not the `tools` JSON schemas sent to the model. Add `_get_tool_definitions()` and `_log_tool_definitions()` helpers that extract tool schemas from the agent and log them as a `recovery-tool-definitions` Langfuse event inside the recovery trace — [plan](doc/plans/2026-03-23-add-tools-langfuse.md), [feature](doc/features/2026-03-23-add-tools-langfuse.md), [planning session](doc/sessions/2026-03-23-add-tools-langfuse-planning-session.md), [implementation session](doc/sessions/2026-03-23-add-tools-langfuse-implementation-session.md)
+
 - Recovery agent language awareness — pass episode language to the recovery agent, add `translate_text` tool (backed by dedicated `RAGTIME_TRANSLATION_*` provider) so the agent translates UI labels before clicking on non-English pages. Add visual analysis fallback: `analyze_screenshot` returns screenshots for LLM visual interpretation, `click_at_coordinates` clicks visually identified elements, `intercept_audio_requests` captures streaming audio URLs via network interception — [plan](doc/plans/2026-03-23-recovery-agent-language-awareness.md), [feature](doc/features/2026-03-23-recovery-agent-language-awareness.md), [planning session](doc/sessions/2026-03-23-recovery-agent-language-awareness-planning-session.md), [implementation session](doc/sessions/2026-03-23-recovery-agent-language-awareness-implementation-session.md)
 
 ### Changed

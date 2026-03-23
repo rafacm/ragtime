@@ -218,13 +218,63 @@ async def _run_agent_async(event: StepFailureEvent) -> RecoveryAgentResult:
             return output
 
 
+def _get_tool_definitions(agent):
+    """Extract tool definitions from the agent's registered function tools.
+
+    Returns a list of dicts with ``name``, ``description``, and
+    ``parameters`` (JSON schema) for each tool — the same information
+    that Pydantic AI sends to the model in the ``tools`` array.
+    """
+    try:
+        toolset = agent._function_toolset
+        return [
+            {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.function_schema.json_schema,
+            }
+            for tool in toolset.tools.values()
+        ]
+    except Exception:
+        logger.debug("Failed to extract tool definitions from agent", exc_info=True)
+        return []
+
+
+def _log_tool_definitions(agent, episode_id):
+    """Log the agent's tool definitions as a Langfuse event.
+
+    Creates a ``recovery-tool-definitions`` event containing the JSON
+    schemas of all registered tools so they are visible alongside the
+    LLM request traces. Must be called inside a ``propagate_attributes``
+    context.
+    """
+    tool_defs = _get_tool_definitions(agent)
+    if not tool_defs:
+        return
+
+    try:
+        import langfuse
+
+        client = langfuse.get_client()
+        client.create_event(
+            name="recovery-tool-definitions",
+            input={"tools": tool_defs},
+            metadata={
+                "episode_id": episode_id,
+                "tool_count": len(tool_defs),
+            },
+        )
+    except Exception:
+        logger.debug("Failed to log tool definitions to Langfuse", exc_info=True)
+
+
 async def _run_with_langfuse(agent, system_prompt, deps, event):
     """Run the agent, propagating Langfuse session/user attributes when enabled.
 
     Detaches from the parent Langfuse/OTel context (e.g. the pipeline step
     trace) so the recovery agent gets its own independent trace. Screenshots
-    are attached inside the trace context so they appear as child events of
-    the recovery trace.
+    and tool definitions are attached inside the trace context so they appear
+    as child events of the recovery trace.
     """
     from .. import observability
 
@@ -261,6 +311,7 @@ async def _run_with_langfuse(agent, system_prompt, deps, event):
                 with propagate_attributes(
                     session_id=session_id, user_id=user_id, metadata=metadata
                 ):
+                    _log_tool_definitions(agent, event.episode_id)
                     result = await agent.run(**run_kwargs)
                     _attach_screenshots(deps.screenshots, event.episode_id)
                     return result
