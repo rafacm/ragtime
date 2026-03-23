@@ -126,6 +126,7 @@ To reset the database (drops all data and recreates):
 
 ```bash
 uv run python manage.py dbreset
+uv run python manage.py createsuperuser   # Recreate the admin account
 ```
 
 ### Configuration
