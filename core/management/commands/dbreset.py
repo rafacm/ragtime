@@ -35,21 +35,31 @@ class Command(BaseCommand):
         self.stdout.write(f"Dropping database '{db_name}'...")
 
         import psycopg
+        from psycopg import sql
 
         # Connect to the maintenance database to drop/create
-        conn_str = (
-            f"host={db_host} port={db_port} user={db_user} "
-            f"password={db_password} dbname=postgres"
-        )
-        with psycopg.connect(conn_str, autocommit=True) as conn:
+        with psycopg.connect(
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=db_password,
+            dbname="postgres",
+            autocommit=True,
+        ) as conn:
             # Terminate existing connections
             conn.execute(
                 "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
                 "WHERE datname = %s AND pid <> pg_backend_pid()",
                 (db_name,),
             )
-            conn.execute(f"DROP DATABASE IF EXISTS {db_name}")
-            conn.execute(f"CREATE DATABASE {db_name} OWNER {db_user}")
+            conn.execute(
+                sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(db_name))
+            )
+            conn.execute(
+                sql.SQL("CREATE DATABASE {} OWNER {}").format(
+                    sql.Identifier(db_name), sql.Identifier(db_user)
+                )
+            )
 
         self.stdout.write(self.style.SUCCESS(f"Database '{db_name}' recreated."))
 

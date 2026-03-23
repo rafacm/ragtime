@@ -7,9 +7,13 @@ patches the database backend to terminate lingering sessions immediately
 before DROP DATABASE.
 """
 
+import logging
+
 from django.db import connections
 from django.db.backends.postgresql.creation import DatabaseCreation
 from django.test.runner import DiscoverRunner
+
+logger = logging.getLogger(__name__)
 
 _original_destroy = DatabaseCreation._destroy_test_db
 
@@ -37,7 +41,10 @@ def _destroy_test_db_with_terminate(self, test_database_name, verbosity):
         )
         conn.close()
     except Exception:
-        pass
+        logger.warning(
+            "Failed to terminate connections to %s", test_database_name,
+            exc_info=True,
+        )
 
     return _original_destroy(self, test_database_name, verbosity)
 
