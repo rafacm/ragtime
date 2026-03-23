@@ -1,17 +1,16 @@
 """Tests for Langfuse tool-definition logging in the recovery agent."""
 
-import importlib
-import os
 import unittest
 from unittest.mock import MagicMock, patch
 
-# Ensure Django settings are configured before importing app code.
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "ragtime.settings")
+try:
+    from pydantic_ai import Agent
 
-import django
-django.setup()
+    from episodes.agents.agent import _get_tool_definitions, _log_tool_definitions
 
-_has_pydantic_ai = importlib.util.find_spec("pydantic_ai") is not None
+    _has_pydantic_ai = True
+except ImportError:
+    _has_pydantic_ai = False
 
 
 @unittest.skipUnless(_has_pydantic_ai, "pydantic-ai not installed")
@@ -20,16 +19,12 @@ class GetToolDefinitionsTests(unittest.TestCase):
 
     def test_extracts_tool_names_and_schemas(self):
         """Returns a list of dicts with name, description, and parameters."""
-        from pydantic_ai import Agent
-
         agent = Agent("test", deps_type=None)
 
         @agent.tool_plain
         def greet(name: str) -> str:
             """Say hello."""
             return f"Hello, {name}"
-
-        from episodes.agents.agent import _get_tool_definitions
 
         defs = _get_tool_definitions(agent)
 
@@ -41,15 +36,11 @@ class GetToolDefinitionsTests(unittest.TestCase):
 
     def test_returns_empty_list_on_error(self):
         """Gracefully returns [] when the agent has no _function_toolset."""
-        from episodes.agents.agent import _get_tool_definitions
-
         fake_agent = MagicMock(spec=[])  # no attributes at all
         self.assertEqual(_get_tool_definitions(fake_agent), [])
 
     def test_handles_multiple_tools(self):
         """Extracts definitions for all registered tools."""
-        from pydantic_ai import Agent
-
         agent = Agent("test", deps_type=None)
 
         @agent.tool_plain
@@ -61,8 +52,6 @@ class GetToolDefinitionsTests(unittest.TestCase):
         def tool_b(y: str) -> str:
             """Second tool."""
             return y
-
-        from episodes.agents.agent import _get_tool_definitions
 
         defs = _get_tool_definitions(agent)
         names = {d["name"] for d in defs}
@@ -76,8 +65,6 @@ class LogToolDefinitionsTests(unittest.TestCase):
     @patch("episodes.agents.agent.langfuse", create=True)
     def test_creates_langfuse_event(self, mock_langfuse_module):
         """Logs tool definitions as a recovery-tool-definitions event."""
-        from pydantic_ai import Agent
-
         agent = Agent("test", deps_type=None)
 
         @agent.tool_plain
@@ -88,10 +75,7 @@ class LogToolDefinitionsTests(unittest.TestCase):
         mock_client = MagicMock()
         mock_langfuse_module.get_client.return_value = mock_client
 
-        # Patch the import inside _log_tool_definitions
         with patch.dict("sys.modules", {"langfuse": mock_langfuse_module}):
-            from episodes.agents.agent import _log_tool_definitions
-
             _log_tool_definitions(agent, episode_id=42)
 
         mock_client.create_event.assert_called_once()
@@ -104,8 +88,6 @@ class LogToolDefinitionsTests(unittest.TestCase):
 
     def test_no_op_when_no_tools(self):
         """Does not call Langfuse when agent has no extractable tools."""
-        from episodes.agents.agent import _log_tool_definitions
-
         fake_agent = MagicMock(spec=[])  # no _function_toolset
 
         # Should not raise
@@ -114,8 +96,6 @@ class LogToolDefinitionsTests(unittest.TestCase):
     @patch("episodes.agents.agent.langfuse", create=True)
     def test_handles_langfuse_error_gracefully(self, mock_langfuse_module):
         """Swallows exceptions from Langfuse client."""
-        from pydantic_ai import Agent
-
         agent = Agent("test", deps_type=None)
 
         @agent.tool_plain
@@ -126,7 +106,5 @@ class LogToolDefinitionsTests(unittest.TestCase):
         mock_langfuse_module.get_client.side_effect = RuntimeError("connection failed")
 
         with patch.dict("sys.modules", {"langfuse": mock_langfuse_module}):
-            from episodes.agents.agent import _log_tool_definitions
-
             # Should not raise
             _log_tool_definitions(agent, episode_id=1)

@@ -218,7 +218,7 @@ async def _run_agent_async(event: StepFailureEvent) -> RecoveryAgentResult:
             return output
 
 
-def _get_tool_definitions(agent):
+def _get_tool_definitions(agent: Agent) -> list[dict]:
     """Extract tool definitions from the agent's registered function tools.
 
     Returns a list of dicts with ``name``, ``description``, and
@@ -240,7 +240,7 @@ def _get_tool_definitions(agent):
         return []
 
 
-def _log_tool_definitions(agent, episode_id):
+def _log_tool_definitions(agent: Agent, episode_id: int) -> None:
     """Log the agent's tool definitions as a Langfuse event.
 
     Creates a ``recovery-tool-definitions`` event containing the JSON
