@@ -233,7 +233,7 @@ When disabled (the default), Langfuse is never imported and there is zero overhe
 docker compose up -d    # Start PostgreSQL on localhost:5432
 ```
 
-The port is bound to `127.0.0.1` (localhost only, not exposed to the network).
+The `ragtime` database is created automatically on first start. The port is bound to `127.0.0.1` (localhost only, not exposed to the network).
 
 ### Running tests
 
