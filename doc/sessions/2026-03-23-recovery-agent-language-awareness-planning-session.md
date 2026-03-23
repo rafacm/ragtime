@@ -22,24 +22,48 @@ Designed a plan with 6 changes: add `language` to RecoveryDeps, pass it from the
 
 ### User
 
-Asked whether to use LLM-based translation tool or hardcoded translations.
+For the translate_text tool, should we call the LLM provider (get_scraping_provider().structured_extract()) or would you prefer a simpler approach where we just include the pre-translated labels directly in the system prompt (e.g. hardcode translations of 'Information', 'More information', 'Download' for all supported languages in ISO_639_LANGUAGE_NAMES)?
 
 ### Assistant
 
-Recommended LLM-based tool for flexibility — the agent can translate any text it encounters, not just predefined labels. User agreed.
+Presented both options. Recommended LLM-based tool for flexibility — the agent can translate any text it encounters, not just predefined labels. User selected the LLM-based approach.
 
 ### User
 
-Clarified that there is one agent covering both recovery scenarios (scraping and downloading), not separate agents. Asked about pros/cons of unifying into a single system prompt.
+I need some clarification, is there one agent that covers both the Recovery logic for both steps or are there separate agents?
 
 ### Assistant
 
-Analyzed trade-offs. Recommended unifying: the two scenarios are closely related, toolset is identical, context variables already distinguish the situation. The current split added maintenance overhead with little benefit.
+Explained there is one agent that handles both steps. The same `_build_agent()` creates a single Pydantic AI agent with the same tools. The only difference is the system prompt — `_get_system_prompt()` picks either `SCRAPING_SYSTEM_PROMPT` or `DOWNLOADING_SYSTEM_PROMPT` based on `deps.step_name`.
 
 ### User
 
-Agreed to unify. Also requested the agent take a screenshot after every action, and that the download strategy should visit the episode page first (for cookies) before attempting the audio URL.
+What would be the pros/cons of having one system prompt that captures both scenarios?
 
 ### Assistant
 
-Updated the plan to include: unified prompt, cookie-first strategy, mandatory screenshots, and conditional language section. Plan was approved.
+Analyzed trade-offs. Pros of unified: simpler code, agent gets full context, easier to maintain, tools identical either way. Cons: slightly longer prompt, could confuse agent (but context vars disambiguate), harder to tune one step without affecting the other. Recommended unified prompt.
+
+### User
+
+Yes, let's go for a single unified prompt.
+
+### Assistant
+
+Updated the plan with a single `RECOVERY_SYSTEM_PROMPT` covering both scenarios.
+
+### User
+
+If the download URL for the episode MP3 has been found in the scrape step, we should pass to the agent in the system prompt and tell the agent that the first approach to try is to first visit the episode URL page (this way all the website cookies are set) and then add the MP3 download URL in the location so this triggers the episode audio download.
+
+### Assistant
+
+Updated the `DOWNLOADING_SYSTEM_PROMPT` strategy to prioritize the cookie-then-download approach.
+
+### User
+
+Let's also update the system prompt to make sure the agent takes a screenshot of every single step it does.
+
+### Assistant
+
+Added "IMPORTANT: Take a screenshot after EVERY action you perform" to the unified prompt. Plan was approved.
