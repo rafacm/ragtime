@@ -15,37 +15,5 @@ services:
       timeout: 5s
       retries: 5
 
-  langfuse-db:
-    image: postgres:17-alpine
-    profiles: ["observability"]
-    ports:
-      - "127.0.0.1:5433:5432"
-    environment:
-      POSTGRES_DB: langfuse
-      POSTGRES_USER: langfuse
-      POSTGRES_PASSWORD: langfuse
-    volumes:
-      - langfuse-pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "langfuse"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  langfuse:
-    image: langfuse/langfuse:latest
-    profiles: ["observability"]
-    ports:
-      - "127.0.0.1:3000:3000"
-    environment:
-      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
-      NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: ragtime-langfuse-dev-secret
-      SALT: ragtime-langfuse-dev-salt
-    depends_on:
-      langfuse-db:
-        condition: service_healthy
-
 volumes:
   pgdata:
-  langfuse-pgdata:

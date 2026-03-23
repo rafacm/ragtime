@@ -194,10 +194,9 @@ RAGtime optionally integrates with [Langfuse](https://langfuse.com) to trace all
    uv sync --extra observability
    ```
 
-2. Start Langfuse via Docker Compose:
-   ```bash
-   docker compose --profile observability up -d
-   ```
+2. Run Langfuse locally via Docker Compose.
+
+   See [this walk through guide](https://langfuse.com/self-hosting/deployment/docker-compose).
 
 3. Configure via the wizard or `.env`:
    ```
@@ -219,23 +218,16 @@ When disabled (the default), Langfuse is never imported and there is zero overhe
 
 ### Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/) — required for PostgreSQL (and optionally Langfuse)
+- [Docker](https://docs.docker.com/get-docker/) — required for PostgreSQL
 - [Python 3.13+](https://www.python.org/downloads/) and [uv](https://docs.astral.sh/uv/)
 
 ### Starting services
 
 ```bash
-docker compose up -d                              # PostgreSQL only
-docker compose --profile observability up -d      # PostgreSQL + Langfuse
+docker compose up -d    # Start PostgreSQL on localhost:5432
 ```
 
-| Service | URL | Profile |
-|---------|-----|---------|
-| PostgreSQL | `localhost:5432` | always |
-| Langfuse | `http://localhost:3000` | `observability` |
-| Langfuse DB | `localhost:5433` | `observability` |
-
-All ports are bound to `127.0.0.1` (localhost only, not exposed to the network).
+The port is bound to `127.0.0.1` (localhost only, not exposed to the network).
 
 ### Running tests
 

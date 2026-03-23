@@ -111,12 +111,6 @@ Optional dependency groups:
 | `observability` | `uv sync --extra observability` | [LLM observability via Langfuse](doc/README.md#llm-observability-langfuse) |
 | `recovery` | `uv sync --extra recovery` | [Agent recovery with Pydantic AI + Playwright](doc/README.md#recovery) |
 
-To run Langfuse locally alongside PostgreSQL:
-
-```bash
-docker compose --profile observability up -d
-```
-
 Set up the database, create an admin account, and start the services:
 
 ```bash
