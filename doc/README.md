@@ -10,6 +10,7 @@
 - [How Scott Works](#how-scott-works)
 - [Wikidata Cache](#wikidata-cache)
 - [LLM Observability (Langfuse)](#llm-observability-langfuse)
+- [Development](#development)
 - [Feature Documentation](#feature-documentation)
 
 ## Processing Pipeline
