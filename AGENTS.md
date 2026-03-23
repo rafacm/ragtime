@@ -43,7 +43,7 @@ Use `uv` for everything — never `pip install` directly.
 
 - Python 3.13 (`requires-python = ">=3.13,<3.14"`)
 - No build-system in `pyproject.toml` (this is an app, not a library)
-- SQLite for relational data, ChromaDB for vector store
+- PostgreSQL for relational data (via Docker Compose), ChromaDB for vector store
 - Django Q2 with ORM broker (no Redis needed)
 - Frontend: Django templates + HTMX + Tailwind CSS (CDN)
 - `python-dotenv` for env vars (`.env` file, `RAGTIME_*` prefix)
