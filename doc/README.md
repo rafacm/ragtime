@@ -198,13 +198,11 @@ RAGtime optionally integrates with [Langfuse](https://langfuse.com) to trace all
 
    See [this walk through guide](https://langfuse.com/self-hosting/deployment/docker-compose).
 
-   **Port conflict:** Langfuse's docker-compose.yml exposes its own PostgreSQL on port 5432, which conflicts with RAGtime's PostgreSQL. To avoid this, create a `docker-compose.override.yml` in the Langfuse directory:
-   ```yaml
-   services:
-     db:
-       ports:
-         - "127.0.0.1:5433:5432"
+   **Port conflict:** Langfuse's docker-compose.yml exposes its PostgreSQL on port 5432, which conflicts with RAGtime's. Run this in the Langfuse directory to move it to port 5433:
+   ```bash
+   sed -i '' 's/127.0.0.1:5432:5432/127.0.0.1:5433:5432/' docker-compose.yml
    ```
+   This only changes the host-side port — Langfuse's internal connections use the Docker network and are unaffected.
 
 3. Configure via the wizard or `.env`:
    ```
