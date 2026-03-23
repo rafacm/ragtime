@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-03-23
+
+### Added
+
+- Recovery agent language awareness — pass episode language to the recovery agent, add `translate_text` tool (backed by dedicated `RAGTIME_TRANSLATION_*` provider) so the agent translates UI labels before clicking on non-English pages. Add visual analysis fallback: `analyze_screenshot` returns screenshots for LLM visual interpretation, `click_at_coordinates` clicks visually identified elements, `intercept_audio_requests` captures streaming audio URLs via network interception — [plan](doc/plans/2026-03-23-recovery-agent-language-awareness.md), [feature](doc/features/2026-03-23-recovery-agent-language-awareness.md), [planning session](doc/sessions/2026-03-23-recovery-agent-language-awareness-planning-session.md), [implementation session](doc/sessions/2026-03-23-recovery-agent-language-awareness-implementation-session.md)
+
+### Changed
+
+- Unified recovery agent system prompt — merge separate scraping/downloading prompts into one, add cookie-first download strategy, mandatory screenshots after every action, and conditional language section with translation checklist for non-English episodes
+- Switch `download_file` from Playwright `expect_download()` to `page.context.request.get()` for reliable downloads using the browser's cookies and session
+- Detach recovery agent from parent Langfuse trace context so it gets its own independent root trace
+- Increase recovery agent request limit from 15 to 30 to accommodate new tools
+
 ## 2026-03-21
 
 ### Added
