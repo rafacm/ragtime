@@ -194,9 +194,10 @@ RAGtime optionally integrates with [Langfuse](https://langfuse.com) to trace all
    uv sync --extra observability
    ```
 
-2. Run Langfuse locally via Docker Compose.
-
-   See [this walk through guide](https://langfuse.com/self-hosting/deployment/docker-compose).
+2. Start Langfuse via Docker Compose:
+   ```bash
+   docker compose --profile observability up -d
+   ```
 
 3. Configure via the wizard or `.env`:
    ```
@@ -213,6 +214,42 @@ RAGtime optionally integrates with [Langfuse](https://langfuse.com) to trace all
 4. Process an episode and view traces at `http://localhost:3000`.
 
 When disabled (the default), Langfuse is never imported and there is zero overhead.
+
+## Development
+
+### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) — required for PostgreSQL (and optionally Langfuse)
+- [Python 3.13+](https://www.python.org/downloads/) and [uv](https://docs.astral.sh/uv/)
+
+### Starting services
+
+```bash
+docker compose up -d                              # PostgreSQL only
+docker compose --profile observability up -d      # PostgreSQL + Langfuse
+```
+
+### Running tests
+
+PostgreSQL must be running before running tests:
+
+```bash
+docker compose up -d
+uv run python manage.py test
+```
+
+Django's test runner creates a temporary `test_ragtime` database automatically and destroys it after the run. In CI, the GitHub Actions workflow starts a PostgreSQL service container with the same credentials.
+
+### Resetting the database
+
+To drop all data and start fresh:
+
+```bash
+uv run python manage.py dbreset        # interactive confirmation
+uv run python manage.py dbreset --yes  # skip confirmation
+```
+
+This drops and recreates the `ragtime` database, runs all migrations, and seeds entity types. Run `createsuperuser` afterwards to recreate the admin account.
 
 ## Feature Documentation
 
