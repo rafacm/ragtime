@@ -115,6 +115,8 @@ To install both extras at once, pass them in a single command — running `uv sy
 
 ```bash
 uv sync --extra observability --extra recovery
+# or simply:
+uv sync --all-extras
 ```
 
 Set up the database, create an admin account, and start the services:
