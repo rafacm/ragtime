@@ -6,11 +6,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 try:
     from episodes.agents.deps import RecoveryDeps
     from episodes.agents.tools import (
+        analyze_screenshot,
+        click_at_coordinates,
         click_element,
         download_file,
         extract_text_by_selector,
         find_audio_links,
         get_page_content,
+        intercept_audio_requests,
         navigate_to_url,
         take_screenshot,
         translate_text,
@@ -244,3 +247,73 @@ class TranslateTextTests(unittest.IsolatedAsyncioTestCase):
         result = await translate_text(ctx, "Download")
 
         self.assertEqual(result, "Download")
+
+
+class AnalyzeScreenshotTests(unittest.IsolatedAsyncioTestCase):
+    async def test_returns_tool_return_with_image(self):
+        ctx = _make_ctx()
+        png_data = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+        ctx.deps.page.screenshot.return_value = png_data
+
+        from pydantic_ai.messages import ToolReturn
+
+        result = await analyze_screenshot(ctx, "visual-check")
+
+        self.assertIsInstance(result, ToolReturn)
+        self.assertIn("visual-check", result.return_value)
+        self.assertEqual(len(ctx.deps.screenshots), 1)
+        # content should contain the image
+        self.assertEqual(len(result.content), 2)
+
+    async def test_handles_screenshot_failure(self):
+        from playwright.async_api import Error as PwError
+        from pydantic_ai.messages import ToolReturn
+
+        ctx = _make_ctx()
+        ctx.deps.page.screenshot.side_effect = PwError("Browser crashed")
+
+        result = await analyze_screenshot(ctx, "fail-test")
+
+        self.assertIsInstance(result, ToolReturn)
+        self.assertIn("Screenshot failed", result.return_value)
+
+
+class ClickAtCoordinatesTests(unittest.IsolatedAsyncioTestCase):
+    async def test_clicks_and_returns_state(self):
+        ctx = _make_ctx()
+        ctx.deps.page.title.return_value = "After Click"
+        ctx.deps.page.url = "https://example.com/page"
+        ctx.deps.page.inner_text.return_value = "New content"
+
+        result = await click_at_coordinates(ctx, 350, 420)
+
+        ctx.deps.page.mouse.click.assert_awaited_once_with(350, 420)
+        self.assertIn("350", result)
+        self.assertIn("420", result)
+        self.assertIn("After Click", result)
+
+
+class InterceptAudioRequestsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_returns_message_when_no_audio(self):
+        ctx = _make_ctx()
+        handlers = {}
+
+        def mock_on(event, handler):
+            handlers[event] = handler
+
+        ctx.deps.page.on = mock_on
+        ctx.deps.page.remove_listener = MagicMock()
+
+        result = await intercept_audio_requests(ctx, "button.play")
+
+        ctx.deps.page.click.assert_awaited_once_with("button.play")
+        self.assertIn("No audio requests intercepted", result)
+
+    async def test_handles_coordinate_action(self):
+        ctx = _make_ctx()
+        ctx.deps.page.on = MagicMock()
+        ctx.deps.page.remove_listener = MagicMock()
+
+        result = await intercept_audio_requests(ctx, "coordinates:100,200")
+
+        ctx.deps.page.mouse.click.assert_awaited_once_with(100, 200)

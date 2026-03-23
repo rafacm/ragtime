@@ -6,6 +6,7 @@ import os
 
 from playwright.async_api import Error as PlaywrightError
 from pydantic_ai import RunContext
+from pydantic_ai.messages import BinaryImage, ToolReturn
 
 from .deps import RecoveryDeps
 
@@ -242,3 +243,132 @@ async def translate_text(ctx: RunContext[RecoveryDeps], text: str) -> str:
         return text
 
     return result.get("translated_text", text)
+
+
+async def analyze_screenshot(ctx: RunContext[RecoveryDeps], label: str) -> ToolReturn:
+    """Take a screenshot and return it for visual analysis.
+
+    Use this to visually inspect the page — for example, to find three-dot
+    menus (⋮ or ⋯), play buttons, or other interactive elements that are
+    not easily found via CSS selectors. Describe what you see and use
+    click_at_coordinates to interact with elements you identify visually.
+    """
+    page = ctx.deps.page
+    try:
+        png_bytes = await page.screenshot(full_page=False)
+    except PlaywrightError as exc:
+        return ToolReturn(return_value=f"Screenshot failed: {exc}")
+
+    ctx.deps.screenshots.append(png_bytes)
+
+    # Attach to Langfuse
+    try:
+        import langfuse
+        from langfuse.media import LangfuseMedia
+
+        media = LangfuseMedia(content_bytes=png_bytes, content_type="image/png")
+        client = langfuse.get_client()
+        client.update_current_span(output=media)
+    except Exception:
+        pass
+
+    image = BinaryImage(data=png_bytes, media_type="image/png")
+    return ToolReturn(
+        return_value=f"Screenshot taken: {label} ({len(png_bytes)} bytes). Analyze the image to find interactive elements.",
+        content=[f"Screenshot '{label}':", image],
+    )
+
+
+async def click_at_coordinates(
+    ctx: RunContext[RecoveryDeps], x: int, y: int
+) -> str:
+    """Click at pixel coordinates (x, y) on the page.
+
+    Use this after visually identifying an element via analyze_screenshot.
+    Coordinates are relative to the viewport (0,0 is top-left).
+    """
+    page = ctx.deps.page
+    try:
+        await page.mouse.click(x, y)
+        await page.wait_for_load_state("domcontentloaded")
+        title = await page.title()
+        url = page.url
+        text = await page.inner_text("body")
+        snippet = text[:2000] if text else ""
+        return f"Clicked at ({x}, {y}). Now at: {url}\nTitle: {title}\n\nContent preview:\n{snippet}"
+    except PlaywrightError as exc:
+        return f"Click at ({x}, {y}) failed: {exc}"
+
+
+async def intercept_audio_requests(
+    ctx: RunContext[RecoveryDeps], action_selector: str
+) -> str:
+    """Click *action_selector* while intercepting network requests for audio.
+
+    Listens for requests with audio MIME types (mp3, mpeg, ogg, wav, aac,
+    m4a) or audio file extensions. Use this to capture the audio URL when
+    clicking a play button triggers streaming rather than a direct download.
+
+    Use Playwright selector syntax for *action_selector* (e.g.
+    ``button:has-text("Play")``), or pass pixel coordinates as
+    ``coordinates:X,Y`` (e.g. ``coordinates:350,420``).
+    """
+    page = ctx.deps.page
+    audio_urls: list[str] = []
+
+    audio_extensions = (".mp3", ".ogg", ".wav", ".aac", ".m4a", ".opus")
+    audio_mimes = ("audio/", "application/ogg")
+
+    def on_request(request):
+        url = request.url
+        resource = request.resource_type
+        # Check resource type
+        if resource in ("media", "fetch", "xhr", "other"):
+            # Check by extension
+            path = url.split("?")[0].lower()
+            if any(path.endswith(ext) for ext in audio_extensions):
+                audio_urls.append(url)
+                return
+        # Also check any request with audio-like URL patterns
+        path = url.split("?")[0].lower()
+        if any(path.endswith(ext) for ext in audio_extensions):
+            audio_urls.append(url)
+
+    def on_response(response):
+        content_type = response.headers.get("content-type", "")
+        if any(mime in content_type for mime in audio_mimes):
+            audio_urls.append(response.url)
+
+    page.on("request", on_request)
+    page.on("response", on_response)
+
+    try:
+        # Perform the click action
+        if action_selector.startswith("coordinates:"):
+            coords = action_selector.removeprefix("coordinates:").split(",")
+            x, y = int(coords[0].strip()), int(coords[1].strip())
+            await page.mouse.click(x, y)
+        else:
+            await page.click(action_selector)
+
+        # Wait for network activity to settle
+        await asyncio.sleep(3)
+
+    except PlaywrightError as exc:
+        return f"Action failed for '{action_selector}': {exc}"
+    finally:
+        page.remove_listener("request", on_request)
+        page.remove_listener("response", on_response)
+
+    if not audio_urls:
+        return "No audio requests intercepted. The click may not have triggered audio playback."
+
+    # Deduplicate while preserving order
+    seen = set()
+    unique = []
+    for url in audio_urls:
+        if url not in seen:
+            seen.add(url)
+            unique.append(url)
+
+    return "Intercepted audio URLs:\n" + "\n".join(f"  - {url}" for url in unique)

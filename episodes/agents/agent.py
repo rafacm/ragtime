@@ -40,8 +40,14 @@ Strategy:
 4. Audio downloads are sometimes hidden behind clickable UI elements.
    Try clicking buttons or links that might reveal audio players or
    download links.
-5. If you find a working URL, use download_file to save it.
-6. Return the audio URL and/or downloaded file path if successful, or explain
+5. If steps 3-4 fail, use visual analysis as a fallback:
+   a. Use analyze_screenshot to visually inspect the page.
+   b. Look for three-dot menus (⋮ or ⋯), play buttons, or audio players.
+   c. Use click_at_coordinates to click on visually identified elements.
+   d. Use intercept_audio_requests to capture audio URLs when clicking
+      a play button — this catches streaming URLs that don't appear in HTML.
+6. If you find a working URL, use download_file to save it.
+7. Return the audio URL and/or downloaded file path if successful, or explain
    why recovery failed.
 """
 
@@ -128,6 +134,9 @@ def _build_agent() -> Agent[RecoveryDeps, RecoveryAgentResult]:
     agent.tool(tools.download_file)
     agent.tool(tools.extract_text_by_selector)
     agent.tool(tools.translate_text)
+    agent.tool(tools.analyze_screenshot)
+    agent.tool(tools.click_at_coordinates)
+    agent.tool(tools.intercept_audio_requests)
 
     return agent
 
