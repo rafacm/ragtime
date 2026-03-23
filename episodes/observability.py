@@ -159,7 +159,7 @@ def observe_step(name):
 
     The decorated function must accept ``episode_id`` as its first argument.
     When enabled, the wrapper creates a Langfuse trace named *name* with
-    ``session_id`` set to the active ``ProcessingRun.pk``.
+    ``session_id`` set to ``processing-run-{pk}-episode-{id}-{timestamp}``.
 
     Returns a no-op passthrough when Langfuse is disabled.
     """
