@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## 2026-03-23
 
+### Fixed
+
+- Recovery agent downloaded file lost before pipeline resumes — fix `TemporaryDirectory` race condition where the temp dir was cleaned up before `resume_pipeline()` could access the downloaded file, and make scraping recovery skip the download step when the agent already downloaded the file using browser cookies (avoids redundant `wget` download that fails without session cookies) — [plan](doc/plans/2026-03-23-fix-recovery-downloaded-file-lost.md), [feature](doc/features/2026-03-23-fix-recovery-downloaded-file-lost.md), [planning session](doc/sessions/2026-03-23-fix-recovery-downloaded-file-lost-planning-session.md), [implementation session](doc/sessions/2026-03-23-fix-recovery-downloaded-file-lost-implementation-session.md)
+
 ### Added
 
 - Recovery agent language awareness — pass episode language to the recovery agent, add `translate_text` tool (backed by dedicated `RAGTIME_TRANSLATION_*` provider) so the agent translates UI labels before clicking on non-English pages. Add visual analysis fallback: `analyze_screenshot` returns screenshots for LLM visual interpretation, `click_at_coordinates` clicks visually identified elements, `intercept_audio_requests` captures streaming audio URLs via network interception — [plan](doc/plans/2026-03-23-recovery-agent-language-awareness.md), [feature](doc/features/2026-03-23-recovery-agent-language-awareness.md), [planning session](doc/sessions/2026-03-23-recovery-agent-language-awareness-planning-session.md), [implementation session](doc/sessions/2026-03-23-recovery-agent-language-awareness-implementation-session.md)

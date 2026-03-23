@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 def resume_pipeline(event: StepFailureEvent, result: RecoveryAgentResult) -> bool:
     """Resume the pipeline after a successful recovery.
 
-    For scraping recovery: sets the audio URL and resumes from downloading.
+    For scraping recovery: sets the audio URL and resumes from downloading,
+    or from transcribing if the agent also downloaded the file.
     For download recovery: saves the file, extracts duration, resumes from transcribing.
 
     Returns True if the pipeline was actually resumed, False otherwise.
@@ -33,8 +34,18 @@ def resume_pipeline(event: StepFailureEvent, result: RecoveryAgentResult) -> boo
         return False
 
 
+def _save_audio_file(episode: Episode, filepath: str) -> None:
+    """Save a downloaded MP3 file to the episode and extract its duration."""
+    filename = f"{episode.pk}.mp3"
+    with open(filepath, "rb") as f:
+        episode.audio_file.save(filename, File(f), save=False)
+
+    audio = MP3(episode.audio_file.path)
+    episode.duration = int(audio.info.length)
+
+
 def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult) -> bool:
-    """Set audio URL and restart pipeline from downloading."""
+    """Set audio URL and restart pipeline from downloading (or transcribing)."""
     if not result.audio_url:
         logger.error(
             "Scraping recovery for episode %s returned empty audio_url", episode.pk
@@ -44,7 +55,35 @@ def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult) -> bool
     episode.audio_url = result.audio_url
     episode.error_message = ""
 
-    # Create run BEFORE saving status to avoid race with post_save signal
+    # When the agent also downloaded the file, skip the download step entirely.
+    if result.downloaded_file and os.path.isfile(result.downloaded_file):
+        try:
+            _save_audio_file(episode, result.downloaded_file)
+
+            create_run(episode, resume_from=Episode.Status.TRANSCRIBING)
+
+            episode.status = Episode.Status.TRANSCRIBING
+            episode.save(
+                update_fields=[
+                    "audio_url", "audio_file", "duration",
+                    "status", "error_message", "updated_at",
+                ]
+            )
+
+            logger.info(
+                "Scraping recovery succeeded for episode %s — audio_url=%s, "
+                "file already downloaded, resuming from transcribing",
+                episode.pk,
+                result.audio_url,
+            )
+            return True
+        finally:
+            try:
+                os.unlink(result.downloaded_file)
+            except OSError:
+                pass
+
+    # No downloaded file — resume from downloading (wget will fetch the URL).
     create_run(episode, resume_from=Episode.Status.DOWNLOADING)
 
     episode.status = Episode.Status.DOWNLOADING
@@ -68,14 +107,9 @@ def _resume_from_downloading(episode: Episode, result: RecoveryAgentResult) -> b
         return False
 
     filepath = result.downloaded_file
-    filename = f"{episode.pk}.mp3"
 
     try:
-        with open(filepath, "rb") as f:
-            episode.audio_file.save(filename, File(f), save=False)
-
-        audio = MP3(episode.audio_file.path)
-        episode.duration = int(audio.info.length)
+        _save_audio_file(episode, filepath)
         episode.error_message = ""
 
         # Create run BEFORE saving status to avoid race with post_save signal
@@ -89,7 +123,7 @@ def _resume_from_downloading(episode: Episode, result: RecoveryAgentResult) -> b
         logger.info(
             "Download recovery succeeded for episode %s — file=%s, duration=%ss, resuming from transcribing",
             episode.pk,
-            filename,
+            f"{episode.pk}.mp3",
             episode.duration,
         )
         return True
