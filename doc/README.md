@@ -229,6 +229,14 @@ docker compose up -d                              # PostgreSQL only
 docker compose --profile observability up -d      # PostgreSQL + Langfuse
 ```
 
+| Service | URL | Profile |
+|---------|-----|---------|
+| PostgreSQL | `localhost:5432` | always |
+| Langfuse | `http://localhost:3000` | `observability` |
+| Langfuse DB | `localhost:5433` | `observability` |
+
+All ports are bound to `127.0.0.1` (localhost only, not exposed to the network).
+
 ### Running tests
 
 PostgreSQL must be running before running tests:
