@@ -201,6 +201,7 @@ async def _run_agent_async(event: StepFailureEvent) -> RecoveryAgentResult:
             if output.downloaded_file and os.path.isfile(output.downloaded_file):
                 fd, stable_path = tempfile.mkstemp(suffix=".mp3", prefix="ragtime-recovered-")
                 os.close(fd)
+                os.unlink(stable_path)
                 shutil.move(output.downloaded_file, stable_path)
                 output.downloaded_file = stable_path
 

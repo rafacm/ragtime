@@ -56,6 +56,7 @@ def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult) -> bool
     episode.error_message = ""
 
     # When the agent also downloaded the file, skip the download step entirely.
+    # On failure, fall through to the DOWNLOADING resume path below.
     if result.downloaded_file and os.path.isfile(result.downloaded_file):
         try:
             _save_audio_file(episode, result.downloaded_file)
@@ -76,12 +77,19 @@ def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult) -> bool
                 episode.pk,
                 result.audio_url,
             )
-            return True
-        finally:
+            # Clean up temp file only after successful save
             try:
                 os.unlink(result.downloaded_file)
             except OSError:
                 pass
+            return True
+        except Exception:
+            logger.warning(
+                "Failed to save downloaded file for episode %s, "
+                "falling back to downloading",
+                episode.pk,
+                exc_info=True,
+            )
 
     # No downloaded file — resume from downloading (wget will fetch the URL).
     create_run(episode, resume_from=Episode.Status.DOWNLOADING)
