@@ -190,11 +190,11 @@ def observe_step(name):
                 .first()
             )
 
-            session_id = (
-                f"processing-run-{run.pk}-episode-{episode_id}"
-                if run
-                else f"episode-{episode_id}"
-            )
+            if run:
+                ts = run.started_at.strftime("%Y-%m-%d-%H-%M")
+                session_id = f"processing-run-{run.pk}-episode-{episode_id}-{ts}"
+            else:
+                session_id = f"episode-{episode_id}"
 
             try:
                 episode = Episode.objects.get(pk=episode_id)
