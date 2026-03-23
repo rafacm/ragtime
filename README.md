@@ -111,6 +111,12 @@ Optional dependency groups:
 | `observability` | `uv sync --extra observability` | [LLM observability via Langfuse](doc/README.md#llm-observability-langfuse) |
 | `recovery` | `uv sync --extra recovery` | [Agent recovery with Pydantic AI + Playwright](doc/README.md#recovery) |
 
+To install both extras at once, pass them in a single command — running `uv sync --extra` twice will remove the first extra:
+
+```bash
+uv sync --extra observability --extra recovery
+```
+
 Set up the database, create an admin account, and start the services:
 
 ```bash
