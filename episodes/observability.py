@@ -90,24 +90,42 @@ def _update_observation(**kwargs):
         pass
 
 
-def set_observation_input(system_prompt, user_content, *, response_schema=None):
-    """Set the current Langfuse observation's input in chat-message format.
+def set_observation_input(*args, **kwargs):
+    """Set the current Langfuse observation's input.
 
-    Works around the Langfuse OpenAI wrapper not parsing ``instructions``
-    from the Responses API into the system prompt field. Call this from
-    provider methods before the API call. No-op when disabled.
+    Two calling conventions:
 
-    When *response_schema* is provided, it is logged in metadata as
-    ``response_schema`` (the RAGtime equivalent of ``tool_definitions``).
+    **Chat-style** (positional args)::
+
+        set_observation_input(system_prompt, user_content, response_schema=schema)
+
+    Logs input as a list of chat messages and optionally stores the
+    *response_schema* in metadata.
+
+    **Dict-style** (keyword args only)::
+
+        set_observation_input(audio_path="/tmp/ep.mp3", model="whisper-1", ...)
+
+    Logs input as a plain dictionary — useful for non-chat providers such
+    as transcription.
+
+    No-op when Langfuse is disabled.
     """
-    update_kwargs = {
-        "input": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content},
-        ],
-    }
-    if response_schema is not None:
-        update_kwargs["metadata"] = {"response_schema": response_schema}
+    if args:
+        # Chat-style: positional (system_prompt, user_content)
+        system_prompt, user_content = args[0], args[1]
+        response_schema = kwargs.get("response_schema")
+        update_kwargs = {
+            "input": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+        }
+        if response_schema is not None:
+            update_kwargs["metadata"] = {"response_schema": response_schema}
+    else:
+        # Dict-style: keyword arguments only
+        update_kwargs = {"input": kwargs}
 
     _update_observation(**update_kwargs)
 
