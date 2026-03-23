@@ -47,9 +47,12 @@ Strategy:
 
 LANGUAGE_SECTION = """
 Language: {language_name}
-The episode page is in {language_name}. UI labels like "Information",
-"More information", "Download", or similar words will appear in {language_name}.
-Use the translate_text tool to translate these labels as needed.
+The episode page is in {language_name}. UI labels will appear in
+{language_name}, NOT in English. Before clicking any element by text label,
+you MUST first use the translate_text tool to translate the label to
+{language_name}. For example, translate "Information", "More information",
+and "Download" to {language_name} before using them in selectors.
+Do NOT use English labels directly — they will not match.
 """
 
 
