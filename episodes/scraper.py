@@ -136,13 +136,22 @@ def scrape_episode(episode_id: int) -> None:
             episode.published_at = result["published_at"]
 
         # Check completeness
+        update_fields = [
+            "status", "error_message",
+            "title", "description", "image_url",
+            "language", "audio_url", "published_at", "updated_at",
+        ]
         if _has_required_fields(episode):
             complete_step(episode, Episode.Status.SCRAPING)
             episode.status = Episode.Status.DOWNLOADING
+            episode.save(update_fields=update_fields)
         else:
             incomplete_exc = ValueError("Incomplete metadata: missing required fields")
             episode.error_message = str(incomplete_exc)
             episode.status = Episode.Status.FAILED
+            # Save BEFORE fail_step: recovery runs synchronously via signal
+            # and may set a new status — saving after would overwrite it.
+            episode.save(update_fields=update_fields)
             fail_step(
                 episode, Episode.Status.SCRAPING,
                 str(incomplete_exc),
@@ -151,20 +160,6 @@ def scrape_episode(episode_id: int) -> None:
             logger.warning(
                 "Episode %s: incomplete metadata after scraping", episode_id
             )
-
-        episode.save(
-            update_fields=[
-                "status",
-                "error_message",
-                "title",
-                "description",
-                "image_url",
-                "language",
-                "audio_url",
-                "published_at",
-                "updated_at",
-            ]
-        )
 
     except Exception as exc:
         logger.exception("Failed to scrape episode %s", episode_id)

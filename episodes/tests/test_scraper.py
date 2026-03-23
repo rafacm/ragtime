@@ -190,6 +190,46 @@ class ScrapeEpisodeTests(TestCase):
             "episodes.downloader.download_episode", episode.pk
         )
 
+    @patch("episodes.scraper.get_scraping_provider")
+    @patch("episodes.scraper.fetch_html")
+    def test_incomplete_metadata_does_not_overwrite_recovery_status(
+        self, mock_fetch, mock_provider_factory
+    ):
+        """When recovery changes the status during fail_step, the scraper must not overwrite it.
+
+        Regression test: the scraper used to call fail_step() before episode.save(),
+        so synchronous recovery could set status=TRANSCRIBING, only for the scraper's
+        subsequent save() to overwrite it back to FAILED.
+        """
+        mock_fetch.return_value = self.SAMPLE_HTML
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = self.LLM_INCOMPLETE_RESPONSE
+        mock_provider_factory.return_value = mock_provider
+
+        episode = self._create_episode(url="https://example.com/ep/recovery")
+
+        def fake_recovery(sender, event, pipeline_event, **kwargs):
+            """Simulate agent recovery setting TRANSCRIBING during fail_step signal."""
+            ep = Episode.objects.get(pk=event.episode_id)
+            ep.status = Episode.Status.TRANSCRIBING
+            ep.error_message = ""
+            ep.save(update_fields=["status", "error_message", "updated_at"])
+
+        from episodes.signals import step_failed
+
+        step_failed.connect(fake_recovery)
+        try:
+            scrape_episode(episode.pk)
+        finally:
+            step_failed.disconnect(fake_recovery)
+
+        episode.refresh_from_db()
+        self.assertEqual(
+            episode.status,
+            Episode.Status.TRANSCRIBING,
+            "Scraper save() must not overwrite recovery status back to FAILED",
+        )
+
     def test_nonexistent_episode(self):
         # Should not raise, just log error
         scrape_episode(99999)
