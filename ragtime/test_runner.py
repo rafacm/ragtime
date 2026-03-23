@@ -18,35 +18,35 @@ logger = logging.getLogger(__name__)
 _original_destroy = DatabaseCreation._destroy_test_db
 
 
-def _destroy_test_db_with_terminate(self, test_database_name, verbosity):
+def _destroy_test_db_with_terminate(self, *args, **kwargs):
     """Terminate active connections then drop the test database."""
+    test_database_name = args[0] if args else kwargs.get("test_database_name", "")
     connections.close_all()
 
     settings_dict = self.connection.settings_dict
     try:
         import psycopg
 
-        conn = psycopg.connect(
+        with psycopg.connect(
             host=settings_dict["HOST"],
             port=settings_dict["PORT"],
             user=settings_dict["USER"],
             password=settings_dict["PASSWORD"],
             dbname="postgres",
             autocommit=True,
-        )
-        conn.execute(
-            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-            "WHERE datname = %s AND pid <> pg_backend_pid()",
-            (test_database_name,),
-        )
-        conn.close()
+        ) as conn:
+            conn.execute(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname = %s AND pid <> pg_backend_pid()",
+                (test_database_name,),
+            )
     except Exception:
         logger.warning(
             "Failed to terminate connections to %s", test_database_name,
             exc_info=True,
         )
 
-    return _original_destroy(self, test_database_name, verbosity)
+    return _original_destroy(self, *args, **kwargs)
 
 
 class PostgresTestRunner(DiscoverRunner):
