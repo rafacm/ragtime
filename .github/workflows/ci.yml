@@ -9,6 +9,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: ragtime
+          POSTGRES_USER: ragtime
+          POSTGRES_PASSWORD: ragtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ragtime"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
