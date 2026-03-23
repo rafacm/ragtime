@@ -27,3 +27,36 @@ Implemented the fix in four steps:
 **4. Updated documentation (`doc/README.md`):** Added a sentence to the Recovery section explaining that when recovering from a scraping failure, if the agent both finds the audio URL and downloads the MP3 file using browser cookies, it skips the download step entirely and resumes directly from transcribing.
 
 Ran `uv run python manage.py test episodes.tests.test_agent_resume -v 2` — all 3 tests pass. Ran `uv run python manage.py test episodes` — all 221 tests pass with no regressions.
+
+### User
+
+Create a PR.
+
+### Assistant
+
+Created PR #83 with plan document, feature doc, session transcripts, and changelog entry. Also added two additional commits for pre-existing unstaged changes (pipeline diagrams and AGENTS.md SQLite → PostgreSQL update) and fixed a missing "Development" entry in the `doc/README.md` table of contents.
+
+### User
+
+Review PR comments.
+
+### Assistant
+
+Reviewed two comments from Copilot:
+
+1. **Temp file deleted even on failure** (`resume.py`) — the `finally` block in `_resume_from_scraping()` always deleted the downloaded file, even if saving failed. This would destroy the only copy and prevent fallback to DOWNLOADING.
+2. **`mkstemp` + `shutil.move` cross-platform issue** (`agent.py`) — `mkstemp` creates the destination file, then `shutil.move` tries to rename over it, which fails on Windows.
+
+### User
+
+Implement the review comment fixes.
+
+### Assistant
+
+Addressed both comments:
+
+1. **Safe temp file cleanup (`resume.py`):** Moved `os.unlink` from `finally` block to after `episode.save()` succeeds. Added `except Exception` handler that logs a warning and falls through to the DOWNLOADING resume path, preserving the downloaded file for the fallback attempt.
+
+2. **Portable mkstemp (`agent.py`):** Added `os.unlink(stable_path)` after `os.close(fd)` so `shutil.move` targets a non-existent path, avoiding cross-platform rename-over-existing issues.
+
+All 3 agent resume tests pass.
