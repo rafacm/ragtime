@@ -37,9 +37,9 @@ Strategy:
    cookies from step 1 often make the download work.
 3. If no audio URL is known, or the known URL fails, use find_audio_links to
    locate audio URLs on the page.
-4. Audio downloads are sometimes hidden behind UI elements labeled
-   "Information", "More information", or "Download". Try clicking these
-   to reveal audio players or download links.
+4. Audio downloads are sometimes hidden behind clickable UI elements.
+   Try clicking buttons or links that might reveal audio players or
+   download links.
 5. If you find a working URL, use download_file to save it.
 6. Return the audio URL and/or downloaded file path if successful, or explain
    why recovery failed.
@@ -47,12 +47,15 @@ Strategy:
 
 LANGUAGE_SECTION = """
 Language: {language_name}
-The episode page is in {language_name}. UI labels will appear in
-{language_name}, NOT in English. Before clicking any element by text label,
-you MUST first use the translate_text tool to translate the label to
-{language_name}. For example, translate "Information", "More information",
-and "Download" to {language_name} before using them in selectors.
-Do NOT use English labels directly — they will not match.
+The episode page is in {language_name}. Before trying to click any elements,
+you MUST first use the translate_text tool to translate each of the following
+English labels to {language_name}:
+- "Information"
+- "More information"
+- "Download"
+
+Then use the translated labels in your selectors to find and click elements.
+Do NOT use the English words above directly — they will not match on the page.
 """
 
 
