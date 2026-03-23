@@ -209,7 +209,7 @@ async def _run_with_langfuse(agent, system_prompt, deps, event):
     run_kwargs = dict(
         user_prompt=system_prompt,
         deps=deps,
-        usage_limits=UsageLimits(request_limit=15),
+        usage_limits=UsageLimits(request_limit=30),
     )
 
     if observability.is_enabled():
