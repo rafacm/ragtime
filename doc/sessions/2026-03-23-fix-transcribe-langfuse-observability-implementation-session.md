@@ -19,7 +19,7 @@ Investigated the codebase. Found that `OpenAITranscriptionProvider.transcribe()`
 Applied the fix:
 - Added `@observe_provider` decorator to `transcribe()`
 - Extended `set_observation_input()` to support dict-style keyword args (for non-chat providers) alongside existing chat-style positional args
-- Called `set_observation_input()` with request parameters and `set_observation_output()` with the full Whisper response
+- Called `set_observation_input()` with request parameters and `set_observation_output()` with a reduced summary (text, duration, language, word/segment counts) to avoid shipping large payloads to Langfuse
 - All 36 tests passed (19 transcribe + 13 observability + 4 resize)
 
 ### User
@@ -55,3 +55,27 @@ Addressed all 4 Copilot review comments in a single commit:
 4. **Large output payload** (high) — Changed from logging full `result` to a summary dict with `text`, `duration`, `language`, `words_count`, and `segments_count`.
 
 All 36 tests passed. Committed, pushed, and replied to all 4 PR comments.
+
+### User
+
+Review any open pull request review comments (second round).
+
+### Assistant
+
+Fetched PR comments and found 2 new unresolved comments from Copilot:
+
+1. **Duplicated request parameters** (low) — `response_format` and `timestamp_granularities` duplicated between `set_observation_input()` and the `kwargs` dict.
+2. **Inaccurate session transcript** (low) — Transcript said "full Whisper response" but code logs a reduced summary.
+
+### User
+
+Implement the suggested actions.
+
+### Assistant
+
+Addressed both comments:
+
+1. Extracted `TRANSCRIPTION_RESPONSE_FORMAT` and `TRANSCRIPTION_TIMESTAMP_GRANULARITIES` as class constants on `OpenAITranscriptionProvider`, reused in both the observation input and the API call kwargs.
+2. Fixed the transcript line to say "reduced summary" instead of "full Whisper response".
+
+Committed, pushed, and replied to both PR comments.
