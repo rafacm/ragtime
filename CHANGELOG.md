@@ -17,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Detach recovery agent from parent Langfuse trace context so it gets its own independent root trace
 - Increase recovery agent request limit from 15 to 30 to accommodate new tools
 
+- Switch from SQLite to PostgreSQL with Docker Compose — resolve concurrent write locking errors from parallel Django Q2 workers. Add `docker-compose.yml` with PostgreSQL 17, `manage.py dbreset` command, `RAGTIME_DB_*` configuration, CI workflow with PostgreSQL service container, and custom test runner for clean database teardown. Add timestamps to Langfuse session IDs for uniqueness across database resets — [plan](doc/plans/2026-03-23-postgresql-docker-compose.md), [feature](doc/features/2026-03-23-postgresql-docker-compose.md), [planning session](doc/sessions/2026-03-23-postgresql-docker-compose-planning-session.md), [implementation session](doc/sessions/2026-03-23-postgresql-docker-compose-implementation-session.md)
+
 ## 2026-03-21
 
 ### Added
