@@ -60,6 +60,16 @@ All new features and fixes must be implemented in a dedicated branch off `main`.
 
 When creating PRs, use the rebase strategy. Squash and merge-commit strategies are not allowed on this repository.
 
+## Testing
+
+Before creating any commit, run the full test suite and verify it passes:
+
+```bash
+uv run python manage.py test --verbosity 2
+```
+
+Do not commit if tests are failing. Fix the failures first, then commit.
+
 ## Documentation
 
 ### Planning phase
