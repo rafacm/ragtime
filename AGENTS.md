@@ -60,16 +60,6 @@ All new features and fixes must be implemented in a dedicated branch off `main`.
 
 When creating PRs, use the rebase strategy. Squash and merge-commit strategies are not allowed on this repository.
 
-## Testing
-
-Before creating a PR, run the full test suite and verify it passes:
-
-```bash
-uv run python manage.py test --verbosity 2
-```
-
-Do not commit if tests are failing. Fix the failures first, then commit.
-
 ## Documentation
 
 ### Planning phase
@@ -107,6 +97,14 @@ Whenever a `RAGTIME_*` environment variable is added, changed, or removed, updat
 The commit for a given feature MUST contain the plan, the feature documentation, and both session transcripts (planning and implementation).
 
 ## PR Creation
+
+Before creating a PR, run the full test suite and verify it passes:
+
+```bash
+uv run python manage.py test --verbosity 2
+```
+
+Do not create the PR if tests are failing. Fix the failures first.
 
 When creating PRs, ensure the PR includes: plan document, feature doc, session transcripts (planning + implementation), and changelog entry. Review the Documentation section above for full requirements before creating the PR.
 
