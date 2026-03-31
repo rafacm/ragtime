@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-31
 
-**Session ID:** unavailable
+**Session ID:** unavailable — session UUID could not be recovered from Claude Code logs
 
 ## Summary
 

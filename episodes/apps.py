@@ -21,7 +21,7 @@ class EpisodesConfig(AppConfig):
                 handle_resolve_completed,
                 dispatch_uid="linking_resolve_completed",
             )
-        except Exception:
+        except ImportError:
             pass
 
         setup_observability()

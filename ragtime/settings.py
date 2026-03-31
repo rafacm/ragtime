@@ -231,6 +231,12 @@ RAGTIME_RECOVERY_AGENT_API_KEY = os.getenv('RAGTIME_RECOVERY_AGENT_API_KEY', '')
 RAGTIME_RECOVERY_AGENT_MODEL = os.getenv('RAGTIME_RECOVERY_AGENT_MODEL', 'openai:gpt-4.1-mini')
 RAGTIME_RECOVERY_AGENT_TIMEOUT = int(os.getenv('RAGTIME_RECOVERY_AGENT_TIMEOUT', '120'))
 
+# Linking agent — async Wikidata entity linking after resolve step
+RAGTIME_LINKING_AGENT_ENABLED = os.getenv('RAGTIME_LINKING_AGENT_ENABLED', 'true').lower() in ('true', '1', 'yes')
+RAGTIME_LINKING_AGENT_API_KEY = os.getenv('RAGTIME_LINKING_AGENT_API_KEY', '')
+RAGTIME_LINKING_AGENT_MODEL = os.getenv('RAGTIME_LINKING_AGENT_MODEL', 'openai:gpt-4.1-mini')
+RAGTIME_LINKING_AGENT_BATCH_SIZE = int(os.getenv('RAGTIME_LINKING_AGENT_BATCH_SIZE', '50'))
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',

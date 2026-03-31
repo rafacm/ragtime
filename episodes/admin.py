@@ -532,9 +532,15 @@ class EntityAdmin(admin.ModelAdmin):
         count = queryset.exclude(
             linking_status=Entity.LinkingStatus.LINKED,
         ).update(linking_status=Entity.LinkingStatus.PENDING)
-        self.message_user(request, f"Reset {count} entities to pending for re-linking.")
-        if count > 0:
-            async_task("episodes.agents.linker.run_linking_agent")
+        if count == 0:
+            self.message_user(request, "No entities need re-linking (all already linked).")
+            return
+        self.message_user(
+            request,
+            f"Reset {count} entities to pending. "
+            "Linking agent queued to process all pending entities.",
+        )
+        async_task("episodes.agents.linker.run_linking_agent")
 
     @admin.display(description="Wikidata ID")
     def wikidata_link(self, obj):

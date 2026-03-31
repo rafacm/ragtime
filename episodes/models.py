@@ -95,6 +95,7 @@ class EntityType(models.Model):
 class Entity(models.Model):
     class LinkingStatus(models.TextChoices):
         PENDING = "pending"
+        LINKING = "linking"
         LINKED = "linked"
         SKIPPED = "skipped"
         FAILED = "failed"

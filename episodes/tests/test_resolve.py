@@ -115,7 +115,6 @@ class ResolveEntitiesTests(TestCase):
                     "extracted_name": "Miles Davis",
                     "canonical_name": "Miles Davis",
                     "matched_entity_id": existing.pk,
-                    "wikidata_id": None,
                 },
             ],
         }
@@ -166,13 +165,11 @@ class ResolveEntitiesTests(TestCase):
                     "extracted_name": "Miles Davis",
                     "canonical_name": "Miles Davis",
                     "matched_entity_id": existing.pk,
-                    "wikidata_id": None,
                 },
                 {
                     "extracted_name": "John Coltrane",
                     "canonical_name": "John Coltrane",
                     "matched_entity_id": None,
-                    "wikidata_id": None,
                 },
             ],
         }
@@ -261,13 +258,11 @@ class ResolveEntitiesTests(TestCase):
                     "extracted_name": "Miles Davis",
                     "canonical_name": "Miles Davis",
                     "matched_entity_id": existing.pk,
-                    "wikidata_id": None,
                 },
                 {
                     "extracted_name": "John Coltrane",
                     "canonical_name": "John Coltrane",
                     "matched_entity_id": None,
-                    "wikidata_id": None,
                 },
             ],
         }
@@ -342,7 +337,6 @@ class ResolveEntitiesTests(TestCase):
                     "extracted_name": "Saxophone",
                     "canonical_name": "Saxophone",
                     "matched_entity_id": entity.pk,
-                    "wikidata_id": None,
                 },
             ],
         }
@@ -413,7 +407,6 @@ class ResolveEntitiesTests(TestCase):
                     "extracted_name": "Django Reinhardt",
                     "canonical_name": "Django Reinhardt",
                     "matched_entity_id": None,  # LLM didn't match
-                    "wikidata_id": None,
                 },
             ],
         }
@@ -550,7 +543,6 @@ class ResolveEntitiesTests(TestCase):
                             "extracted_name": name,
                             "canonical_name": name,
                             "matched_entity_id": existing_by_name.get(name),
-                            "wikidata_id": None,
                         })
                     return {"matches": matches}
             return {"matches": []}
@@ -601,94 +593,6 @@ class ResolveEntitiesTests(TestCase):
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
         self.assertEqual(Entity.objects.count(), 0)
-
-    @patch("episodes.resolver.get_resolution_provider")
-    def test_llm_returned_wikidata_id_saved_on_existing(self, mock_factory):
-        """LLM returns wikidata_id for an existing entity — saved on the entity."""
-        from episodes.resolver import resolve_entities
-
-        musician_type = _get_entity_type("musician")
-        existing = Entity.objects.create(
-            entity_type=musician_type, name="Miles Davis"
-        )
-
-        mock_provider = MagicMock()
-        mock_provider.structured_extract.return_value = {
-            "matches": [
-                {
-                    "extracted_name": "Miles Davis",
-                    "canonical_name": "Miles Davis",
-                    "matched_entity_id": existing.pk,
-                    "wikidata_id": "Q93341",
-                },
-            ],
-        }
-        mock_factory.return_value = mock_provider
-
-        entities_json = {
-            "musician": [
-                {"name": "Miles Davis", "context": "trumpet"},
-            ],
-        }
-
-        episode = self._create_episode(
-            url="https://example.com/ep/res-wd",
-            status=Episode.Status.RESOLVING,
-        )
-        self._create_chunk(episode, index=0, entities_json=entities_json)
-
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
-
-        episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.EMBEDDING)
-
-        # Entity should have wikidata_id set from LLM response
-        existing.refresh_from_db()
-        self.assertEqual(existing.wikidata_id, "Q93341")
-
-    @patch("episodes.resolver.get_resolution_provider")
-    def test_wikidata_id_match_existing_entity(self, mock_factory):
-        """Entity with matching wikidata_id in DB is reused."""
-        from episodes.resolver import resolve_entities
-
-        musician_type = _get_entity_type("musician")
-        existing = Entity.objects.create(
-            entity_type=musician_type, name="Miles Davis", wikidata_id="Q93341"
-        )
-
-        mock_provider = MagicMock()
-        mock_provider.structured_extract.return_value = {
-            "matches": [
-                {
-                    "extracted_name": "M. Davis",
-                    "canonical_name": "Miles Davis",
-                    "matched_entity_id": None,  # LLM didn't match by ID
-                    "wikidata_id": "Q93341",  # But matched by Wikidata
-                },
-            ],
-        }
-        mock_factory.return_value = mock_provider
-
-        entities_json = {
-            "musician": [
-                {"name": "M. Davis", "context": "trumpet"},
-            ],
-        }
-
-        episode = self._create_episode(
-            url="https://example.com/ep/res-wd-match",
-            status=Episode.Status.RESOLVING,
-        )
-        self._create_chunk(episode, index=0, entities_json=entities_json)
-
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
-
-        # Should match existing entity by wikidata_id
-        self.assertEqual(Entity.objects.filter(entity_type=musician_type).count(), 1)
-        mention = EntityMention.objects.get(episode=episode)
-        self.assertEqual(mention.entity, existing)
 
     @patch("episodes.resolver.get_resolution_provider")
     def test_new_entities_created_directly_without_llm(self, mock_factory):
@@ -748,7 +652,6 @@ class ResolveEntitiesTests(TestCase):
                     "extracted_name": "Miles Davis",
                     "canonical_name": "Miles Davis",
                     "matched_entity_id": existing.pk,
-                    "wikidata_id": None,
                 },
             ],
         }
@@ -795,13 +698,11 @@ class ResolveEntitiesTests(TestCase):
                     "extracted_name": "Miles Davis",
                     "canonical_name": "Miles Davis",
                     "matched_entity_id": existing.pk,
-                    "wikidata_id": None,
                 },
                 {
                     "extracted_name": "Miles",
                     "canonical_name": "Miles Davis",
                     "matched_entity_id": existing.pk,
-                    "wikidata_id": None,
                 },
             ],
         }
@@ -947,75 +848,3 @@ class ResolveEntitiesTests(TestCase):
         self.assertEqual(mentions[0].start_time, 5.0)
         self.assertEqual(mentions[1].start_time, 35.0)
 
-    @patch("episodes.resolver.get_resolution_provider")
-    def test_noisy_wikidata_id_is_sanitized(self, mock_factory):
-        """LLM returns malformed wikidata_id — stored as bare Q-ID, no DB error."""
-        from episodes.resolver import resolve_entities
-
-        musician_type = _get_entity_type("musician")
-        # Pre-create an existing entity so the LLM resolution path is triggered
-        Entity.objects.create(entity_type=musician_type, name="John Coltrane")
-
-        mock_provider = MagicMock()
-        mock_provider.structured_extract.return_value = {
-            "matches": [
-                {
-                    "extracted_name": "Miles Davis",
-                    "canonical_name": "Miles Davis",
-                    "matched_entity_id": None,
-                    "wikidata_id": 'Q93341}]} Explanation: this is Miles',
-                },
-            ],
-        }
-        mock_factory.return_value = mock_provider
-
-        entities_json = {
-            "musician": [
-                {"name": "Miles Davis", "context": "trumpet player"},
-            ],
-        }
-
-        episode = self._create_episode(
-            url="https://example.com/ep/res-qid",
-            status=Episode.Status.RESOLVING,
-        )
-        self._create_chunk(episode, index=0, entities_json=entities_json)
-
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
-
-        episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.EMBEDDING)
-
-        entity = Entity.objects.get(entity_type=musician_type, name="Miles Davis")
-        self.assertEqual(entity.wikidata_id, "Q93341")
-
-
-class SanitizeQidTests(TestCase):
-    """Unit tests for _sanitize_qid."""
-
-    def test_bare_qid(self):
-        from episodes.resolver import _sanitize_qid
-        self.assertEqual(_sanitize_qid("Q93341"), "Q93341")
-
-    def test_full_url(self):
-        from episodes.resolver import _sanitize_qid
-        self.assertEqual(
-            _sanitize_qid("https://www.wikidata.org/wiki/Q93341"), "Q93341"
-        )
-
-    def test_trailing_garbage(self):
-        from episodes.resolver import _sanitize_qid
-        self.assertEqual(_sanitize_qid('Q172}]} Explanation: '), "Q172")
-
-    def test_empty_string(self):
-        from episodes.resolver import _sanitize_qid
-        self.assertEqual(_sanitize_qid(""), "")
-
-    def test_none_like(self):
-        from episodes.resolver import _sanitize_qid
-        self.assertEqual(_sanitize_qid("null"), "")
-
-    def test_no_match(self):
-        from episodes.resolver import _sanitize_qid
-        self.assertEqual(_sanitize_qid("not a qid at all"), "")

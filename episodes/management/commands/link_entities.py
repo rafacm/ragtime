@@ -43,6 +43,19 @@ class Command(BaseCommand):
 
         from episodes.agents.linker import run_linking_agent
 
-        run_linking_agent()
+        run_linking_agent(entity_type_key=entity_type_key)
 
-        self.stdout.write(self.style.SUCCESS("Linking complete."))
+        remaining = Entity.objects.filter(linking_status=Entity.LinkingStatus.PENDING)
+        if entity_type_key:
+            remaining = remaining.filter(entity_type__key=entity_type_key)
+        remaining_count = remaining.count()
+
+        if remaining_count == 0:
+            self.stdout.write(self.style.SUCCESS("Linking complete."))
+        else:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Batch complete — {remaining_count} entities still pending "
+                    "(additional batches queued asynchronously)."
+                )
+            )

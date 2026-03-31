@@ -129,11 +129,16 @@ async def _run_linking_agent_async(entities) -> LinkingAgentResult:
     return output
 
 
-def run_linking_agent() -> None:
-    """Run the linking agent on all pending entities.
+def run_linking_agent(entity_type_key=None) -> None:
+    """Run the linking agent on pending entities.
 
     Entry point called from Django Q2 async_task or management command.
     Processes entities in batches to avoid overwhelming the LLM context.
+    Uses LINKING status to prevent concurrent tasks from processing the
+    same entities.
+
+    Args:
+        entity_type_key: Optional entity type key to filter by (e.g. "musician").
     """
     enabled = getattr(settings, "RAGTIME_LINKING_AGENT_ENABLED", True)
     if not enabled:
@@ -143,25 +148,50 @@ def run_linking_agent() -> None:
     batch_size = getattr(settings, "RAGTIME_LINKING_AGENT_BATCH_SIZE", 50)
 
     # Skip entity types that have no Wikidata class Q-ID
-    skippable_types = EntityType.objects.filter(wikidata_id="")
-    skipped = Entity.objects.filter(
+    skip_qs = Entity.objects.filter(
         linking_status=Entity.LinkingStatus.PENDING,
-        entity_type__in=skippable_types,
-    ).update(linking_status=Entity.LinkingStatus.SKIPPED)
+        entity_type__wikidata_id="",
+    )
+    if entity_type_key:
+        skip_qs = skip_qs.filter(entity_type__key=entity_type_key)
+    skipped = skip_qs.update(linking_status=Entity.LinkingStatus.SKIPPED)
     if skipped:
         logger.info("Skipped %d entities with no Wikidata entity type class", skipped)
 
-    pending = list(
-        Entity.objects.filter(linking_status=Entity.LinkingStatus.PENDING)
-        .select_related("entity_type")
-        .order_by("entity_type__key", "name")[:batch_size]
+    # Atomically claim a batch by transitioning PENDING → LINKING
+    pending_qs = Entity.objects.filter(
+        linking_status=Entity.LinkingStatus.PENDING,
+    )
+    if entity_type_key:
+        pending_qs = pending_qs.filter(entity_type__key=entity_type_key)
+
+    batch_ids = list(
+        pending_qs.order_by("entity_type__key", "name")
+        .values_list("pk", flat=True)[:batch_size]
     )
 
-    if not pending:
+    if not batch_ids:
         logger.info("No pending entities to link")
         return
 
-    logger.info("Linking %d pending entities", len(pending))
+    claimed = Entity.objects.filter(
+        pk__in=batch_ids,
+        linking_status=Entity.LinkingStatus.PENDING,
+    ).update(linking_status=Entity.LinkingStatus.LINKING)
+
+    if not claimed:
+        logger.info("No entities claimed (already picked up by another task)")
+        return
+
+    # Fetch the claimed entities for processing
+    batch = list(
+        Entity.objects.filter(
+            pk__in=batch_ids,
+            linking_status=Entity.LinkingStatus.LINKING,
+        ).select_related("entity_type")
+    )
+
+    logger.info("Linking %d entities (claimed from %d candidates)", len(batch), claimed)
 
     try:
         loop = asyncio.get_running_loop()
@@ -174,10 +204,10 @@ def run_linking_agent() -> None:
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 result = pool.submit(
-                    asyncio.run, _run_linking_agent_async(pending)
+                    asyncio.run, _run_linking_agent_async(batch)
                 ).result()
         else:
-            result = asyncio.run(_run_linking_agent_async(pending))
+            result = asyncio.run(_run_linking_agent_async(batch))
 
         logger.info(
             "Linking agent completed: %d linked, %d failed, %d skipped — %s",
@@ -185,16 +215,27 @@ def run_linking_agent() -> None:
         )
     except Exception:
         logger.exception("Linking agent failed")
+        # Reset claimed entities back to PENDING so they can be retried
+        Entity.objects.filter(
+            pk__in=batch_ids,
+            linking_status=Entity.LinkingStatus.LINKING,
+        ).update(linking_status=Entity.LinkingStatus.PENDING)
     finally:
         _flush_langfuse()
 
     # If there are more pending entities, queue another run
-    remaining = Entity.objects.filter(
-        linking_status=Entity.LinkingStatus.PENDING
-    ).count()
+    remaining_qs = Entity.objects.filter(
+        linking_status=Entity.LinkingStatus.PENDING,
+    )
+    if entity_type_key:
+        remaining_qs = remaining_qs.filter(entity_type__key=entity_type_key)
+    remaining = remaining_qs.count()
     if remaining > 0:
         logger.info("Queuing another linking run for %d remaining entities", remaining)
-        async_task("episodes.agents.linker.run_linking_agent")
+        async_task(
+            "episodes.agents.linker.run_linking_agent",
+            entity_type_key=entity_type_key,
+        )
 
 
 def _flush_langfuse():
