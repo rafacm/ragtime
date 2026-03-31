@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from django.db import transaction
 
-from .models import Chunk, Entity, EntityMention, EntityType, Episode
+from .models import Entity, EntityMention, EntityType, Episode
 from .observability import observe_step
 from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_resolution_provider
@@ -58,55 +58,11 @@ RESOLUTION_RESPONSE_SCHEMA = {
 }
 
 
-def _fetch_wikidata_candidates(names, entity_type):
-    """Fetch Wikidata candidates for a list of entity names.
-
-    Returns {name: [{qid, label, description}, ...]} or empty dict on failure.
-    """
-    try:
-        from .wikidata import find_candidates
-    except Exception:
-        logger.warning("Could not import wikidata module — skipping candidate lookup")
-        return {}
-
-    entity_type_qid = entity_type.wikidata_id
-    if not entity_type_qid:
-        return {}
-
-    candidates_by_name = {}
-    for name in names:
-        try:
-            candidates = find_candidates(name, entity_type_qid)
-            if candidates:
-                candidates_by_name[name] = candidates
-        except Exception:
-            logger.warning(
-                "Wikidata lookup failed for '%s' — continuing without candidates",
-                name,
-            )
-    return candidates_by_name
-
-
-def _build_system_prompt(entity_type_name, existing_entities, wikidata_candidates=None):
+def _build_system_prompt(entity_type_name, existing_entities):
     db_candidates = "\n".join(
         f"- ID {e.pk}: {e.name}" + (f" [wikidata:{e.wikidata_id}]" if e.wikidata_id else "")
         for e in existing_entities
     )
-
-    wikidata_section = ""
-    if wikidata_candidates:
-        lines = []
-        for name, candidates in wikidata_candidates.items():
-            candidate_strs = ", ".join(
-                f"{c['qid']} ({c['label']}: {c['description']})" if c['description']
-                else f"{c['qid']} ({c['label']})"
-                for c in candidates
-            )
-            lines.append(f"- \"{name}\": {candidate_strs}")
-        wikidata_section = (
-            "\n\nWikidata candidates (pick the best match or return null for wikidata_id):\n"
-            + "\n".join(lines)
-        )
 
     return (
         "You are an entity resolution expert specializing in jazz music.\n"
@@ -123,11 +79,10 @@ def _build_system_prompt(entity_type_name, existing_entities, wikidata_candidate
         "- For new entities, return the best canonical name (most commonly recognized "
         "form, e.g., 'Saxophone' over 'Saxophon')\n"
         "- For matched entities, canonical_name is ignored (the existing name is kept)\n"
-        "- For wikidata_id: pick the Q-ID from the Wikidata candidates that best matches "
-        "the entity, or return null if none match or no candidates are available\n\n"
+        "- For wikidata_id: if you know the Wikidata Q-ID for an entity, return it; "
+        "otherwise return null\n\n"
         "Existing entities in the database:\n"
         f"{db_candidates}"
-        f"{wikidata_section}"
     )
 
 
@@ -230,84 +185,23 @@ def resolve_entities(episode_id: int) -> None:
                 )
 
                 if not existing:
-                    # No existing entities — fetch Wikidata candidates for new entities
-                    wikidata_candidates = _fetch_wikidata_candidates(
-                        unique_names, entity_type
-                    )
-
-                    if wikidata_candidates:
-                        # Use LLM to pick best Wikidata Q-IDs for new entities
-                        system_prompt = _build_system_prompt(
-                            entity_type_key, [], wikidata_candidates
+                    # No existing entities — create all as new (no LLM needed)
+                    all_mentions = []
+                    seen_mentions = set()
+                    for name in unique_names:
+                        entity, _ = Entity.objects.get_or_create(
+                            entity_type=entity_type,
+                            name=name,
                         )
-                        extracted_names = ", ".join(unique_names)
-                        result = provider.structured_extract(
-                            system_prompt=system_prompt,
-                            user_content=f"Extracted entities to resolve: {extracted_names}",
-                            response_schema=RESOLUTION_RESPONSE_SCHEMA,
+                        all_mentions.extend(
+                            _collect_mentions(name, entity, names_dict, episode, seen_mentions)
                         )
-
-                        all_mentions = []
-                        handled_names = set()
-                        seen_mentions = set()
-                        for match in result["matches"]:
-                            extracted_name = match["extracted_name"]
-                            handled_names.add(extracted_name)
-                            wikidata_id = _sanitize_qid(match.get("wikidata_id") or "")
-                            canonical_name = match.get("canonical_name") or extracted_name
-
-                            entity, _created = Entity.objects.get_or_create(
-                                entity_type=entity_type,
-                                name=canonical_name,
-                                defaults={"wikidata_id": wikidata_id},
-                            )
-                            if not _created and wikidata_id and not entity.wikidata_id:
-                                entity.wikidata_id = wikidata_id
-                                entity.save(update_fields=["wikidata_id", "updated_at"])
-
-                            all_mentions.extend(
-                                _collect_mentions(extracted_name, entity, names_dict, episode, seen_mentions)
-                            )
-
-                        # Fallback: create entities for any names the LLM omitted
-                        for name in unique_names:
-                            if name not in handled_names:
-                                logger.warning(
-                                    "LLM omitted '%s' from resolution — creating without wikidata_id",
-                                    name,
-                                )
-                                entity = Entity.objects.create(
-                                    entity_type=entity_type,
-                                    name=name,
-                                )
-                                all_mentions.extend(
-                                    _collect_mentions(name, entity, names_dict, episode, seen_mentions)
-                                )
-
-                        EntityMention.objects.bulk_create(all_mentions)
-                    else:
-                        # No Wikidata candidates — create all as new (no LLM call)
-                        all_mentions = []
-                        seen_mentions = set()
-                        for name in unique_names:
-                            entity = Entity.objects.create(
-                                entity_type=entity_type,
-                                name=name,
-                            )
-                            all_mentions.extend(
-                                _collect_mentions(name, entity, names_dict, episode, seen_mentions)
-                            )
-                        EntityMention.objects.bulk_create(all_mentions)
+                    EntityMention.objects.bulk_create(all_mentions)
                 else:
-                    # Fetch Wikidata candidates for resolution
-                    wikidata_candidates = _fetch_wikidata_candidates(
-                        unique_names, entity_type
-                    )
-
                     # LLM resolution against existing entities
                     extracted_names = ", ".join(unique_names)
                     system_prompt = _build_system_prompt(
-                        entity_type_key, existing, wikidata_candidates
+                        entity_type_key, existing
                     )
                     result = provider.structured_extract(
                         system_prompt=system_prompt,

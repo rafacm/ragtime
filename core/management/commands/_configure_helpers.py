@@ -125,6 +125,23 @@ SYSTEMS = [
         ],
     },
     {
+        "name": "Linking Agent",
+        "description": "Async Wikidata entity linking after pipeline resolve step",
+        "shareable": False,
+        "subsystems": [
+            {
+                "prefix": "RAGTIME_LINKING",
+                "label": "Linking Agent",
+                "fields": [
+                    ("AGENT_ENABLED", "true", False),
+                    ("AGENT_API_KEY", "", True),
+                    ("AGENT_MODEL", "openai:gpt-4.1-mini", False),
+                    ("AGENT_BATCH_SIZE", "50", False),
+                ],
+            },
+        ],
+    },
+    {
         "name": "LLM Observability",
         "description": "Langfuse tracing for LLM calls (optional)",
         "shareable": False,

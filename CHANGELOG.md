@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-03-31
+
+### Added
+
+- Background linking agent — decouple Wikidata entity linking from the pipeline resolve step into an asynchronous Pydantic AI agent. The resolve step now performs pure LLM-based entity deduplication without external API calls, eliminating Wikidata timeouts. A linking agent runs in the background after resolve completes, enriching entities with Wikidata Q-IDs using LLM-based candidate disambiguation. Adds `linking_status` field to Entity model, `link_entities` management command, admin retry action, and `RAGTIME_LINKING_AGENT_*` configuration — [plan](doc/plans/2026-03-31-linking-agent.md), [feature](doc/features/2026-03-31-linking-agent.md), [planning session](doc/sessions/2026-03-31-linking-agent-planning-session.md), [implementation session](doc/sessions/2026-03-31-linking-agent-implementation-session.md)
+
 ## 2026-03-23
 
 ### Fixed

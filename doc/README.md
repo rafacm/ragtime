@@ -71,30 +71,24 @@ New types can be added through Django admin; existing types can be deactivated (
 
 #### 8. 🧩 Resolve entities (status: `resolving`)
 
-**Entity Linking (NEL)** — maps extracted mentions to canonical entity records, deduplicating across chunks.
+**Entity Resolution** — maps extracted mentions to canonical entity records, deduplicating across chunks.
 
-Aggregates all extracted names across every chunk, then resolves **once per entity type** using LLM-based fuzzy matching against two sources:
+Aggregates all extracted names across every chunk, then resolves **once per entity type** using LLM-based fuzzy matching against **existing DB records** — preventing duplicates when the same entity was seen in a previous episode.
 
-1. **Existing DB records** — prevents duplicates when the same entity was seen in a previous episode.
-2. **[Wikidata](https://www.wikidata.org/) candidates** — searches by name and type, presenting candidates (with Q-IDs and descriptions) to the LLM for confirmation. Matched entities receive a `wikidata_id` for canonical identification.
+When no existing entities of a given type exist in the database, all extracted names are created as new `Entity` records directly (no LLM call needed — there is nothing to deduplicate against). When existing entities are present, the LLM resolves extracted names against them, considering spelling variants, language differences, and alternate names.
 
 **Example** — continuing from the extract step, suppose the episode's chunks collectively mention "Bird", "Charlie Parker", "Yardbird", and "Dizzy Gillespie":
 
-| Extracted mentions | Resolved to (canonical entity) | Wikidata ID |
-|---|---|---|
-| Bird, Charlie Parker, Yardbird | Charlie Parker | [Q103767](https://www.wikidata.org/wiki/Q103767) |
-| Dizzy Gillespie | Dizzy Gillespie | [Q49575](https://www.wikidata.org/wiki/Q49575) |
+| Extracted mentions | Resolved to (canonical entity) |
+|---|---|
+| Bird, Charlie Parker, Yardbird | Charlie Parker |
+| Dizzy Gillespie | Dizzy Gillespie |
 
 All three surface forms collapse into a single `Entity` record for Charlie Parker. An `EntityMention` is created for each (entity, chunk) pair, preserving which chunks mentioned the entity and the context of each mention.
 
-This two-phase design (extract then resolve) is intentional: extraction is cheap and parallelizable per chunk, while resolution requires cross-chunk aggregation and knowledge base lookups. It also allows re-running resolution independently — e.g., after improving matching logic — without re-extracting.
+This two-phase design (extract then resolve) is intentional: extraction is cheap and parallelizable per chunk, while resolution requires cross-chunk aggregation. It also allows re-running resolution independently — e.g., after improving matching logic — without re-extracting.
 
-Search Wikidata from the CLI with:
-
-```
-uv run python manage.py lookup_entity "Miles Davis"
-uv run python manage.py lookup_entity --type musician "Miles Davis"
-```
+Wikidata Q-IDs are assigned asynchronously by the [linking agent](#linking-agent) after the resolve step completes — see below.
 
 #### 9. 📐 Embed (status: `embedding`) — *planned, not yet implemented*
 
@@ -144,6 +138,46 @@ The agent runs as a single [`agent.run()`](https://ai.pydantic.dev/agents/#runni
 
 The chain order is configured in [`settings.py`](../ragtime/settings.py), and the maximum retry count (default: 5) is controlled by the `MAX_RECOVERY_ATTEMPTS` constant in [`episodes/recovery.py`](../episodes/recovery.py). The system prompt and tool registration are in [`episodes/agents/agent.py`](../episodes/agents/agent.py). The agent tools — `navigate_to_url`, `find_audio_links`, `click_element`, `download_file`, `translate_text`, `analyze_screenshot`, `click_at_coordinates`, `intercept_audio_requests`, and others — are defined in [`episodes/agents/tools.py`](../episodes/agents/tools.py).
 
+### Linking Agent
+
+After the resolve step completes, a **linking agent** runs asynchronously to enrich entities with [Wikidata](https://www.wikidata.org/) Q-IDs. This is **not** a pipeline step — it never blocks episode processing. The pipeline continues to the embed step immediately while the linking agent works in the background.
+
+The linking agent is a [Pydantic AI](https://ai.pydantic.dev/) agent that:
+1. Picks up entities with `linking_status = "pending"`
+2. Searches Wikidata for candidates matching each entity's name and type
+3. Uses LLM reasoning to disambiguate candidates (e.g., "Blue Note" — jazz club vs. record label)
+4. Links entities to Q-IDs or marks them as failed/skipped
+
+Each `Entity` record tracks its linking state via the `linking_status` field:
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Not yet processed by the linking agent |
+| `linked` | Successfully linked to a Wikidata Q-ID |
+| `skipped` | Entity type has no Wikidata class Q-ID |
+| `failed` | No suitable Wikidata match found |
+
+The agent is triggered by the `step_completed` signal when the resolve step finishes. It processes all pending entities (not just those from the current episode), working in configurable batch sizes.
+
+The linking agent is **on by default**. Configure via the wizard or set these variables in `.env`:
+```
+RAGTIME_LINKING_AGENT_ENABLED=true
+RAGTIME_LINKING_AGENT_API_KEY=sk-your-key
+RAGTIME_LINKING_AGENT_MODEL=openai:gpt-4.1-mini
+RAGTIME_LINKING_AGENT_BATCH_SIZE=50
+```
+
+Link entities manually from the CLI:
+```bash
+uv run python manage.py link_entities              # Link all pending
+uv run python manage.py link_entities --retry       # Reset failed → pending, re-link
+uv run python manage.py link_entities --type musician  # Link specific type only
+```
+
+Failed or skipped entities can also be retried from Django admin using the "Retry Wikidata linking" action.
+
+The agent's tools — `search_wikidata`, `link_entity`, `mark_failed`, and `skip_entity` — are defined in [`episodes/agents/linker_tools.py`](../episodes/agents/linker_tools.py). The system prompt and signal handler are in [`episodes/agents/linker.py`](../episodes/agents/linker.py).
+
 ## How Scott Works
 
 Scott is a strict RAG (Retrieval-Augmented Generation) agent:
@@ -159,7 +193,7 @@ Scott responds in the user's language, regardless of the source episode's langua
 
 ## Wikidata Cache
 
-Wikidata API responses are cached to avoid repeated requests during entity resolution. Each unique entity name can trigger up to 11 API requests (1 search + up to 10 detail lookups), so caching is critical for performance and to avoid IP rate-limiting.
+Wikidata API responses are cached to avoid repeated requests during entity linking. Each unique entity name can trigger up to 11 API requests (1 search + up to 10 detail lookups), so caching is critical for performance and to avoid IP rate-limiting.
 
 | Setting | Default | Description |
 |---------|---------|-------------|

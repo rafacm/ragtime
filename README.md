@@ -25,7 +25,7 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 
 - 🎙️ **Episode Ingestion** — Add podcast episodes by URL. RAGtime scrapes metadata (title, description, date, image), downloads audio, and processes it through the pipeline.
 - 📝 **Multilingual Transcription** — Transcribes episodes using configurable backends (Whisper API by default) with segment and word-level timestamps. Supports multiple languages (English, Spanish, German, Swedish, etc.).
-- 🔍 **Entity Extraction** — Identifies jazz entities: musicians, musical groups, albums, music venues, recording sessions, record labels, years. Entities are resolved against existing records using LLM-based matching.
+- 🔍 **Entity Extraction** — Identifies jazz entities: musicians, musical groups, albums, music venues, recording sessions, record labels, years. Entities are resolved against existing records using LLM-based matching. A background linking agent asynchronously enriches entities with Wikidata Q-IDs without blocking the pipeline.
 - 📇 **Episode Indexing** — Splits transcripts into segments and generates multilingual embeddings stored in ChromaDB. Enables cross-language semantic search so Scott can retrieve relevant content regardless of the question's language.
 - 🎷 **Scott — Your Jazz AI** — A conversational agent that answers questions strictly from ingested episode content. Scott responds in the user's language and provides references to specific episodes and timestamps. Responses stream in real-time.
 - 📊 **AI Evaluation** — Measures pipeline and Scott quality using [RAGAS](https://docs.ragas.io/) (faithfulness, answer relevancy, context precision/recall) with scores tracked in [Langfuse](https://langfuse.com/docs/scores/model-based-evals/ragas).
@@ -65,11 +65,13 @@ Each step updates the episode's `status` field. A `post_save` signal dispatches 
 | 5 | 📋 Summarize | `summarizing` | LLM-generated episode summary |
 | 6 | ✂️ Chunk | `chunking` | Split transcript into ~150-word chunks |
 | 7 | 🔍 Extract | `extracting` | Named entity recognition per chunk |
-| 8 | 🧩 Resolve | `resolving` | Entity linking and deduplication via Wikidata |
+| 8 | 🧩 Resolve | `resolving` | LLM-based entity deduplication against existing DB records |
 | 9 | 📐 Embed | `embedding` | Multilingual embeddings into ChromaDB |
 | 10 | ✅ Ready | `ready` | Episode available for Scott to query |
 
 _Steps 9–10 (Embed, Ready) are planned and not yet implemented._
+
+After the resolve step completes, a **linking agent** runs asynchronously to enrich entities with [Wikidata](https://www.wikidata.org/) Q-IDs. This is not a pipeline step — it never blocks episode processing. See the [linking agent documentation](doc/README.md#linking-agent) for details.
 
 See the [full pipeline documentation](doc/README.md) for per-step details, entity types, and the recovery layer.
 

@@ -93,6 +93,12 @@ class EntityType(models.Model):
 
 
 class Entity(models.Model):
+    class LinkingStatus(models.TextChoices):
+        PENDING = "pending"
+        LINKED = "linked"
+        SKIPPED = "skipped"
+        FAILED = "failed"
+
     entity_type = models.ForeignKey(
         EntityType, on_delete=models.PROTECT, related_name="entities"
     )
@@ -103,6 +109,12 @@ class Entity(models.Model):
         default="",
         db_index=True,
         help_text="Wikidata entity Q-ID, e.g. Q93341 for 'Miles Davis'",
+    )
+    linking_status = models.CharField(
+        max_length=10,
+        choices=LinkingStatus.choices,
+        default=LinkingStatus.PENDING,
+        db_index=True,
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -514,17 +514,27 @@ class EntityTypeAdmin(admin.ModelAdmin):
 
 @admin.register(Entity)
 class EntityAdmin(admin.ModelAdmin):
-    list_display = ("name", "entity_type", "wikidata_link", "mention_count", "created_at")
-    list_filter = ("entity_type__name",)
+    list_display = ("name", "entity_type", "wikidata_link", "linking_status", "mention_count", "created_at")
+    list_filter = ("entity_type__name", "linking_status")
     search_fields = ("name",)
-    readonly_fields = ("entity_type", "name", "wikidata_id_display", "created_at", "updated_at")
+    readonly_fields = ("entity_type", "name", "wikidata_id_display", "linking_status", "created_at", "updated_at")
+    actions = ["retry_wikidata_linking"]
     inlines = [EntityMentionInlineForEntity]
 
     def get_fieldsets(self, request, obj=None):
         return [
-            (None, {"fields": ("entity_type", "name", "wikidata_id_display")}),
+            (None, {"fields": ("entity_type", "name", "wikidata_id_display", "linking_status")}),
             ("Timestamps", {"classes": ("collapse",), "fields": ("created_at", "updated_at")}),
         ]
+
+    @admin.action(description="Retry Wikidata linking for selected entities")
+    def retry_wikidata_linking(self, request, queryset):
+        count = queryset.exclude(
+            linking_status=Entity.LinkingStatus.LINKED,
+        ).update(linking_status=Entity.LinkingStatus.PENDING)
+        self.message_user(request, f"Reset {count} entities to pending for re-linking.")
+        if count > 0:
+            async_task("episodes.agents.linker.run_linking_agent")
 
     @admin.display(description="Wikidata ID")
     def wikidata_link(self, obj):
