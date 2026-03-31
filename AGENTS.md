@@ -62,7 +62,7 @@ When creating PRs, use the rebase strategy. Squash and merge-commit strategies a
 
 ## Testing
 
-Before creating any commit, run the full test suite and verify it passes:
+Before creating a PR, run the full test suite and verify it passes:
 
 ```bash
 uv run python manage.py test --verbosity 2
