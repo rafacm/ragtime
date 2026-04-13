@@ -28,7 +28,7 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 - 🔍 **Entity Extraction** — Identifies jazz entities: musicians, musical groups, albums, music venues, recording sessions, record labels, years. Entities are resolved against existing records using LLM-based matching.
 - 📇 **Episode Indexing** — Splits transcripts into segments and generates multilingual embeddings stored in ChromaDB. Enables cross-language semantic search so Scott can retrieve relevant content regardless of the question's language.
 - 🎷 **Scott — Your Jazz AI** — A conversational agent that answers questions strictly from ingested episode content. Scott responds in the user's language and provides references to specific episodes and timestamps. Responses stream in real-time.
-- 📊 **AI Evaluation** — Measures pipeline and Scott quality using [RAGAS](https://docs.ragas.io/) (faithfulness, answer relevancy, context precision/recall) with scores tracked in [Langfuse](https://langfuse.com/docs/scores/model-based-evals/ragas).
+- 📊 **AI Evaluation** — Measures pipeline and Scott quality using [RAGAS](https://docs.ragas.io/) (faithfulness, answer relevancy, context precision/recall) with scores tracked via [OpenTelemetry](https://opentelemetry.io/).
 
 ## Status
 
@@ -39,7 +39,7 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 - **Episode ingestion**: submit episodes by URL, metadata scraping, audio download, transcription, summarization,  chunking, entity extraction and resolution with [Wikidata](https://www.wikidata.org/) integration.
 - **Episode management UI**: Django admin interface to view episode status and metadata and browse extracted entities.
 - **Configuration wizard**: interactive `manage.py configure` command for all `RAGTIME_*` env vars.
-- **LLM observability**: optional [Langfuse](https://langfuse.com) integration for tracing and monitoring LLM calls across the pipeline.
+- **LLM observability**: optional [OpenTelemetry](https://opentelemetry.io/) tracing for monitoring LLM calls across the pipeline. Export to any OTLP-compatible backend (Langfuse, Sentry, Jaeger, etc.).
 - **Agent-based recovery**: [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation recovers from scraping and downloading failures automatically.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixes, implementation plans, feature documentation and session transcripts.
@@ -48,13 +48,13 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixe
 
 - **Embed step** (pipeline step 9): generate multilingual embeddings for transcript chunks and store them in [ChromaDB](https://www.trychroma.com/).
 - **Scott — the RAG chatbot** (pipeline step 10 + chat app): conversational agent that answers questions strictly from ingested content, with episode/timestamp references, multilingual support, and streaming responses.
-- **AI evaluation**: measure pipeline and Scott quality using [RAGAS](https://docs.ragas.io/) (faithfulness, answer relevancy, context precision/recall) with scores tracked in [Langfuse](https://langfuse.com/docs/scores/model-based-evals/ragas). Enables regression testing across prompt and model changes.
+- **AI evaluation**: measure pipeline and Scott quality using [RAGAS](https://docs.ragas.io/) (faithfulness, answer relevancy, context precision/recall) with scores tracked via OpenTelemetry. Enables regression testing across prompt and model changes.
 
 ## Processing Pipeline
 
 [![Processing Pipeline](doc/architecture/ragtime-processing-pipeline.svg)](https://app.excalidraw.com/s/3Cob4pHK6Ge/3zFsvWxbOWQ)
 
-Each step updates the episode's `status` field. A `post_save` signal dispatches the next step as an async Django Q2 task. Failures with exceptions trigger the [recovery layer](doc/README.md#recovery).
+Each step updates the episode's `status` field. The pipeline is orchestrated as a [LangGraph](https://langchain-ai.github.io/langgraph/) state graph with conditional edges for step skipping and recovery routing. Failures trigger the [recovery layer](doc/README.md#recovery).
 
 | # | Step | Status | Description |
 |---|------|--------|-------------|
@@ -79,7 +79,7 @@ Detailed documentation lives in the [`doc/`](doc/) directory:
 
 - [Full pipeline documentation](doc/README.md) — per-step details, entity types, recovery layer
 - [How Scott works](doc/README.md#how-scott-works) — RAG architecture and query flow
-- [LLM observability with Langfuse](doc/README.md#llm-observability-langfuse) — tracing setup and traced steps
+- [LLM observability with OpenTelemetry](doc/README.md#llm-observability-opentelemetry) — tracing setup and traced steps
 - [Architecture diagrams](doc/architecture/) — processing pipeline diagram
 - [Feature documentation](doc/features/) — per-feature docs with problem, changes, and verification
 - [Plans](doc/plans/) — implementation plans
@@ -108,7 +108,7 @@ Optional dependency groups:
 
 | Extra | Install command | Description |
 |-------|----------------|-------------|
-| `observability` | `uv sync --extra observability` | [LLM observability via Langfuse](doc/README.md#llm-observability-langfuse) |
+| `observability` | `uv sync --extra observability` | [LLM observability via OpenTelemetry](doc/README.md#llm-observability-opentelemetry) (OTLP exporter) |
 | `recovery` | `uv sync --extra recovery` | [Agent recovery with Pydantic AI + Playwright](doc/README.md#recovery) |
 
 To install both extras at once, pass them in a single command — running `uv sync --extra` twice will remove the first extra:
@@ -127,7 +127,6 @@ uv run python manage.py createsuperuser   # Create an admin user for the Django 
 uv run python manage.py load_entity_types # Seed initial entity types
 uv run python manage.py configure         # Interactive setup wizard for RAGTIME_* env vars
 uv run python manage.py runserver         # Start the web server
-uv run python manage.py qcluster          # Start the Django Q2 task worker (separate terminal)
 ```
 
 To reset the database (drops all data and recreates):
@@ -149,12 +148,13 @@ Alternatively, copy [`.env.sample`](.env.sample) to `.env` and fill in your valu
 - **Framework**: [Django 5.2](https://www.djangoproject.com/)
 - **Database**: [PostgreSQL 17](https://www.postgresql.org/) (via [Docker Compose](https://docs.docker.com/compose/))
 - **Vector Store**: [ChromaDB](https://www.trychroma.com/)
-- **Task Queue**: [Django Q2](https://django-q2.readthedocs.io/)
+- **Pipeline Orchestration**: [LangGraph](https://langchain-ai.github.io/langgraph/) (state graph with conditional routing)
 - **AI Agents**: [Pydantic AI](https://ai.pydantic.dev/) (recovery agent)
 - **Transcription**: Configurable — [Whisper API](https://platform.openai.com/docs/guides/speech-to-text) (default), local Whisper, etc.
 - **LLM**: Configurable — [Claude](https://www.anthropic.com/) (Anthropic), [GPT](https://openai.com/) (OpenAI), etc.
 - **Embeddings**: Configurable — must support multilingual models for cross-language retrieval
-- **AI Evaluation**: [RAGAS](https://docs.ragas.io/) + [Langfuse](https://langfuse.com/)
+- **Observability**: [OpenTelemetry](https://opentelemetry.io/) (pluggable OTLP backends)
+- **AI Evaluation**: [RAGAS](https://docs.ragas.io/)
 - **Frontend**: [Django templates](https://docs.djangoproject.com/en/5.2/topics/templates/) + [HTMX](https://htmx.org/) + [Tailwind CSS](https://tailwindcss.com/)
 - **Package Manager**: [uv](https://docs.astral.sh/uv/)
 

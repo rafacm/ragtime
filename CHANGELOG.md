@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-04-13
+
+### Changed
+
+- Migrate observability from Langfuse to OpenTelemetry — replace Langfuse-specific decorators (`@observe_step`, `@observe_provider`) and client wrapping with OTel SDK (`@trace_step`, `@trace_provider`, span events). Traces can now be exported to any OTLP-compatible backend (Langfuse, Sentry, Jaeger). Replace `RAGTIME_LANGFUSE_*` env vars with `RAGTIME_OTEL_*` — [plan](doc/plans/2026-04-13-otel-langgraph-migration.md), [feature](doc/features/2026-04-13-otel-langgraph-migration.md), [planning session](doc/sessions/2026-04-13-otel-langgraph-migration-planning-session.md), [implementation session](doc/sessions/2026-04-13-otel-langgraph-migration-implementation-session.md)
+
+- Replace Django Q2 signal-based pipeline dispatch with LangGraph state graph — the ingestion pipeline is now a compiled `StateGraph` with conditional edges for step skipping (when data already exists) and recovery routing. An entry router enables resume-from-failure. Remove `django-q2` dependency, `Q_CLUSTER` config, and `queue_next_step` signal handler — [plan](doc/plans/2026-04-13-otel-langgraph-migration.md), [feature](doc/features/2026-04-13-otel-langgraph-migration.md), [planning session](doc/sessions/2026-04-13-otel-langgraph-migration-planning-session.md), [implementation session](doc/sessions/2026-04-13-otel-langgraph-migration-implementation-session.md)
+
+### Added
+
+- LangGraph Studio support — `langgraph.json` and `episodes/graph/server.py` enable local graph visualization and execution inspection via LangGraph Studio desktop app (`langgraph dev`)
+
 ## 2026-03-23
 
 ### Fixed

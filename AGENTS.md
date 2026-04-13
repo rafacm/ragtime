@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 ## Project
 
-RAGtime is a Django app for ingesting jazz podcast episodes — scraping metadata, transcribing audio, extracting jazz entities, and powering **Scott**, a strict RAG chatbot that answers questions only from ingested content. The project overview lives in `README.md`; detailed pipeline, Scott, and Langfuse documentation lives in `doc/README.md`.
+RAGtime is a Django app for ingesting jazz podcast episodes — scraping metadata, transcribing audio, extracting jazz entities, and powering **Scott**, a strict RAG chatbot that answers questions only from ingested content. The project overview lives in `README.md`; detailed pipeline, Scott, and observability documentation lives in `doc/README.md`.
 
 ## Commands
 
@@ -31,7 +31,7 @@ Use `uv` for everything — never `pip install` directly.
 
 **Provider abstraction:** LLM, transcription, and embedding backends are pluggable via abstract base classes in `episodes/providers/base.py` with a factory in `episodes/providers/factory.py`. Configured through `RAGTIME_*` environment variables.
 
-**10-step pipeline** (steps defined in `episodes/models.py:PIPELINE_STEPS`, dispatched by `episodes/signals.py`): submit → scrape → download → transcribe → summarize → chunk → extract → resolve → embed → ready. Each step updates the episode status. Failures set status to `failed`. Runs async via Django Q2.
+**10-step pipeline** (steps defined in `episodes/models.py:PIPELINE_STEPS`, orchestrated by LangGraph in `episodes/graph/pipeline.py`): submit → scrape → download → transcribe → summarize → chunk → extract → resolve → embed → ready. Each step updates the episode status. The graph's conditional edges enable step skipping and recovery routing. Failures set status to `failed` and route to the recovery node.
 
 > **Keep in sync:** When adding, removing, or changing a pipeline step, update the summary table in `README.md` and the detailed step descriptions in `doc/README.md`. If the change affects a diagram (e.g., Excalidraw files in `doc/`), flag it explicitly — diagrams cannot be auto-updated and may be out of sync after the change.
 
@@ -44,7 +44,8 @@ Use `uv` for everything — never `pip install` directly.
 - Python 3.13 (`requires-python = ">=3.13,<3.14"`)
 - No build-system in `pyproject.toml` (this is an app, not a library)
 - PostgreSQL for relational data (via Docker Compose), ChromaDB for vector store
-- Django Q2 with ORM broker (no Redis needed)
+- LangGraph for pipeline orchestration (state graph with conditional routing)
+- OpenTelemetry for LLM observability (pluggable OTLP backends)
 - Frontend: Django templates + HTMX + Tailwind CSS (CDN)
 - `python-dotenv` for env vars (`.env` file, `RAGTIME_*` prefix)
 - ffmpeg required for audio downsampling (files > 25MB)

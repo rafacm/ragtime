@@ -9,7 +9,7 @@
   - [Recovery](#recovery)
 - [How Scott Works](#how-scott-works)
 - [Wikidata Cache](#wikidata-cache)
-- [LLM Observability (Langfuse)](#llm-observability-langfuse)
+- [LLM Observability (OpenTelemetry)](#llm-observability-opentelemetry)
 - [Development](#development)
 - [Feature Documentation](#feature-documentation)
 
@@ -17,7 +17,7 @@
 
 [![Processing Pipeline](architecture/ragtime-processing-pipeline.svg)](https://app.excalidraw.com/s/3Cob4pHK6Ge/3zFsvWxbOWQ)
 
-Each step is implemented by a dedicated function in the `episodes` package (e.g., [`scraper.scrape_episode`](../episodes/scraper.py), [`downloader.download_episode`](../episodes/downloader.py), [`transcriber.transcribe_episode`](../episodes/transcriber.py)) that updates the episode's `status` field when it completes. A [`post_save` signal](../episodes/signals.py) watches for status changes and dispatches the next step as an async [Django Q2](https://django-q2.readthedocs.io/) task — no central orchestrator needed. Any failure sets `status` to `failed`, emits a structured `step_failed` signal, and triggers the [recovery layer](#recovery) which walks a configurable strategy chain (agent → human escalation).
+Each step is implemented by a dedicated function in the `episodes` package (e.g., [`scraper.scrape_episode`](../episodes/scraper.py), [`downloader.download_episode`](../episodes/downloader.py), [`transcriber.transcribe_episode`](../episodes/transcriber.py)) that updates the episode's `status` field when it completes. The pipeline is orchestrated as a [LangGraph](https://langchain-ai.github.io/langgraph/) state graph ([`episodes/graph/pipeline.py`](../episodes/graph/pipeline.py)) with conditional edges that enable step skipping (when data already exists) and recovery routing. An entry router inspects the episode's current data to determine where to start, enabling resume-from-failure. Any failure sets `status` to `failed` and routes to the [recovery layer](#recovery) which walks a configurable strategy chain (agent → human escalation).
 
 ### Steps
 
@@ -106,7 +106,7 @@ Episode fully processed and available for Scott to query.
 
 ### Recovery
 
-When any pipeline step fails, the [`step_failed` handler](../episodes/recovery.py) triggers the recovery layer, which walks a configurable strategy chain before giving up:
+When any pipeline step fails, the graph routes to the recovery node ([`episodes/graph/nodes.py:recovery_node`](../episodes/graph/nodes.py)), which walks a configurable strategy chain before giving up:
 
 [![Recovery Layer diagram](architecture/ragtime-recovery.svg)](https://app.excalidraw.com/s/3Cob4pHK6Ge/Az6udDWhj7T)
 
@@ -131,7 +131,7 @@ RAGTIME_RECOVERY_AGENT_API_KEY=sk-your-key
 RAGTIME_RECOVERY_AGENT_MODEL=openai:gpt-4.1-mini
 ```
 
-The agent's LLM provider is fully independent from other subsystems — configure any [Pydantic AI model string](https://ai.pydantic.dev/models/) (e.g., `anthropic:claude-sonnet-4-20250514`). A maximum of 30 LLM requests per recovery attempt prevents runaway costs. Screenshots taken during recovery are attached to [Langfuse](https://langfuse.com) traces when observability is enabled.
+The agent's LLM provider is fully independent from other subsystems — configure any [Pydantic AI model string](https://ai.pydantic.dev/models/) (e.g., `anthropic:claude-sonnet-4-20250514`). A maximum of 30 LLM requests per recovery attempt prevents runaway costs. Screenshots taken during recovery are recorded as OpenTelemetry span events when observability is enabled.
 
 The `translate_text` tool uses a separate LLM provider to translate UI labels to the episode's language. It is included in the shareable LLM provider group in the configuration wizard. To configure manually, set these variables in `.env`:
 ```
@@ -174,9 +174,9 @@ rm -rf .cache/wikidata/
 
 API requests are rate-limited per process via a token bucket (~5 req/s sustained, bursts up to 10). Only cache misses count against the rate limit.
 
-## LLM Observability (Langfuse)
+## LLM Observability (OpenTelemetry)
 
-RAGtime optionally integrates with [Langfuse](https://langfuse.com) to trace all LLM calls across the pipeline. When enabled, every OpenAI API call is captured with prompts, completions, token usage, latency, and cost — grouped by `ProcessingRun`.
+RAGtime uses [OpenTelemetry](https://opentelemetry.io/) to trace all LLM calls across the pipeline. Traces are exported to any OTLP-compatible backend — [Langfuse](https://langfuse.com), [Sentry](https://sentry.io/), [Jaeger](https://www.jaegertracing.io/), or any other collector.
 
 ### What is traced
 
@@ -188,42 +188,41 @@ RAGtime optionally integrates with [Langfuse](https://langfuse.com) to trace all
 | Extract | `extract_entities` | Per-chunk entity extraction |
 | Resolve | `resolve_entities` | Entity resolution against DB |
 
+Each step creates an OTel span with episode metadata attributes. Provider calls (LLM, transcription) create child spans with input/output recorded as span events.
+
 ### Setup
 
-1. Install the optional dependency:
+1. Install the optional OTLP exporter:
    ```
    uv sync --extra observability
    ```
 
-2. Run Langfuse locally via Docker Compose.
-
-   See [this walk through guide](https://langfuse.com/self-hosting/deployment/docker-compose).
-
-   **Port conflict:** Langfuse's docker-compose.yml exposes its PostgreSQL on port 5432, which conflicts with RAGtime's. Run one of these in the Langfuse directory to move it to port 5433:
-   ```bash
-   # macOS (BSD sed)
-   sed -i '' 's/127.0.0.1:5432:5432/127.0.0.1:5433:5432/' docker-compose.yml
-
-   # Linux (GNU sed)
-   sed -i 's/127.0.0.1:5432:5432/127.0.0.1:5433:5432/' docker-compose.yml
-   ```
-   This only changes the host-side port — Langfuse's internal connections use the Docker network and are unaffected.
-
-3. Configure via the wizard or `.env`:
+2. Configure via the wizard or `.env`:
    ```
    uv run python manage.py configure
    ```
    Or set these variables in `.env`:
    ```
-   RAGTIME_LANGFUSE_ENABLED=true
-   RAGTIME_LANGFUSE_SECRET_KEY=sk-lf-...
-   RAGTIME_LANGFUSE_PUBLIC_KEY=pk-lf-...
-   RAGTIME_LANGFUSE_HOST=http://localhost:3000
+   RAGTIME_OTEL_ENABLED=true
+   RAGTIME_OTEL_EXPORTER=otlp
+   RAGTIME_OTEL_ENDPOINT=http://localhost:4318
+   RAGTIME_OTEL_SERVICE_NAME=ragtime
+   RAGTIME_OTEL_HEADERS=
    ```
 
-4. Process an episode and view traces at `http://localhost:3000`.
+3. Start an OTLP-compatible collector. For local development, [Jaeger](https://www.jaegertracing.io/docs/latest/getting-started/) is the simplest option:
+   ```bash
+   docker run -d --name jaeger \
+     -p 4318:4318 -p 16686:16686 \
+     jaegertracing/all-in-one:latest
+   ```
+   Then view traces at `http://localhost:16686`.
 
-When disabled (the default), Langfuse is never imported and there is zero overhead.
+   For **Langfuse**, set the endpoint and headers per [Langfuse's OTLP docs](https://langfuse.com/docs/integrations/opentelemetry). For **Sentry**, use Sentry's OTLP endpoint.
+
+4. Use `RAGTIME_OTEL_EXPORTER=console` to print spans to the terminal (useful for debugging without a collector).
+
+When disabled (the default), OTel is never imported and there is zero overhead.
 
 ## Development
 
