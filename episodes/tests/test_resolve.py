@@ -51,8 +51,7 @@ class ResolveEntitiesTests(TestCase):
         _seed_entity_types()
 
     def _create_episode(self, **kwargs):
-        with patch("episodes.signals.async_task"):
-            return Episode.objects.create(**kwargs)
+        return Episode.objects.create(**kwargs)
 
     def _create_chunk(self, episode, index=0, entities_json=None, text="chunk text"):
         return Chunk.objects.create(
@@ -81,8 +80,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=self.SAMPLE_ENTITIES)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
@@ -135,8 +133,7 @@ class ResolveEntitiesTests(TestCase):
         )
         chunk = self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
@@ -194,8 +191,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
@@ -233,8 +229,7 @@ class ResolveEntitiesTests(TestCase):
         chunk1 = self._create_chunk(episode, index=0, entities_json=entities_chunk1)
         chunk2 = self._create_chunk(episode, index=1, entities_json=entities_chunk2)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
@@ -297,8 +292,7 @@ class ResolveEntitiesTests(TestCase):
         self._create_chunk(episode, index=0, entities_json=entities_chunk1)
         self._create_chunk(episode, index=1, entities_json=entities_chunk2)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         # Only 1 LLM call (one entity type: musician)
         self.assertEqual(mock_provider.structured_extract.call_count, 1)
@@ -335,8 +329,7 @@ class ResolveEntitiesTests(TestCase):
         instrument_type = _get_entity_type("musical_instrument")
 
         # First episode — no existing entities, so created directly with extracted name
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         entity = Entity.objects.get(entity_type=instrument_type)
         self.assertEqual(entity.name, "Saxophon")
@@ -363,8 +356,7 @@ class ResolveEntitiesTests(TestCase):
             ],
         })
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode2.pk)
+        resolve_entities(episode2.pk)
 
         # Still only 1 instrument entity (matched)
         self.assertEqual(
@@ -393,8 +385,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
@@ -439,8 +430,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
@@ -462,8 +452,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=None)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
@@ -514,8 +503,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
@@ -537,8 +525,7 @@ class ResolveEntitiesTests(TestCase):
         self._create_chunk(episode, index=0, entities_json=self.SAMPLE_ENTITIES)
 
         # First run — no existing entities, creates all 59 as new (no LLM call)
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         self.assertEqual(Entity.objects.count(), 59)
         self.assertEqual(EntityMention.objects.filter(episode=episode).count(), 59)
@@ -569,9 +556,8 @@ class ResolveEntitiesTests(TestCase):
 
         # Reset status and run again
         episode.status = Episode.Status.RESOLVING
-        with patch("episodes.signals.async_task"):
-            episode.save(update_fields=["status", "updated_at"])
-            resolve_entities(episode.pk)
+        episode.save(update_fields=["status", "updated_at"])
+        resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
@@ -606,8 +592,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
@@ -655,8 +640,7 @@ class ResolveEntitiesTests(TestCase):
         }
 
         with patch("episodes.resolver._fetch_wikidata_candidates", return_value=wikidata_candidates):
-            with patch("episodes.signals.async_task"):
-                resolve_entities(episode.pk)
+            resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
@@ -706,8 +690,7 @@ class ResolveEntitiesTests(TestCase):
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
         with patch("episodes.resolver._fetch_wikidata_candidates", return_value={}):
-            with patch("episodes.signals.async_task"):
-                resolve_entities(episode.pk)
+            resolve_entities(episode.pk)
 
         # Should match existing entity by wikidata_id
         self.assertEqual(Entity.objects.filter(entity_type=musician_type).count(), 1)
@@ -751,8 +734,7 @@ class ResolveEntitiesTests(TestCase):
         }
 
         with patch("episodes.resolver._fetch_wikidata_candidates", return_value=wikidata_candidates):
-            with patch("episodes.signals.async_task"):
-                resolve_entities(episode.pk)
+            resolve_entities(episode.pk)
 
         # Entity created with wikidata_id
         entity = Entity.objects.get(name="Miles Davis")
@@ -797,8 +779,7 @@ class ResolveEntitiesTests(TestCase):
         }
 
         with patch("episodes.resolver._fetch_wikidata_candidates", return_value=wikidata_candidates):
-            with patch("episodes.signals.async_task"):
-                resolve_entities(episode.pk)
+            resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
@@ -851,8 +832,7 @@ class ResolveEntitiesTests(TestCase):
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
         with patch("episodes.resolver._fetch_wikidata_candidates", return_value={}):
-            with patch("episodes.signals.async_task"):
-                resolve_entities(episode.pk)
+            resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
@@ -906,8 +886,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
@@ -939,8 +918,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)
@@ -969,8 +947,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         mention = EntityMention.objects.get(episode=episode)
         self.assertEqual(mention.start_time, 5.0)
@@ -996,8 +973,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         mention = EntityMention.objects.get(episode=episode)
         self.assertIsNone(mention.start_time)
@@ -1029,8 +1005,7 @@ class ResolveEntitiesTests(TestCase):
         self._create_chunk(episode, index=0, entities_json=entities_chunk1)
         self._create_chunk(episode, index=1, entities_json=entities_chunk2)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         mentions = EntityMention.objects.filter(episode=episode).order_by("chunk__index")
         self.assertEqual(mentions.count(), 2)
@@ -1075,8 +1050,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
-            resolve_entities(episode.pk)
+        resolve_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EMBEDDING)

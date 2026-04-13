@@ -153,8 +153,7 @@ class RecoveryChainTests(TestCase):
 
 @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=False)
 class HandleStepFailureTests(TestCase):
-    @patch("episodes.signals.async_task")
-    def test_creates_awaiting_human_attempt(self, _):
+    def test_creates_awaiting_human_attempt(self):
         """Default chain (agent disabled) escalates directly to human."""
         episode = Episode.objects.create(url="https://example.com/rec/1")
         run = ProcessingRun.objects.create(episode=episode)
@@ -179,10 +178,9 @@ class HandleStepFailureTests(TestCase):
         self.assertFalse(attempt.success)
 
     @unittest.skipUnless(_has_recovery_deps, "pydantic-ai not installed")
-    @patch("episodes.signals.async_task")
     @patch("episodes.agents.run_recovery_agent")
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
-    def test_agent_escalates_to_human(self, mock_agent, _):
+    def test_agent_escalates_to_human(self, mock_agent):
         """When agent is enabled but fails, it escalates to human."""
         from episodes.agents.deps import RecoveryAgentResult
 
@@ -213,8 +211,7 @@ class HandleStepFailureTests(TestCase):
         self.assertEqual(attempts[1].strategy, "human")
         self.assertEqual(attempts[1].status, RecoveryAttempt.Status.AWAITING_HUMAN)
 
-    @patch("episodes.signals.async_task")
-    def test_max_attempts_prevents_recovery(self, _):
+    def test_max_attempts_prevents_recovery(self):
         """After MAX_RECOVERY_ATTEMPTS, no further recovery is attempted."""
         episode = Episode.objects.create(url="https://example.com/rec/3")
         run = ProcessingRun.objects.create(episode=episode)
@@ -248,9 +245,8 @@ class HandleStepFailureTests(TestCase):
 class IntegrationTests(TestCase):
     """Test that pipeline failures trigger recovery via signals."""
 
-    @patch("episodes.signals.async_task")
-    def test_fail_step_with_exc_triggers_recovery(self, _):
-        """fail_step with exc triggers the full signal -> recovery chain."""
+    def test_fail_step_with_exc_triggers_recovery(self):
+        """fail_step with exc triggers recovery when handler is connected."""
         episode = Episode.objects.create(url="https://example.com/int/1")
         run = ProcessingRun.objects.create(episode=episode)
         ProcessingStep.objects.create(
@@ -258,9 +254,16 @@ class IntegrationTests(TestCase):
         )
 
         from episodes.processing import fail_step
+        from episodes.recovery import handle_step_failure
+        from episodes.signals import step_failed
 
-        exc = RuntimeError("scrape failed")
-        fail_step(episode, "scraping", str(exc), exc=exc)
+        # Manually connect recovery handler (no longer auto-connected in apps.py)
+        step_failed.connect(handle_step_failure)
+        try:
+            exc = RuntimeError("scrape failed")
+            fail_step(episode, "scraping", str(exc), exc=exc)
+        finally:
+            step_failed.disconnect(handle_step_failure)
 
         # Should have a PipelineEvent and a RecoveryAttempt
         self.assertTrue(PipelineEvent.objects.filter(episode=episode).exists())

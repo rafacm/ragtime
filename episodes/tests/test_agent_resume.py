@@ -38,8 +38,7 @@ def _make_failure_event(**overrides):
 
 
 class ResumePipelineScrapingTests(TestCase):
-    @patch("episodes.signals.async_task")
-    def test_sets_audio_url_and_creates_run(self, _mock_task):
+    def test_sets_audio_url_and_creates_run(self):
         episode = Episode.objects.create(
             url="https://example.com/pod/1",
             status=Episode.Status.FAILED,
@@ -71,9 +70,8 @@ class ResumePipelineScrapingTests(TestCase):
         self.assertEqual(steps["downloading"], ProcessingStep.Status.PENDING)
 
 
-    @patch("episodes.signals.async_task")
     @patch("episodes.agents.resume.MP3")
-    def test_skips_download_when_file_already_downloaded(self, mock_mp3, _mock_task):
+    def test_skips_download_when_file_already_downloaded(self, mock_mp3):
         """When scraping recovery also downloaded the file, skip to transcribing."""
         episode = Episode.objects.create(
             url="https://example.com/pod/skip-dl",
@@ -130,9 +128,8 @@ class ResumePipelineScrapingTests(TestCase):
 
 
 class ResumePipelineDownloadingTests(TestCase):
-    @patch("episodes.signals.async_task")
     @patch("episodes.agents.resume.MP3")
-    def test_saves_file_and_creates_run(self, mock_mp3, _mock_task):
+    def test_saves_file_and_creates_run(self, mock_mp3):
         episode = Episode.objects.create(
             url="https://example.com/pod/2",
             audio_url="https://cdn.example.com/ep2.mp3",

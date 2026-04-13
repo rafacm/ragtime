@@ -230,8 +230,7 @@ class ConfigureWizardTest(TestCase):
             "sk-newkey123",   # Shared LLM API key
             "sk-newkey123",   # Transcription API key
             "",               # Recovery agent API key (keep default)
-            "",               # Langfuse secret key (keep default)
-            "",               # Langfuse public key (keep default)
+            "",               # OTel headers (keep default)
         ]
         mock_input.side_effect = [
             "",               # DB name (keep default)
@@ -255,8 +254,10 @@ class ConfigureWizardTest(TestCase):
             "",               # Recovery agent enabled (keep default)
             "",               # Recovery agent model (keep default)
             "",               # Recovery agent timeout (keep default)
-            "",               # Langfuse enabled (keep default)
-            "",               # Langfuse host (keep default)
+            "",               # OTel enabled (keep default)
+            "",               # OTel exporter (keep default)
+            "",               # OTel endpoint (keep default)
+            "",               # OTel service name (keep default)
         ]
 
         with tempfile.NamedTemporaryFile(
@@ -335,8 +336,7 @@ class ConfigureWizardTest(TestCase):
             "sk-newkey123",   # Shared LLM API key
             "sk-newkey123",   # Transcription API key
             "",               # Recovery agent API key (keep default)
-            "",               # Langfuse secret key (keep default)
-            "",               # Langfuse public key (keep default)
+            "",               # OTel headers (keep default)
         ]
         mock_input.side_effect = [
             "",               # DB name (keep default)
@@ -360,8 +360,10 @@ class ConfigureWizardTest(TestCase):
             "",               # Recovery agent enabled (keep default)
             "",               # Recovery agent model (keep default)
             "",               # Recovery agent timeout (keep default)
-            "",               # Langfuse enabled (keep default)
-            "",               # Langfuse host (keep default)
+            "",               # OTel enabled (keep default)
+            "",               # OTel exporter (keep default)
+            "",               # OTel endpoint (keep default)
+            "",               # OTel service name (keep default)
         ]
 
         original_lines = ["# My config\n", "DEBUG=true\n", "RAGTIME_SCRAPING_PROVIDER=openai\n"]

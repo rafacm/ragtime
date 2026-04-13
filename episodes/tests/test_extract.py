@@ -134,8 +134,7 @@ class ExtractEntitiesTests(TestCase):
         _seed_entity_types()
 
     def _create_episode(self, **kwargs):
-        with patch("episodes.signals.async_task"):
-            return Episode.objects.create(**kwargs)
+        return Episode.objects.create(**kwargs)
 
     def _create_chunks(self, episode, texts):
         chunks = []
@@ -166,8 +165,7 @@ class ExtractEntitiesTests(TestCase):
         )
         self._create_chunks(episode, ["Miles Davis played trumpet.", "Kind of Blue in 1959."])
 
-        with patch("episodes.signals.async_task"):
-            extract_entities(episode.pk)
+        extract_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.RESOLVING)
@@ -201,8 +199,7 @@ class ExtractEntitiesTests(TestCase):
         )
         self._create_chunks(episode, ["chunk 1", "chunk 2", "chunk 3"])
 
-        with patch("episodes.signals.async_task"):
-            extract_entities(episode.pk)
+        extract_entities(episode.pk)
 
         self.assertEqual(mock_provider.structured_extract.call_count, 3)
 
@@ -222,8 +219,7 @@ class ExtractEntitiesTests(TestCase):
         )
         self._create_chunks(episode, ["Chunk text here."])
 
-        with patch("episodes.signals.async_task"):
-            extract_entities(episode.pk)
+        extract_entities(episode.pk)
 
         mock_provider.structured_extract.assert_called_once()
         _, kwargs = mock_provider.structured_extract.call_args
@@ -240,8 +236,7 @@ class ExtractEntitiesTests(TestCase):
             transcript="Some transcript but no chunks.",
         )
 
-        with patch("episodes.signals.async_task"):
-            extract_entities(episode.pk)
+        extract_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
@@ -280,8 +275,7 @@ class ExtractEntitiesTests(TestCase):
         )
         self._create_chunks(episode, ["Some transcript."])
 
-        with patch("episodes.signals.async_task"):
-            extract_entities(episode.pk)
+        extract_entities(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
@@ -320,8 +314,7 @@ class ExtractEntitiesTests(TestCase):
         )
         self._create_chunks(episode, ["Miles Davis played trumpet."])
 
-        with patch("episodes.signals.async_task"):
-            extract_entities(episode.pk)
+        extract_entities(episode.pk)
 
         chunk = episode.chunks.first()
         musician = chunk.entities_json["musician"][0]
@@ -353,8 +346,7 @@ class ExtractEntitiesTests(TestCase):
         )
         self._create_chunks(episode, ["Miles Davis played trumpet."])
 
-        with patch("episodes.signals.async_task"):
-            extract_entities(episode.pk)
+        extract_entities(episode.pk)
 
         chunk = episode.chunks.first()
         musician = chunk.entities_json["musician"][0]
@@ -394,8 +386,7 @@ class ExtractEntitiesTests(TestCase):
         )
         self._create_chunks(episode, ["The new style of fast jazz."])
 
-        with patch("episodes.signals.async_task"):
-            extract_entities(episode.pk)
+        extract_entities(episode.pk)
 
         chunk = episode.chunks.first()
         genre = chunk.entities_json["music_genre"][0]

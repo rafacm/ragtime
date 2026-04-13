@@ -34,8 +34,7 @@ class SummarizeEpisodeTests(TestCase):
             cls.coltrane_whisper = json.load(f)
 
     def _create_episode(self, **kwargs):
-        with patch("episodes.signals.async_task"):
-            return Episode.objects.create(**kwargs)
+        return Episode.objects.create(**kwargs)
 
     @patch("episodes.summarizer.get_summarization_provider")
     def test_success(self, mock_factory):
@@ -51,8 +50,7 @@ class SummarizeEpisodeTests(TestCase):
             transcript=self.reinhardt_whisper["text"],
         )
 
-        with patch("episodes.signals.async_task"):
-            summarize_episode(episode.pk)
+        summarize_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.CHUNKING)
@@ -85,8 +83,7 @@ class SummarizeEpisodeTests(TestCase):
             transcript="",
         )
 
-        with patch("episodes.signals.async_task"):
-            summarize_episode(episode.pk)
+        summarize_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
@@ -106,8 +103,7 @@ class SummarizeEpisodeTests(TestCase):
             transcript="Some transcript text.",
         )
 
-        with patch("episodes.signals.async_task"):
-            summarize_episode(episode.pk)
+        summarize_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
@@ -129,8 +125,7 @@ class SummarizeEpisodeTests(TestCase):
             language="de",
         )
 
-        with patch("episodes.signals.async_task"):
-            summarize_episode(episode.pk)
+        summarize_episode(episode.pk)
 
         mock_provider.generate.assert_called_once()
         _, kwargs = mock_provider.generate.call_args
@@ -153,8 +148,7 @@ class SummarizeEpisodeTests(TestCase):
             language="",
         )
 
-        with patch("episodes.signals.async_task"):
-            summarize_episode(episode.pk)
+        summarize_episode(episode.pk)
 
         mock_provider.generate.assert_called_once()
         _, kwargs = mock_provider.generate.call_args
@@ -175,8 +169,7 @@ class SummarizeEpisodeTests(TestCase):
             language="INVALID",
         )
 
-        with patch("episodes.signals.async_task"):
-            summarize_episode(episode.pk)
+        summarize_episode(episode.pk)
 
         mock_provider.generate.assert_called_once()
         _, kwargs = mock_provider.generate.call_args

@@ -10,8 +10,7 @@ class DownloadEpisodeTests(TestCase):
     """Tests for the download_episode task function."""
 
     def _create_episode(self, **kwargs):
-        with patch("episodes.signals.async_task"):
-            return Episode.objects.create(**kwargs)
+        return Episode.objects.create(**kwargs)
 
     @patch("episodes.downloader.MP3")
     @patch("episodes.downloader.subprocess.run")
@@ -35,8 +34,7 @@ class DownloadEpisodeTests(TestCase):
             status=Episode.Status.DOWNLOADING,
         )
 
-        with patch("episodes.signals.async_task"):
-            download_episode(episode.pk)
+        download_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.TRANSCRIBING)
@@ -64,8 +62,7 @@ class DownloadEpisodeTests(TestCase):
             status=Episode.Status.DOWNLOADING,
         )
 
-        with patch("episodes.signals.async_task"):
-            download_episode(episode.pk)
+        download_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.TRANSCRIBING)
@@ -83,8 +80,7 @@ class DownloadEpisodeTests(TestCase):
             status=Episode.Status.DOWNLOADING,
         )
 
-        with patch("episodes.signals.async_task"):
-            download_episode(episode.pk)
+        download_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)

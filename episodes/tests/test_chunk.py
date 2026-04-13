@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 from django.test import TestCase
 
@@ -72,8 +71,7 @@ class ChunkEpisodeTests(TestCase):
             cls.transcript_json = json.load(f)
 
     def _create_episode(self, **kwargs):
-        with patch("episodes.signals.async_task"):
-            return Episode.objects.create(**kwargs)
+        return Episode.objects.create(**kwargs)
 
     def test_chunk_episode_success(self):
         from episodes.chunker import chunk_episode
@@ -84,8 +82,7 @@ class ChunkEpisodeTests(TestCase):
             transcript_json=self.transcript_json,
         )
 
-        with patch("episodes.signals.async_task"):
-            chunk_episode(episode.pk)
+        chunk_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EXTRACTING)
@@ -100,8 +97,7 @@ class ChunkEpisodeTests(TestCase):
             transcript_json=None,
         )
 
-        with patch("episodes.signals.async_task"):
-            chunk_episode(episode.pk)
+        chunk_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
@@ -140,8 +136,7 @@ class ChunkEpisodeTests(TestCase):
             segment_end=0,
         )
 
-        with patch("episodes.signals.async_task"):
-            chunk_episode(episode.pk)
+        chunk_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.EXTRACTING)

@@ -39,18 +39,16 @@ class TranscribeEpisodeTests(TestCase):
     def _create_episode_with_audio(self, **kwargs):
         from django.core.files.base import ContentFile
 
-        with patch("episodes.signals.async_task"):
-            episode = Episode.objects.create(**kwargs)
-            episode.audio_file.save(
-                f"{episode.pk}.mp3",
-                ContentFile(b"fake-audio-data" * 100),
-                save=True,
-            )
+        episode = Episode.objects.create(**kwargs)
+        episode.audio_file.save(
+            f"{episode.pk}.mp3",
+            ContentFile(b"fake-audio-data" * 100),
+            save=True,
+        )
         return episode
 
     def _create_episode(self, **kwargs):
-        with patch("episodes.signals.async_task"):
-            return Episode.objects.create(**kwargs)
+        return Episode.objects.create(**kwargs)
 
     @patch("episodes.transcriber.get_transcription_provider")
     def test_success(self, mock_factory):
@@ -65,8 +63,7 @@ class TranscribeEpisodeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
-            transcribe_episode(episode.pk)
+        transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.SUMMARIZING)
@@ -82,8 +79,7 @@ class TranscribeEpisodeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
-            transcribe_episode(episode.pk)
+        transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
@@ -103,8 +99,7 @@ class TranscribeEpisodeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
-            transcribe_episode(episode.pk)
+        transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
@@ -142,8 +137,7 @@ class TranscribeEpisodeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
-            transcribe_episode(episode.pk)
+        transcribe_episode(episode.pk)
 
         mock_provider.transcribe.assert_called_once()
         _, kwargs = mock_provider.transcribe.call_args
@@ -163,8 +157,7 @@ class TranscribeEpisodeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
-            transcribe_episode(episode.pk)
+        transcribe_episode(episode.pk)
 
         mock_provider.transcribe.assert_called_once()
         _, kwargs = mock_provider.transcribe.call_args
@@ -182,13 +175,12 @@ class ResizeWithinTranscribeTests(TestCase):
     def _create_episode_with_audio(self, audio_size=100, **kwargs):
         from django.core.files.base import ContentFile
 
-        with patch("episodes.signals.async_task"):
-            episode = Episode.objects.create(**kwargs)
-            episode.audio_file.save(
-                f"{episode.pk}.mp3",
-                ContentFile(b"x" * audio_size),
-                save=True,
-            )
+        episode = Episode.objects.create(**kwargs)
+        episode.audio_file.save(
+            f"{episode.pk}.mp3",
+            ContentFile(b"x" * audio_size),
+            save=True,
+        )
         return episode
 
     @patch("episodes.transcriber.get_transcription_provider")
@@ -207,8 +199,7 @@ class ResizeWithinTranscribeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
-            transcribe_episode(episode.pk)
+        transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.SUMMARIZING)
@@ -239,8 +230,7 @@ class ResizeWithinTranscribeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
-            transcribe_episode(episode.pk)
+        transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.SUMMARIZING)
@@ -268,8 +258,7 @@ class ResizeWithinTranscribeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
-            transcribe_episode(episode.pk)
+        transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
@@ -288,8 +277,7 @@ class ResizeWithinTranscribeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
-            transcribe_episode(episode.pk)
+        transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
@@ -313,8 +301,7 @@ class ResizeWithinTranscribeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
-            transcribe_episode(episode.pk)
+        transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
@@ -348,8 +335,7 @@ class ResizeWithinTranscribeTests(TestCase):
             duration=10,
         )
 
-        with patch("episodes.signals.async_task"):
-            transcribe_episode(episode.pk)
+        transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.SUMMARIZING)
@@ -390,8 +376,7 @@ class ResizeWithinTranscribeTests(TestCase):
             duration=10,
         )
 
-        with patch("episodes.signals.async_task"):
-            transcribe_episode(episode.pk)
+        transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.SUMMARIZING)
@@ -427,8 +412,7 @@ class ResizeWithinTranscribeTests(TestCase):
             # no duration set
         )
 
-        with patch("episodes.signals.async_task"):
-            transcribe_episode(episode.pk)
+        transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.SUMMARIZING)

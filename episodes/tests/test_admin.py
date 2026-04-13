@@ -33,19 +33,16 @@ class EpisodeAdminTests(TestCase):
         response = self.client.get("/admin/episodes/episode/add/")
         self.assertEqual(response.status_code, 200)
 
-    @patch("episodes.signals.async_task")
-    def test_detail_page_loads(self, mock_async):
+    def test_detail_page_loads(self):
         episode = Episode.objects.create(url="https://example.com/ep/admin-1")
         response = self.client.get(f"/admin/episodes/episode/{episode.pk}/change/")
         self.assertEqual(response.status_code, 200)
 
-    @patch("episodes.signals.async_task")
-    def test_reprocess_action_shows_intermediate_page(self, mock_async):
+    def test_reprocess_action_shows_intermediate_page(self):
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-2",
             status=Episode.Status.FAILED,
         )
-        mock_async.reset_mock()
 
         # First POST shows the intermediate page
         response = self.client.post(
@@ -59,36 +56,32 @@ class EpisodeAdminTests(TestCase):
         self.assertContains(response, "Reprocess from step")
         self.assertContains(response, str(episode.pk))
 
-    @patch("episodes.signals.async_task")
-    def test_reprocess_action_executes(self, mock_async):
+    @patch("episodes.admin.threading")
+    def test_reprocess_action_executes(self, mock_threading):
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-2b",
             status=Episode.Status.FAILED,
         )
-        mock_async.reset_mock()
 
         # Submit the intermediate page with from_step
-        with patch("episodes.admin.async_task") as mock_admin_async:
-            response = self.client.post(
-                "/admin/episodes/episode/",
-                {
-                    "action": "reprocess",
-                    "_selected_action": [episode.pk],
-                    "episode_ids": [episode.pk],
-                    "from_step": Episode.Status.SCRAPING,
-                },
-                follow=True,
-            )
-            self.assertEqual(response.status_code, 200)
-            mock_admin_async.assert_called_once_with(
-                "episodes.scraper.scrape_episode", episode.pk
-            )
+        response = self.client.post(
+            "/admin/episodes/episode/",
+            {
+                "action": "reprocess",
+                "_selected_action": [episode.pk],
+                "episode_ids": [episode.pk],
+                "from_step": Episode.Status.SCRAPING,
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        mock_threading.Thread.assert_called_once()
+        mock_threading.Thread.return_value.start.assert_called_once()
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.SCRAPING)
 
-    @patch("episodes.signals.async_task")
-    def test_metadata_fields_readonly_when_failed(self, mock_async):
+    def test_metadata_fields_readonly_when_failed(self):
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-3",
             status=Episode.Status.FAILED,
@@ -98,8 +91,7 @@ class EpisodeAdminTests(TestCase):
         # title field should be readonly (no editable input)
         self.assertNotIn('name="title"', content)
 
-    @patch("episodes.signals.async_task")
-    def test_metadata_fields_editable_when_awaiting_human(self, mock_async):
+    def test_metadata_fields_editable_when_awaiting_human(self):
         from episodes.models import PipelineEvent, ProcessingRun, ProcessingStep, RecoveryAttempt
 
         episode = Episode.objects.create(
@@ -216,8 +208,7 @@ class EntityAdminTests(TestCase):
     def setUp(self):
         self.client.login(username="admin", password="testpass")
 
-    @patch("episodes.signals.async_task")
-    def test_list_shows_wikidata_link(self, _mock):
+    def test_list_shows_wikidata_link(self):
         et = EntityType.objects.create(
             key="ent_admin_list", name="Test Artist", wikidata_id="Q639669", description="Musician.",
         )
@@ -227,8 +218,7 @@ class EntityAdminTests(TestCase):
         self.assertContains(response, "https://www.wikidata.org/wiki/Q93341")
         self.assertContains(response, 'target="_blank"')
 
-    @patch("episodes.signals.async_task")
-    def test_detail_shows_wikidata_link(self, _mock):
+    def test_detail_shows_wikidata_link(self):
         et = EntityType.objects.create(
             key="ent_admin_detail", name="Test Artist", wikidata_id="Q639669", description="Musician.",
         )
@@ -238,8 +228,7 @@ class EntityAdminTests(TestCase):
         self.assertContains(response, "https://www.wikidata.org/wiki/Q93341")
         self.assertContains(response, 'target="_blank"')
 
-    @patch("episodes.signals.async_task")
-    def test_detail_no_wikidata_shows_dash(self, _mock):
+    def test_detail_no_wikidata_shows_dash(self):
         et = EntityType.objects.create(
             key="ent_admin_nodash", name="Test Artist", wikidata_id="Q639669", description="Musician.",
         )
@@ -279,9 +268,8 @@ class RecoveryAttemptAdminTests(TestCase):
         )
         return attempt
 
-    @patch("episodes.signals.async_task")
-    @patch("episodes.admin.async_task")
-    def test_retry_queues_task_and_resolves_attempt(self, mock_admin_async, _):
+    @patch("episodes.admin.threading")
+    def test_retry_queues_task_and_resolves_attempt(self, mock_threading):
         attempt = self._make_awaiting_attempt()
 
         response = self.client.post(
@@ -299,15 +287,11 @@ class RecoveryAttemptAdminTests(TestCase):
         self.assertEqual(attempt.resolved_by, "human:admin-retry")
         self.assertIsNotNone(attempt.resolved_at)
 
-        mock_admin_async.assert_called_once_with(
-            "episodes.admin._run_agent_recovery_task",
-            attempt.episode_id,
-            attempt.pipeline_event_id,
-        )
+        mock_threading.Thread.assert_called_once()
+        mock_threading.Thread.return_value.start.assert_called_once()
 
-    @patch("episodes.signals.async_task")
-    @patch("episodes.admin.async_task")
-    def test_retry_skips_non_awaiting_attempts(self, mock_admin_async, _):
+    @patch("episodes.admin.threading")
+    def test_retry_skips_non_awaiting_attempts(self, mock_threading):
         attempt = self._make_awaiting_attempt(
             episode_url="https://example.com/rec/admin-2"
         )
@@ -323,14 +307,13 @@ class RecoveryAttemptAdminTests(TestCase):
             follow=True,
         )
         self.assertEqual(response.status_code, 200)
-        mock_admin_async.assert_not_called()
+        mock_threading.Thread.assert_not_called()
 
 
 @unittest.skipUnless(_has_recovery_deps, "pydantic-ai not installed")
 class RunAgentRecoveryTaskTests(TestCase):
-    @patch("episodes.signals.async_task")
     @patch("episodes.agents.run_recovery_agent")
-    def test_success_creates_resolved_attempt_and_resumes(self, mock_agent, _):
+    def test_success_creates_resolved_attempt_and_resumes(self, mock_agent):
         from episodes.admin import _run_agent_recovery_task
         from episodes.agents.deps import RecoveryAgentResult
 
@@ -363,9 +346,8 @@ class RunAgentRecoveryTaskTests(TestCase):
         self.assertIsNotNone(new_attempt)
         self.assertTrue(new_attempt.success)
 
-    @patch("episodes.signals.async_task")
     @patch("episodes.agents.run_recovery_agent")
-    def test_failure_creates_awaiting_human_attempt(self, mock_agent, _):
+    def test_failure_creates_awaiting_human_attempt(self, mock_agent):
         from episodes.admin import _run_agent_recovery_task
         from episodes.agents.deps import RecoveryAgentResult
 
@@ -396,9 +378,8 @@ class RunAgentRecoveryTaskTests(TestCase):
         self.assertFalse(new_attempt.success)
         self.assertEqual(new_attempt.status, RecoveryAttempt.Status.AWAITING_HUMAN)
 
-    @patch("episodes.signals.async_task")
     @patch("episodes.agents.run_recovery_agent", side_effect=RuntimeError("Crash"))
-    def test_exception_creates_awaiting_human_attempt(self, _, __):
+    def test_exception_creates_awaiting_human_attempt(self, _):
         from episodes.admin import _run_agent_recovery_task
 
         episode = Episode.objects.create(
