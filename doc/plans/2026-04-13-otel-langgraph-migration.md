@@ -120,12 +120,12 @@ Configuration-only once Phase 2 is done.
 
 ### Running locally
 ```bash
-langgraph dev          # Starts server on localhost:8123
+uv run langgraph dev   # Starts server on localhost:8123 (requires: uv sync --extra studio)
 # Open LangGraph Studio desktop app → connect to localhost:8123
 ```
 
 ### Verification
-- `langgraph dev` starts without errors
+- `uv run langgraph dev` starts without errors
 - Studio shows the ingestion graph with all nodes and edges
 - Can trigger a pipeline run from Studio and watch execution step by step
 

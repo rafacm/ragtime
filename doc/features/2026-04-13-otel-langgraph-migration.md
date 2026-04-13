@@ -65,7 +65,7 @@ Replaced Django signal-based dispatch and Django Q2 async tasks with a LangGraph
 1. Run tests: `uv run python manage.py test` — all 211 tests pass
 2. Console tracing: set `RAGTIME_OTEL_ENABLED=true` and `RAGTIME_OTEL_EXPORTER=console`, run pipeline, verify spans in terminal
 3. Jaeger: `docker run -p 4318:4318 -p 16686:16686 jaegertracing/all-in-one`, run pipeline, view at `http://localhost:16686`
-4. LangGraph Studio: `langgraph dev`, open Studio desktop app, verify graph visualization
+4. LangGraph Studio: `uv sync --extra studio && uv run langgraph dev`, open Studio desktop app, verify graph visualization
 5. Django check: `uv run python manage.py check` — no issues
 
 ## Files Modified

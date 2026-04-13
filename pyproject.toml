@@ -22,3 +22,4 @@ observability = [
     "opentelemetry-exporter-otlp-proto-http>=1.20",
 ]
 recovery = ["pydantic-ai>=1.30,<2", "playwright>=1.40,<2"]
+studio = ["langgraph-cli[inmem]>=0.2"]
