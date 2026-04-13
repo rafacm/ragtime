@@ -42,7 +42,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_q',
     'core',
     'episodes',
 ]
@@ -139,19 +138,6 @@ MEDIA_URL = '/media/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Django Q2 — async task queue with ORM broker
-Q_CLUSTER = {
-    'name': 'ragtime',
-    'workers': 2,
-    'timeout': 900,
-    'retry': 1200,
-    'orm': 'default',
-    'save_limit': 250,
-    'ack_failures': True,
-    'max_attempts': 1,
-    'catch_up': False,
-}
-
 # RAGtime provider configuration
 RAGTIME_SCRAPING_PROVIDER = os.getenv('RAGTIME_SCRAPING_PROVIDER', 'openai')
 RAGTIME_SCRAPING_API_KEY = os.getenv('RAGTIME_SCRAPING_API_KEY', '')
@@ -218,11 +204,12 @@ else:
         },
     }
 
-# LLM Observability (Langfuse)
-RAGTIME_LANGFUSE_ENABLED = os.getenv('RAGTIME_LANGFUSE_ENABLED', 'false').lower() in ('true', '1', 'yes')
-RAGTIME_LANGFUSE_SECRET_KEY = os.getenv('RAGTIME_LANGFUSE_SECRET_KEY', '')
-RAGTIME_LANGFUSE_PUBLIC_KEY = os.getenv('RAGTIME_LANGFUSE_PUBLIC_KEY', '')
-RAGTIME_LANGFUSE_HOST = os.getenv('RAGTIME_LANGFUSE_HOST', 'http://localhost:3000')
+# OpenTelemetry observability
+RAGTIME_OTEL_ENABLED = os.getenv('RAGTIME_OTEL_ENABLED', 'false').lower() in ('true', '1', 'yes')
+RAGTIME_OTEL_EXPORTER = os.getenv('RAGTIME_OTEL_EXPORTER', 'otlp')
+RAGTIME_OTEL_ENDPOINT = os.getenv('RAGTIME_OTEL_ENDPOINT', 'http://localhost:4318')
+RAGTIME_OTEL_SERVICE_NAME = os.getenv('RAGTIME_OTEL_SERVICE_NAME', 'ragtime')
+RAGTIME_OTEL_HEADERS = os.getenv('RAGTIME_OTEL_HEADERS', '')
 
 # Recovery layer
 RAGTIME_RECOVERY_CHAIN = ["agent", "human"]

@@ -159,3 +159,99 @@ def handle_step_failure(sender, event, pipeline_event, **kwargs):
 
         if result.success or not result.should_escalate:
             return
+
+
+def handle_step_failure_from_graph(episode, failed_step):
+    """Attempt recovery for a failed step, called from the LangGraph recovery node.
+
+    Builds a StepFailureEvent from the episode and step, then walks
+    the recovery chain.  Returns True if recovery succeeded.
+    """
+    from .events import build_failure_event
+    from .models import PipelineEvent, ProcessingRun, ProcessingStep
+
+    run = (
+        ProcessingRun.objects.filter(
+            episode=episode,
+            status=ProcessingRun.Status.FAILED,
+        )
+        .order_by("-started_at")
+        .first()
+    )
+    if run is None:
+        logger.warning(
+            "No failed ProcessingRun found for episode %s", episode.pk
+        )
+        return False
+
+    step_obj = ProcessingStep.objects.filter(
+        run=run,
+        step_name=failed_step,
+        status=ProcessingStep.Status.FAILED,
+    ).first()
+    if step_obj is None:
+        logger.warning(
+            "No failed ProcessingStep found for episode %s step %s",
+            episode.pk,
+            failed_step,
+        )
+        return False
+
+    # Find the PipelineEvent for this failure
+    pipeline_event = PipelineEvent.objects.filter(
+        episode=episode,
+        processing_step=step_obj,
+        event_type=PipelineEvent.EventType.FAILED,
+    ).order_by("-created_at").first()
+    if pipeline_event is None:
+        logger.warning(
+            "No PipelineEvent found for episode %s step %s",
+            episode.pk,
+            failed_step,
+        )
+        return False
+
+    # Build a StepFailureEvent from the stored data
+    exc = Exception(step_obj.error_message)
+    event = build_failure_event(episode, failed_step, run, step_obj, exc)
+
+    # Check attempt limit
+    total_attempts = RecoveryAttempt.objects.filter(
+        episode_id=episode.pk,
+        pipeline_event__step_name=failed_step,
+    ).count()
+    if total_attempts >= MAX_RECOVERY_ATTEMPTS:
+        logger.warning(
+            "Max recovery attempts (%d) reached for episode %s step %s",
+            MAX_RECOVERY_ATTEMPTS,
+            episode.pk,
+            failed_step,
+        )
+        return False
+
+    chain = get_recovery_chain()
+    for strategy in chain:
+        if not strategy.can_handle(event):
+            continue
+
+        result = strategy.attempt(event)
+
+        status = RecoveryAttempt.Status.ATTEMPTED
+        if not result.success and not result.should_escalate:
+            status = RecoveryAttempt.Status.AWAITING_HUMAN
+
+        RecoveryAttempt.objects.create(
+            episode=episode,
+            pipeline_event=pipeline_event,
+            strategy=strategy.name,
+            status=status,
+            success=result.success,
+            message=result.message,
+        )
+
+        if result.success:
+            return True
+        if not result.should_escalate:
+            return False
+
+    return False

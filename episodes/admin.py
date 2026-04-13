@@ -6,7 +6,7 @@ from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
-from django_q.tasks import async_task
+import threading
 
 from .models import (
     PIPELINE_STEPS,
@@ -20,7 +20,6 @@ from .models import (
     ProcessingStep,
     RecoveryAttempt,
 )
-from .processing import create_run
 
 
 class ChunkInlineForEpisode(admin.TabularInline):
@@ -304,16 +303,15 @@ class EpisodeAdmin(admin.ModelAdmin):
                 resolved_by="human:admin",
             )
 
-            resume_from = "" if from_step == Episode.Status.SCRAPING else from_step
-            create_run(episode, resume_from=resume_from)
             episode.status = from_step
             episode.error_message = ""
             episode.save(update_fields=["status", "error_message", "updated_at"])
-            # Scraping is the pipeline entry point — the scraper sets its own
-            # status internally, so it can't be dispatched via the signal
-            # (that would loop). All other steps are dispatched by the signal.
-            if from_step == Episode.Status.SCRAPING:
-                async_task("episodes.scraper.scrape_episode", episode.pk)
+            # Run pipeline in background thread (non-blocking for admin)
+            threading.Thread(
+                target=_run_pipeline_task,
+                args=(episode.pk,),
+                daemon=True,
+            ).start()
             count += 1
 
         self.message_user(
@@ -683,11 +681,11 @@ class RecoveryAttemptAdmin(admin.ModelAdmin):
             attempt.resolved_by = "human:admin-retry"
             attempt.save(update_fields=["status", "resolved_at", "resolved_by"])
 
-            async_task(
-                "episodes.admin._run_agent_recovery_task",
-                attempt.episode_id,
-                pe.pk,
-            )
+            threading.Thread(
+                target=_run_agent_recovery_task,
+                args=(attempt.episode_id, pe.pk),
+                daemon=True,
+            ).start()
             count += 1
 
         self.message_user(
@@ -699,8 +697,21 @@ class RecoveryAttemptAdmin(admin.ModelAdmin):
         return False
 
 
+def _run_pipeline_task(episode_id):
+    """Background task that runs the ingestion pipeline graph."""
+    import logging
+
+    logger = logging.getLogger(__name__)
+    try:
+        from .graph.run import run_pipeline
+
+        run_pipeline(episode_id)
+    except Exception:
+        logger.exception("Pipeline failed for episode %s", episode_id)
+
+
 def _run_agent_recovery_task(episode_id, pipeline_event_id):
-    """Django Q2 task that retries agent recovery for a failed step."""
+    """Background task that retries agent recovery for a failed step."""
     import logging
 
     from .events import StepFailureEvent
