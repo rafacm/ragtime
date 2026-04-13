@@ -1,4 +1,5 @@
 {
+  "dependencies": ["."],
   "graphs": {
     "ingestion": "./episodes/graph/server.py:graph"
   },
