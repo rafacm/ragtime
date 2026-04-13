@@ -307,9 +307,11 @@ class EpisodeAdmin(admin.ModelAdmin):
             episode.error_message = ""
             episode.save(update_fields=["status", "error_message", "updated_at"])
             # Run pipeline in background thread (non-blocking for admin)
+            # Pass from_step so route_entry() starts from the requested step
+            # instead of skipping it based on cached data.
             threading.Thread(
                 target=_run_pipeline_task,
-                args=(episode.pk,),
+                args=(episode.pk, from_step),
                 daemon=True,
             ).start()
             count += 1
@@ -697,17 +699,33 @@ class RecoveryAttemptAdmin(admin.ModelAdmin):
         return False
 
 
-def _run_pipeline_task(episode_id):
+def _close_connections():
+    """Close stale DB connections when running in a background thread.
+
+    Django doesn't manage DB connections for raw threads. Calling this
+    at the start and end of thread targets prevents connection leaks
+    and cross-thread reuse.
+    """
+    if threading.current_thread() is not threading.main_thread():
+        from django.db import close_old_connections
+
+        close_old_connections()
+
+
+def _run_pipeline_task(episode_id, start_from=""):
     """Background task that runs the ingestion pipeline graph."""
     import logging
 
     logger = logging.getLogger(__name__)
+    _close_connections()
     try:
         from .graph.run import run_pipeline
 
-        run_pipeline(episode_id)
+        run_pipeline(episode_id, start_from=start_from)
     except Exception:
         logger.exception("Pipeline failed for episode %s", episode_id)
+    finally:
+        _close_connections()
 
 
 def _run_agent_recovery_task(episode_id, pipeline_event_id):
@@ -718,6 +736,7 @@ def _run_agent_recovery_task(episode_id, pipeline_event_id):
     from .models import Episode, PipelineEvent, RecoveryAttempt
 
     logger = logging.getLogger(__name__)
+    _close_connections()
 
     pe = PipelineEvent.objects.select_related("processing_step").get(pk=pipeline_event_id)
     episode = Episode.objects.get(pk=episode_id)
@@ -788,3 +807,5 @@ def _run_agent_recovery_task(episode_id, pipeline_event_id):
             message=f"Agent error: {exc}",
         )
         logger.exception("Admin-triggered agent recovery error for episode %s", episode_id)
+    finally:
+        _close_connections()

@@ -13,7 +13,7 @@ from .state import EpisodeState
 logger = logging.getLogger(__name__)
 
 
-def _refresh_state(state: EpisodeState, expected_next: str) -> EpisodeState:
+def _refresh_state(state: EpisodeState) -> EpisodeState:
     """Read the episode status from DB and update state accordingly."""
     episode = Episode.objects.get(pk=state["episode_id"])
     new_state: EpisodeState = {"status": episode.status}
@@ -39,7 +39,7 @@ def scrape_node(state: EpisodeState) -> EpisodeState:
         episode.save(update_fields=["status", "updated_at"])
 
     scrape_episode(state["episode_id"])
-    result = _refresh_state(state, Episode.Status.DOWNLOADING)
+    result = _refresh_state(state)
 
     if result.get("status") == Episode.Status.FAILED:
         result["failed_step"] = Episode.Status.SCRAPING
@@ -51,7 +51,7 @@ def download_node(state: EpisodeState) -> EpisodeState:
     from ..downloader import download_episode
 
     download_episode(state["episode_id"])
-    result = _refresh_state(state, Episode.Status.TRANSCRIBING)
+    result = _refresh_state(state)
 
     if result.get("status") == Episode.Status.FAILED:
         result["failed_step"] = Episode.Status.DOWNLOADING
@@ -63,7 +63,7 @@ def transcribe_node(state: EpisodeState) -> EpisodeState:
     from ..transcriber import transcribe_episode
 
     transcribe_episode(state["episode_id"])
-    result = _refresh_state(state, Episode.Status.SUMMARIZING)
+    result = _refresh_state(state)
 
     if result.get("status") == Episode.Status.FAILED:
         result["failed_step"] = Episode.Status.TRANSCRIBING
@@ -75,7 +75,7 @@ def summarize_node(state: EpisodeState) -> EpisodeState:
     from ..summarizer import summarize_episode
 
     summarize_episode(state["episode_id"])
-    result = _refresh_state(state, Episode.Status.CHUNKING)
+    result = _refresh_state(state)
 
     if result.get("status") == Episode.Status.FAILED:
         result["failed_step"] = Episode.Status.SUMMARIZING
@@ -87,7 +87,7 @@ def chunk_node(state: EpisodeState) -> EpisodeState:
     from ..chunker import chunk_episode
 
     chunk_episode(state["episode_id"])
-    result = _refresh_state(state, Episode.Status.EXTRACTING)
+    result = _refresh_state(state)
 
     if result.get("status") == Episode.Status.FAILED:
         result["failed_step"] = Episode.Status.CHUNKING
@@ -99,7 +99,7 @@ def extract_node(state: EpisodeState) -> EpisodeState:
     from ..extractor import extract_entities
 
     extract_entities(state["episode_id"])
-    result = _refresh_state(state, Episode.Status.RESOLVING)
+    result = _refresh_state(state)
 
     if result.get("status") == Episode.Status.FAILED:
         result["failed_step"] = Episode.Status.EXTRACTING
@@ -111,7 +111,7 @@ def resolve_node(state: EpisodeState) -> EpisodeState:
     from ..resolver import resolve_entities
 
     resolve_entities(state["episode_id"])
-    result = _refresh_state(state, Episode.Status.EMBEDDING)
+    result = _refresh_state(state)
 
     if result.get("status") == Episode.Status.FAILED:
         result["failed_step"] = Episode.Status.RESOLVING
@@ -119,24 +119,39 @@ def resolve_node(state: EpisodeState) -> EpisodeState:
 
 
 def embed_node(state: EpisodeState) -> EpisodeState:
-    """Run the embedding step (placeholder — marks episode as READY)."""
+    """Run the embedding step.
+
+    Embeddings must be generated and stored before an episode can be
+    considered READY. Until real embedding logic is implemented here,
+    fail fast rather than marking the episode as successfully indexed.
+    """
     episode = Episode.objects.get(pk=state["episode_id"])
 
-    from ..processing import complete_step, start_step
+    from ..processing import fail_step, start_step
 
     start_step(episode, Episode.Status.EMBEDDING)
 
-    # TODO: implement actual embedding logic
-    complete_step(episode, Episode.Status.EMBEDDING)
-    episode.status = Episode.Status.READY
-    episode.save(update_fields=["status", "updated_at"])
+    error_message = (
+        "Embedding step is not yet implemented; refusing to mark episode "
+        "as READY without generating and storing embeddings."
+    )
+    logger.error("Episode %s: %s", episode.pk, error_message)
 
-    return {"status": Episode.Status.READY, "error": ""}
+    episode.status = Episode.Status.FAILED
+    episode.error_message = error_message
+    episode.save(update_fields=["status", "error_message", "updated_at"])
+    fail_step(episode, Episode.Status.EMBEDDING, error_message)
+
+    return {
+        "status": Episode.Status.FAILED,
+        "error": error_message,
+        "failed_step": Episode.Status.EMBEDDING,
+    }
 
 
 def recovery_node(state: EpisodeState) -> EpisodeState:
     """Attempt recovery for a failed step using the recovery chain."""
-    from ..recovery import get_recovery_chain, handle_step_failure_from_graph
+    from ..recovery import handle_step_failure_from_graph
 
     episode = Episode.objects.get(pk=state["episode_id"])
     failed_step = state.get("failed_step", "")

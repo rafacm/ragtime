@@ -3,8 +3,9 @@
 Builds a StateGraph that orchestrates the podcast episode processing
 steps: scrape → download → transcribe → summarize → chunk → extract
 → resolve → embed.  Conditional edges handle step skipping (when data
-already exists) and recovery routing (agent-based recovery for
-scraping/downloading failures).
+already exists) and recovery routing (all failures route to the
+recovery node for consistent RecoveryAttempt tracking and human
+escalation).
 """
 
 from langgraph.graph import END, StateGraph
@@ -57,12 +58,18 @@ def build_pipeline_graph():
                 {
                     "continue": next_name,
                     "recovery": "recovery",
-                    END: END,
                 },
             )
         else:
-            # Last step (embed) → END
-            graph.add_edge(name, END)
+            # Last step (embed): success → END, failure → recovery
+            graph.add_conditional_edges(
+                name,
+                after_step,
+                {
+                    "continue": END,
+                    "recovery": "recovery",
+                },
+            )
 
     # Recovery node
     graph.add_node("recovery", recovery_node)

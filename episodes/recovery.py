@@ -211,9 +211,20 @@ def handle_step_failure_from_graph(episode, failed_step):
         )
         return False
 
-    # Build a StepFailureEvent from the stored data
+    # Build a StepFailureEvent from the stored data. build_failure_event
+    # derives classification from the exception object, so restore the
+    # original fields from pipeline_event to preserve the persisted
+    # failure type instead of re-classifying as a generic Exception.
+    import dataclasses
+
     exc = Exception(step_obj.error_message)
     event = build_failure_event(episode, failed_step, run, step_obj, exc)
+    event = dataclasses.replace(
+        event,
+        error_type=pipeline_event.error_type,
+        http_status=pipeline_event.http_status,
+        exception_class=pipeline_event.exception_class,
+    )
 
     # Check attempt limit
     total_attempts = RecoveryAttempt.objects.filter(

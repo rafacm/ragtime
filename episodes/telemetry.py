@@ -5,7 +5,8 @@ are traced via the OpenTelemetry SDK.  Traces are exported to any
 OTLP-compatible backend (Langfuse, Sentry, Jaeger, etc.) configured via
 ``RAGTIME_OTEL_EXPORTER`` and ``RAGTIME_OTEL_ENDPOINT``.
 
-When disabled (the default) there is zero overhead — OTel is never imported.
+When disabled (the default) there is minimal overhead — the OTel API
+is imported for no-op tracer access, but no SDK components are loaded.
 """
 
 import functools
@@ -61,7 +62,7 @@ def setup():
 
 
 def _build_exporter():
-    """Build the configured span exporter, or None for 'none'/'console'."""
+    """Build the configured span exporter, or None for 'none'."""
     exporter_type = getattr(
         settings, "RAGTIME_OTEL_EXPORTER", "otlp"
     ).lower()

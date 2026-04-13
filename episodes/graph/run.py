@@ -9,19 +9,21 @@ from .state import EpisodeState
 logger = logging.getLogger(__name__)
 
 
-def run_pipeline(episode_id: int) -> EpisodeState:
+def run_pipeline(episode_id: int, start_from: str = "") -> EpisodeState:
     """Run the ingestion pipeline for an episode.
 
     Creates a ProcessingRun, builds the initial state, and invokes
     the compiled LangGraph pipeline.  The graph's entry router
-    determines which step to start from based on existing episode data.
+    determines which step to start from based on existing episode data,
+    unless *start_from* is set to force starting from a specific step
+    (e.g., when the admin triggers reprocessing).
 
     Returns the final graph state.
     """
     episode = Episode.objects.get(pk=episode_id)
 
     # Create a processing run for audit trail
-    create_run(episode)
+    create_run(episode, resume_from=start_from)
 
     initial_state: EpisodeState = {
         "episode_id": episode_id,
@@ -29,6 +31,7 @@ def run_pipeline(episode_id: int) -> EpisodeState:
         "failed_step": "",
         "error": "",
         "recovery_result": "",
+        "start_from": start_from,
     }
 
     from .pipeline import pipeline

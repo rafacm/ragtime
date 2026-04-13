@@ -15,3 +15,4 @@ class EpisodeState(TypedDict, total=False):
     failed_step: str      # which step failed (for recovery routing)
     error: str            # error message from the failed step
     recovery_result: str  # "success" | "failed" | "" (for recovery node output)
+    start_from: str       # override entry routing — force start from this step

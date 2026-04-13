@@ -23,8 +23,30 @@ def _has_data(episode, field):
 def route_entry(state: EpisodeState) -> str:
     """Determine which step to start from based on existing episode data.
 
-    This enables resume-from-failure and skip-already-done behavior.
+    When ``start_from`` is set in the state, it overrides the data-based
+    routing — used by the admin reprocess action to force re-running from
+    a specific step even when cached data exists.
+
+    Otherwise, walks forward through steps, skipping any with existing data.
     """
+    # Explicit start-from override (e.g., admin reprocess action)
+    start_from = state.get("start_from", "")
+    if start_from:
+        # Map status values to graph node names
+        _STATUS_TO_NODE = {
+            Episode.Status.SCRAPING: "scrape",
+            Episode.Status.DOWNLOADING: "download",
+            Episode.Status.TRANSCRIBING: "transcribe",
+            Episode.Status.SUMMARIZING: "summarize",
+            Episode.Status.CHUNKING: "chunk",
+            Episode.Status.EXTRACTING: "extract",
+            Episode.Status.RESOLVING: "resolve",
+            Episode.Status.EMBEDDING: "embed",
+        }
+        node = _STATUS_TO_NODE.get(start_from)
+        if node:
+            return node
+
     episode = Episode.objects.get(pk=state["episode_id"])
 
     if episode.status == Episode.Status.READY:
@@ -60,13 +82,15 @@ def route_entry(state: EpisodeState) -> str:
 
 
 def after_step(state: EpisodeState) -> str:
-    """Generic routing after any step: continue or handle failure."""
+    """Generic routing after any step: continue or send failures to recovery.
+
+    All failures route to the recovery node so that RecoveryAttempt
+    records are created consistently and human escalation remains
+    available as a fallback (even for steps where agent recovery is
+    not applicable).
+    """
     if state.get("status") == Episode.Status.FAILED:
-        failed_step = state.get("failed_step", "")
-        # Only scraping and downloading support agent recovery
-        if failed_step in (Episode.Status.SCRAPING, Episode.Status.DOWNLOADING):
-            return "recovery"
-        return END
+        return "recovery"
     return "continue"
 
 
