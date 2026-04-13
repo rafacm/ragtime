@@ -127,11 +127,13 @@ uv run python manage.py migrate
 uv run python manage.py createsuperuser   # Create an admin user for the Django admin UI
 uv run python manage.py load_entity_types # Seed initial entity types
 uv run python manage.py configure         # Interactive setup wizard for RAGTIME_* env vars
-uv run python manage.py runserver         # Start the web server
+uv run python manage.py runserver         # Start the web server → http://localhost:8000/admin/
 uv run langgraph dev                      # (optional) Start LangGraph server for Studio UI
 ```
 
-The ingestion pipeline is orchestrated by [LangGraph](https://langchain-ai.github.io/langgraph/) and runs within the Django process — no separate worker is needed. To inspect the pipeline graph in [LangGraph Studio](https://langchain-ai.github.io/langgraph/concepts/langgraph_studio/), install the `studio` extra first: `uv sync --extra studio`.
+Open **http://localhost:8000/admin/** in your browser and log in with the superuser credentials you created above. From the admin you can submit episode URLs, monitor pipeline progress, browse extracted entities, and trigger reprocessing.
+
+The ingestion pipeline is orchestrated by [LangGraph](https://langchain-ai.github.io/langgraph/) and runs within the Django process — no separate worker is needed. To inspect the pipeline graph in [LangGraph Studio](https://langchain-ai.github.io/langgraph/concepts/langgraph_studio/), install the `studio` extra first (`uv sync --extra studio`), then run `uv run langgraph dev`. Studio opens automatically in your browser. A [LangSmith](https://smith.langchain.com/) API key is optional — Studio works locally without one, but you'll see a warning banner that can be dismissed.
 
 To reset the database (drops all data and recreates):
 
