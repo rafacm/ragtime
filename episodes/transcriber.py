@@ -8,7 +8,7 @@ from django.conf import settings
 from django.core.files import File
 
 from .models import Episode
-from .observability import observe_step
+from .telemetry import trace_step
 from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_transcription_provider
 
@@ -137,7 +137,7 @@ def _resize_if_needed(episode):
                 pass
 
 
-@observe_step("transcribe_episode")
+@trace_step("transcribe_episode")
 def transcribe_episode(episode_id: int) -> None:
     try:
         episode = Episode.objects.get(pk=episode_id)

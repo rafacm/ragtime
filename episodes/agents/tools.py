@@ -135,14 +135,20 @@ async def take_screenshot(ctx: RunContext[RecoveryDeps], label: str) -> str:
 
     ctx.deps.screenshots.append(png_bytes)
 
-    # Attach image to the current Langfuse span so it's visible in the UI
+    # Attach screenshot as OTel span event
     try:
-        import langfuse
-        from langfuse.media import LangfuseMedia
+        from opentelemetry import trace
 
-        media = LangfuseMedia(content_bytes=png_bytes, content_type="image/png")
-        client = langfuse.get_client()
-        client.update_current_span(output=media)
+        span = trace.get_current_span()
+        if span.is_recording():
+            span.add_event(
+                "screenshot",
+                attributes={
+                    "screenshot.label": label,
+                    "screenshot.size": len(png_bytes),
+                    "screenshot.index": len(ctx.deps.screenshots),
+                },
+            )
     except Exception:
         pass
 
@@ -291,14 +297,20 @@ async def analyze_screenshot(ctx: RunContext[RecoveryDeps], label: str) -> ToolR
 
     ctx.deps.screenshots.append(png_bytes)
 
-    # Attach to Langfuse
+    # Attach screenshot as OTel span event
     try:
-        import langfuse
-        from langfuse.media import LangfuseMedia
+        from opentelemetry import trace
 
-        media = LangfuseMedia(content_bytes=png_bytes, content_type="image/png")
-        client = langfuse.get_client()
-        client.update_current_span(output=media)
+        span = trace.get_current_span()
+        if span.is_recording():
+            span.add_event(
+                "screenshot",
+                attributes={
+                    "screenshot.label": label,
+                    "screenshot.size": len(png_bytes),
+                    "screenshot.index": len(ctx.deps.screenshots),
+                },
+            )
     except Exception:
         pass
 

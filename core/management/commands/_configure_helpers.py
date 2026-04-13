@@ -125,18 +125,19 @@ SYSTEMS = [
         ],
     },
     {
-        "name": "LLM Observability",
-        "description": "Langfuse tracing for LLM calls (optional)",
+        "name": "Observability",
+        "description": "OpenTelemetry tracing for LLM calls (optional)",
         "shareable": False,
         "subsystems": [
             {
-                "prefix": "RAGTIME_LANGFUSE",
-                "label": "Langfuse",
+                "prefix": "RAGTIME_OTEL",
+                "label": "OpenTelemetry",
                 "fields": [
                     ("ENABLED", "false", False),
-                    ("SECRET_KEY", "", True),
-                    ("PUBLIC_KEY", "", True),
-                    ("HOST", "http://localhost:3000", False),
+                    ("EXPORTER", "otlp", False),
+                    ("ENDPOINT", "http://localhost:4318", False),
+                    ("SERVICE_NAME", "ragtime", False),
+                    ("HEADERS", "", True),
                 ],
             },
         ],
