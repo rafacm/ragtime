@@ -127,7 +127,10 @@ uv run python manage.py createsuperuser   # Create an admin user for the Django 
 uv run python manage.py load_entity_types # Seed initial entity types
 uv run python manage.py configure         # Interactive setup wizard for RAGTIME_* env vars
 uv run python manage.py runserver         # Start the web server
+langgraph dev                             # (optional) Start LangGraph server for Studio UI
 ```
+
+The ingestion pipeline is orchestrated by [LangGraph](https://langchain-ai.github.io/langgraph/) and runs within the Django process — no separate worker is needed. Use `langgraph dev` to inspect the pipeline graph and execution traces in [LangGraph Studio](https://langchain-ai.github.io/langgraph/concepts/langgraph_studio/).
 
 To reset the database (drops all data and recreates):
 

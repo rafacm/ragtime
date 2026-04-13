@@ -18,6 +18,7 @@ uv run python manage.py test episodes      # Run tests for one app
 uv run python manage.py configure          # Interactive setup wizard
 uv run python manage.py configure --show   # Show current config (masked)
 uv run python manage.py check              # Django system checks
+langgraph dev                              # Start LangGraph server + Studio
 ```
 
 Use `uv` for everything — never `pip install` directly.
