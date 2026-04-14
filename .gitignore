@@ -59,5 +59,8 @@ docker-compose.override.yml
 # SpecStory - https://github.com/specstoryai
 .specstory/
 
+# LangGraph
+.langgraph_api/
+
 # Claude
 .claude/worktrees/
