@@ -210,19 +210,83 @@ Each step creates an OTel span with episode metadata attributes. Provider calls 
    RAGTIME_OTEL_HEADERS=
    ```
 
-3. Start an OTLP-compatible collector. For local development, [Jaeger](https://www.jaegertracing.io/docs/latest/getting-started/) is the simplest option:
+3. Start an OTLP-compatible collector (see [Jaeger](#jaeger) and [Langfuse](#langfuse) below), or use `RAGTIME_OTEL_EXPORTER=console` to print spans to the terminal (useful for debugging without a collector).
+
+When disabled (the default), OTel is never imported and there is zero overhead.
+
+### Jaeger
+
+[Jaeger](https://www.jaegertracing.io/) is the simplest option for local development — a single Docker container that accepts OTLP traces and provides a search UI.
+
+1. Start Jaeger:
    ```bash
    docker run -d --name jaeger \
      -p 4318:4318 -p 16686:16686 \
      jaegertracing/all-in-one:latest
    ```
-   Then view traces at `http://localhost:16686`.
 
-   For **Langfuse**, set the endpoint and headers per [Langfuse's OTLP docs](https://langfuse.com/docs/integrations/opentelemetry). For **Sentry**, use Sentry's OTLP endpoint.
+2. Set these variables in `.env`:
+   ```
+   RAGTIME_OTEL_ENABLED=true
+   RAGTIME_OTEL_EXPORTER=otlp
+   RAGTIME_OTEL_ENDPOINT=http://localhost:4318
+   RAGTIME_OTEL_SERVICE_NAME=ragtime
+   ```
 
-4. Use `RAGTIME_OTEL_EXPORTER=console` to print spans to the terminal (useful for debugging without a collector).
+3. Process an episode and view traces at `http://localhost:16686`.
 
-When disabled (the default), OTel is never imported and there is zero overhead.
+### Langfuse
+
+[Langfuse](https://langfuse.com) is an open-source LLM observability platform that accepts OpenTelemetry traces via its OTLP endpoint (v3.22.0+). It provides a rich UI for exploring traces, LLM calls, token usage, latency, and cost.
+
+#### Self-hosted setup
+
+1. Run Langfuse locally via Docker Compose. See the [Langfuse self-hosting guide](https://langfuse.com/self-hosting/deployment/docker-compose).
+
+   **Port conflict:** Langfuse's `docker-compose.yml` exposes its PostgreSQL on port 5432, which conflicts with RAGtime's. Run one of these in the Langfuse directory to move it to port 5433:
+   ```bash
+   # macOS (BSD sed)
+   sed -i '' 's/127.0.0.1:5432:5432/127.0.0.1:5433:5432/' docker-compose.yml
+
+   # Linux (GNU sed)
+   sed -i 's/127.0.0.1:5432:5432/127.0.0.1:5433:5432/' docker-compose.yml
+   ```
+   This only changes the host-side port — Langfuse's internal connections use the Docker network and are unaffected.
+
+2. Open `http://localhost:3000`, create an account and a project.
+
+3. Go to **Settings > API Keys** and create a key pair (`pk-lf-...` / `sk-lf-...`).
+
+4. Base64-encode the keys for the `Authorization` header:
+   ```bash
+   # macOS
+   echo -n "pk-lf-...:sk-lf-..." | base64
+
+   # Linux (use -w 0 to prevent line wrapping with long keys)
+   echo -n "pk-lf-...:sk-lf-..." | base64 -w 0
+   ```
+
+5. Set these variables in `.env`:
+   ```
+   RAGTIME_OTEL_ENABLED=true
+   RAGTIME_OTEL_EXPORTER=otlp
+   RAGTIME_OTEL_ENDPOINT=http://localhost:3000/api/public/otel
+   RAGTIME_OTEL_SERVICE_NAME=ragtime
+   RAGTIME_OTEL_HEADERS=Authorization=Basic <base64-encoded-keys>
+   ```
+
+6. Process an episode and view traces at `http://localhost:3000`.
+
+#### Langfuse Cloud
+
+For Langfuse Cloud, use the appropriate regional endpoint:
+
+| Region | Endpoint |
+|--------|----------|
+| EU | `https://cloud.langfuse.com/api/public/otel` |
+| US | `https://us.cloud.langfuse.com/api/public/otel` |
+
+> **Note:** Langfuse supports OTLP over HTTP (JSON and protobuf) but not gRPC. The default `otlp` exporter in RAGtime uses HTTP/protobuf, which works out of the box.
 
 ## Development
 
