@@ -1,12 +1,13 @@
 """OpenTelemetry observability layer for LLM calls and pipeline steps.
 
-When ``RAGTIME_OTEL_ENABLED`` is true, pipeline steps and provider calls
-are traced via the OpenTelemetry SDK.  Traces are exported to any
-OTLP-compatible backend (Langfuse, Sentry, Jaeger, etc.) configured via
-``RAGTIME_OTEL_EXPORTER`` and ``RAGTIME_OTEL_ENDPOINT``.
+Pipeline steps and provider calls are traced via the OpenTelemetry SDK.
+Traces are exported to any OTLP-compatible backend (Langfuse, Sentry,
+Jaeger, etc.) configured via ``RAGTIME_OTEL_EXPORTER`` and
+``RAGTIME_OTEL_ENDPOINT``.
 
-When disabled (the default) there is minimal overhead — the OTel API
-is imported for no-op tracer access, but no SDK components are loaded.
+Tracing activates automatically when ``RAGTIME_OTEL_EXPORTER`` is set to
+``otlp`` or ``console``.  When unset or ``none``, the OTel API provides a
+no-op tracer with zero overhead.
 """
 
 import functools
@@ -25,7 +26,7 @@ def setup():
 
     Called from ``EpisodesConfig.ready()``.  Configures the exporter based
     on ``RAGTIME_OTEL_EXPORTER`` and registers the TracerProvider globally.
-    No-op when disabled or during tests.
+    No-op when tracing is inactive (exporter unset or ``none``).
     """
     if not is_enabled():
         return
@@ -50,12 +51,7 @@ def setup():
         trace.set_tracer_provider(provider)
         logger.debug(
             "OTel TracerProvider initialized (exporter=%s)",
-            getattr(settings, "RAGTIME_OTEL_EXPORTER", "otlp"),
-        )
-    except ImportError:
-        logger.warning(
-            "OTel enabled but opentelemetry-sdk not installed — "
-            "install with: uv sync --extra observability"
+            getattr(settings, "RAGTIME_OTEL_EXPORTER", ""),
         )
     except Exception:
         logger.warning("Failed to initialize OTel TracerProvider", exc_info=True)
@@ -95,13 +91,15 @@ def _build_exporter():
 
 
 def is_enabled():
-    """Return True when OTel tracing is enabled.
+    """Return True when OTel tracing is active.
 
-    Disabled during test runs and when ``RAGTIME_OTEL_ENABLED`` is false.
+    Tracing is active when ``RAGTIME_OTEL_EXPORTER`` is set to a real
+    exporter (``otlp`` or ``console``).  Always disabled during test runs.
     """
     if "test" in sys.argv:
         return False
-    return getattr(settings, "RAGTIME_OTEL_ENABLED", False)
+    exporter = getattr(settings, "RAGTIME_OTEL_EXPORTER", "")
+    return exporter.lower() in ("otlp", "console")
 
 
 def get_tracer(name="ragtime"):

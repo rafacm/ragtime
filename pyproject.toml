@@ -14,12 +14,10 @@ dependencies = [
     "psycopg[binary]>=3.2,<4",
     "opentelemetry-api>=1.20",
     "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp-proto-http>=1.20",
     "langgraph>=0.4",
 ]
 
 [project.optional-dependencies]
-observability = [
-    "opentelemetry-exporter-otlp-proto-http>=1.20",
-]
 recovery = ["pydantic-ai>=1.30,<2", "playwright>=1.40,<2"]
 studio = ["langgraph-cli[inmem]>=0.2"]

@@ -108,14 +108,13 @@ Optional dependency groups:
 
 | Extra | Install command | Description |
 |-------|----------------|-------------|
-| `observability` | `uv sync --extra observability` | [LLM observability via OpenTelemetry](doc/README.md#llm-observability-opentelemetry) (OTLP exporter) |
 | `recovery` | `uv sync --extra recovery` | [Agent recovery with Pydantic AI + Playwright](doc/README.md#recovery) |
 | `studio` | `uv sync --extra studio` | [LangGraph Studio](https://langchain-ai.github.io/langgraph/concepts/langgraph_studio/) for pipeline graph visualization |
 
-To install both extras at once, pass them in a single command — running `uv sync --extra` twice will remove the first extra:
+To install multiple extras at once, pass them in a single command — running `uv sync --extra` twice will remove the first extra:
 
 ```bash
-uv sync --extra observability --extra recovery
+uv sync --extra recovery --extra studio
 # or simply:
 uv sync --all-extras
 ```

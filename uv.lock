@@ -3,7 +3,7 @@ revision = 3
 requires-python = "==3.13.*"
 
 [options]
-exclude-newer = "2026-04-06T14:43:04.493545Z"
+exclude-newer = "2026-04-07T15:00:49.078692Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -2171,6 +2171,7 @@ dependencies = [
     { name = "mutagen" },
     { name = "openai" },
     { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
     { name = "psycopg", extra = ["binary"] },
     { name = "python-dotenv" },
@@ -2178,9 +2179,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-observability = [
-    { name = "opentelemetry-exporter-otlp-proto-http" },
-]
 recovery = [
     { name = "playwright" },
     { name = "pydantic-ai" },
@@ -2199,7 +2197,7 @@ requires-dist = [
     { name = "mutagen", specifier = ">=1.47,<2" },
     { name = "openai", specifier = ">=1.0,<2" },
     { name = "opentelemetry-api", specifier = ">=1.20" },
-    { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'observability'", specifier = ">=1.20" },
+    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.20" },
     { name = "opentelemetry-sdk", specifier = ">=1.20" },
     { name = "playwright", marker = "extra == 'recovery'", specifier = ">=1.40,<2" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
@@ -2207,7 +2205,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0,<2" },
     { name = "pyyaml", specifier = ">=6.0.3" },
 ]
-provides-extras = ["observability", "recovery", "studio"]
+provides-extras = ["recovery", "studio"]
 
 [[package]]
 name = "referencing"

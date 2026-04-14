@@ -205,8 +205,9 @@ else:
     }
 
 # OpenTelemetry observability
-RAGTIME_OTEL_ENABLED = os.getenv('RAGTIME_OTEL_ENABLED', 'false').lower() in ('true', '1', 'yes')
-RAGTIME_OTEL_EXPORTER = os.getenv('RAGTIME_OTEL_EXPORTER', 'otlp')
+# Tracing activates when RAGTIME_OTEL_EXPORTER is set to 'otlp' or 'console'.
+# Leave empty or set to 'none' to disable (no-op).
+RAGTIME_OTEL_EXPORTER = os.getenv('RAGTIME_OTEL_EXPORTER', '')
 RAGTIME_OTEL_ENDPOINT = os.getenv('RAGTIME_OTEL_ENDPOINT', 'http://localhost:4318')
 RAGTIME_OTEL_SERVICE_NAME = os.getenv('RAGTIME_OTEL_SERVICE_NAME', 'ragtime')
 RAGTIME_OTEL_HEADERS = os.getenv('RAGTIME_OTEL_HEADERS', '')

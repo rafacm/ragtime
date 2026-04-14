@@ -192,27 +192,21 @@ Each step creates an OTel span with episode metadata attributes. Provider calls 
 
 ### Setup
 
-1. Install the optional OTLP exporter:
-   ```
-   uv sync --extra observability
-   ```
+Tracing activates when `RAGTIME_OTEL_EXPORTER` is set to `otlp` or `console`. When unset or `none`, the OTel API provides a no-op tracer with zero overhead.
 
-2. Configure via the wizard or `.env`:
-   ```
-   uv run python manage.py configure
-   ```
-   Or set these variables in `.env`:
-   ```
-   RAGTIME_OTEL_ENABLED=true
-   RAGTIME_OTEL_EXPORTER=otlp
-   RAGTIME_OTEL_ENDPOINT=http://localhost:4318
-   RAGTIME_OTEL_SERVICE_NAME=ragtime
-   RAGTIME_OTEL_HEADERS=
-   ```
+Configure via the wizard or `.env`:
+```
+uv run python manage.py configure
+```
+Or set these variables in `.env`:
+```
+RAGTIME_OTEL_EXPORTER=otlp
+RAGTIME_OTEL_ENDPOINT=http://localhost:4318
+RAGTIME_OTEL_SERVICE_NAME=ragtime
+RAGTIME_OTEL_HEADERS=
+```
 
-3. Start an OTLP-compatible collector (see [Jaeger](#jaeger) and [Langfuse](#langfuse) below), or use `RAGTIME_OTEL_EXPORTER=console` to print spans to the terminal (useful for debugging without a collector).
-
-When disabled (the default), OTel is never imported and there is zero overhead.
+Start an OTLP-compatible collector (see [Jaeger](#jaeger) and [Langfuse](#langfuse) below), or use `RAGTIME_OTEL_EXPORTER=console` to print spans to the terminal (useful for debugging without a collector).
 
 ### Jaeger
 
@@ -227,7 +221,6 @@ When disabled (the default), OTel is never imported and there is zero overhead.
 
 2. Set these variables in `.env`:
    ```
-   RAGTIME_OTEL_ENABLED=true
    RAGTIME_OTEL_EXPORTER=otlp
    RAGTIME_OTEL_ENDPOINT=http://localhost:4318
    RAGTIME_OTEL_SERVICE_NAME=ragtime
@@ -268,7 +261,6 @@ When disabled (the default), OTel is never imported and there is zero overhead.
 
 5. Set these variables in `.env`:
    ```
-   RAGTIME_OTEL_ENABLED=true
    RAGTIME_OTEL_EXPORTER=otlp
    RAGTIME_OTEL_ENDPOINT=http://localhost:3000/api/public/otel
    RAGTIME_OTEL_SERVICE_NAME=ragtime

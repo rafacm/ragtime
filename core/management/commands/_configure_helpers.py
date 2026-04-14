@@ -126,15 +126,14 @@ SYSTEMS = [
     },
     {
         "name": "Observability",
-        "description": "OpenTelemetry tracing for LLM calls (optional)",
+        "description": "OpenTelemetry tracing for LLM calls (set exporter to activate)",
         "shareable": False,
         "subsystems": [
             {
                 "prefix": "RAGTIME_OTEL",
                 "label": "OpenTelemetry",
                 "fields": [
-                    ("ENABLED", "false", False),
-                    ("EXPORTER", "otlp", False),
+                    ("EXPORTER", "", False),
                     ("ENDPOINT", "http://localhost:4318", False),
                     ("SERVICE_NAME", "ragtime", False),
                     ("HEADERS", "", True),

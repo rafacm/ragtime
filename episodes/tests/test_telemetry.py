@@ -14,32 +14,36 @@ from episodes.telemetry import (
 class IsEnabledTest(TestCase):
     """Tests for is_enabled()."""
 
-    @override_settings(RAGTIME_OTEL_ENABLED=False)
-    def test_disabled_by_default(self):
+    @override_settings(RAGTIME_OTEL_EXPORTER="")
+    def test_disabled_when_exporter_empty(self):
         self.assertFalse(is_enabled())
 
-    @override_settings(RAGTIME_OTEL_ENABLED=True)
+    @override_settings(RAGTIME_OTEL_EXPORTER="none")
+    def test_disabled_when_exporter_none(self):
+        self.assertFalse(is_enabled())
+
+    @override_settings(RAGTIME_OTEL_EXPORTER="otlp")
     def test_disabled_during_test_runs(self):
         """is_enabled() returns False when sys.argv contains 'test'."""
         self.assertFalse(is_enabled())
 
-    @override_settings(RAGTIME_OTEL_ENABLED=True)
+    @override_settings(RAGTIME_OTEL_EXPORTER="otlp")
     @patch("episodes.telemetry.sys")
-    def test_enabled_when_setting_true(self, mock_sys):
+    def test_enabled_when_exporter_otlp(self, mock_sys):
         mock_sys.argv = ["manage.py", "runserver"]
         self.assertTrue(is_enabled())
 
-    @override_settings(RAGTIME_OTEL_ENABLED=False)
+    @override_settings(RAGTIME_OTEL_EXPORTER="console")
     @patch("episodes.telemetry.sys")
-    def test_disabled_when_setting_false(self, mock_sys):
+    def test_enabled_when_exporter_console(self, mock_sys):
         mock_sys.argv = ["manage.py", "runserver"]
-        self.assertFalse(is_enabled())
+        self.assertTrue(is_enabled())
 
 
 class TraceStepTest(TestCase):
     """Tests for trace_step() decorator."""
 
-    @override_settings(RAGTIME_OTEL_ENABLED=False)
+    @override_settings(RAGTIME_OTEL_EXPORTER="")
     def test_noop_when_disabled(self):
         """When OTel is disabled, the decorator passes through."""
         called_with = {}
@@ -53,7 +57,7 @@ class TraceStepTest(TestCase):
         self.assertEqual(result, "result")
         self.assertEqual(called_with["episode_id"], 42)
 
-    @override_settings(RAGTIME_OTEL_ENABLED=False)
+    @override_settings(RAGTIME_OTEL_EXPORTER="")
     def test_preserves_function_name(self):
         @trace_step("test_step")
         def my_step(episode_id):
@@ -61,7 +65,7 @@ class TraceStepTest(TestCase):
 
         self.assertEqual(my_step.__name__, "my_step")
 
-    @override_settings(RAGTIME_OTEL_ENABLED=True)
+    @override_settings(RAGTIME_OTEL_EXPORTER="otlp")
     @patch("episodes.telemetry.sys")
     def test_falls_back_when_otel_not_installed(self, mock_sys):
         """When enabled but OTel not installed, runs function normally."""
@@ -95,7 +99,7 @@ class RecordLlmInputTest(TestCase):
         with self.assertRaises(TypeError):
             record_llm_input("system", "user", bad_kwarg="nope")
 
-    @override_settings(RAGTIME_OTEL_ENABLED=False)
+    @override_settings(RAGTIME_OTEL_EXPORTER="")
     def test_noop_when_disabled(self):
         """No error when called with OTel disabled."""
         record_llm_input("system", "user")
