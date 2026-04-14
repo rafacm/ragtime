@@ -46,6 +46,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixe
 
 ### What's coming
 
+- **OpenTelemetry + LangGraph** ([#88](https://github.com/rafacm/ragtime/pull/88)): replace Langfuse-specific instrumentation with OpenTelemetry (export traces to any OTLP backend) and migrate the Django Q2 signal-based pipeline to a LangGraph `StateGraph` with autonomous step skipping, recovery routing, and resume-from-failure. Adds LangGraph Studio support for local graph visualization.
 - **Embed step** (pipeline step 9): generate multilingual embeddings for transcript chunks and store them in [ChromaDB](https://www.trychroma.com/).
 - **Scott — the RAG chatbot** (pipeline step 10 + chat app): conversational agent that answers questions strictly from ingested content, with episode/timestamp references, multilingual support, and streaming responses.
 - **AI evaluation**: measure pipeline and Scott quality using [RAGAS](https://docs.ragas.io/) (faithfulness, answer relevancy, context precision/recall) with scores tracked in [Langfuse](https://langfuse.com/docs/scores/model-based-evals/ragas). Enables regression testing across prompt and model changes.
