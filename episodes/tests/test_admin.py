@@ -38,6 +38,22 @@ class EpisodeAdminTests(TestCase):
         response = self.client.get(f"/admin/episodes/episode/{episode.pk}/change/")
         self.assertEqual(response.status_code, 200)
 
+    @patch("episodes.admin.threading")
+    def test_create_episode_auto_starts_pipeline(self, mock_threading):
+        response = self.client.post(
+            "/admin/episodes/episode/add/",
+            {"url": "https://example.com/ep/auto-ingest"},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        episode = Episode.objects.get(url="https://example.com/ep/auto-ingest")
+        self.assertEqual(episode.status, Episode.Status.PENDING)
+        mock_threading.Thread.assert_called_once()
+        call_kwargs = mock_threading.Thread.call_args
+        self.assertEqual(call_kwargs.kwargs.get("target").__name__, "_run_pipeline_task")
+        self.assertEqual(call_kwargs.kwargs.get("args"), (episode.pk,))
+        mock_threading.Thread.return_value.start.assert_called_once()
+
     def test_reprocess_action_shows_intermediate_page(self):
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-2",

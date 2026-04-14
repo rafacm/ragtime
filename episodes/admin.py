@@ -179,6 +179,15 @@ class EpisodeAdmin(admin.ModelAdmin):
             readonly += list(self.METADATA_FIELDS) + ["status", "scraped_html"]
         return readonly
 
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if not change:
+            # New episode — auto-start the ingestion pipeline
+            threading.Thread(
+                target=_run_pipeline_task,
+                args=(obj.pk,),
+            ).start()
+
     def get_fieldsets(self, request, obj=None):
         if obj is None:
             return [(None, {"fields": ("url",)})]
@@ -306,13 +315,13 @@ class EpisodeAdmin(admin.ModelAdmin):
             episode.status = from_step
             episode.error_message = ""
             episode.save(update_fields=["status", "error_message", "updated_at"])
-            # Run pipeline in background thread (non-blocking for admin)
+            # Run pipeline in background thread (non-blocking for admin).
             # Pass from_step so route_entry() starts from the requested step
             # instead of skipping it based on cached data.
+            # Non-daemon so the thread completes even during graceful shutdown.
             threading.Thread(
                 target=_run_pipeline_task,
                 args=(episode.pk, from_step),
-                daemon=True,
             ).start()
             count += 1
 
@@ -686,7 +695,6 @@ class RecoveryAttemptAdmin(admin.ModelAdmin):
             threading.Thread(
                 target=_run_agent_recovery_task,
                 args=(attempt.episode_id, pe.pk),
-                daemon=True,
             ).start()
             count += 1
 
