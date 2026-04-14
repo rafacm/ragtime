@@ -40,14 +40,16 @@ class EpisodeAdminTests(TestCase):
 
     @patch("episodes.admin.threading")
     def test_create_episode_auto_starts_pipeline(self, mock_threading):
-        response = self.client.post(
-            "/admin/episodes/episode/add/",
-            {"url": "https://example.com/ep/auto-ingest"},
-            follow=True,
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/admin/episodes/episode/add/",
+                {"url": "https://example.com/ep/auto-ingest"},
+                follow=True,
+            )
         self.assertEqual(response.status_code, 200)
         episode = Episode.objects.get(url="https://example.com/ep/auto-ingest")
         self.assertEqual(episode.status, Episode.Status.PENDING)
+        # on_commit callback starts the pipeline thread
         mock_threading.Thread.assert_called_once()
         call_kwargs = mock_threading.Thread.call_args
         self.assertEqual(call_kwargs.kwargs.get("target").__name__, "_run_pipeline_task")

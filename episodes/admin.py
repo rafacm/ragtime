@@ -180,13 +180,18 @@ class EpisodeAdmin(admin.ModelAdmin):
         return readonly
 
     def save_model(self, request, obj, form, change):
+        from django.db import transaction
+
         super().save_model(request, obj, form, change)
         if not change:
-            # New episode — auto-start the ingestion pipeline
-            threading.Thread(
-                target=_run_pipeline_task,
-                args=(obj.pk,),
-            ).start()
+            # New episode — auto-start the ingestion pipeline after the
+            # transaction commits so the row is visible to the worker thread.
+            transaction.on_commit(
+                lambda: threading.Thread(
+                    target=_run_pipeline_task,
+                    args=(obj.pk,),
+                ).start()
+            )
 
     def get_fieldsets(self, request, obj=None):
         if obj is None:
