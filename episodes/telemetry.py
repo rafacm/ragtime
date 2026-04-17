@@ -17,7 +17,7 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-_tracer = None
+_tracers: dict[str, object] = {}
 
 
 def setup():
@@ -175,15 +175,18 @@ def is_langfuse_enabled():
 
 
 def get_tracer(name="ragtime"):
-    """Return an OTel Tracer, or a no-op tracer when disabled."""
-    global _tracer
-    if _tracer is not None:
-        return _tracer
+    """Return an OTel Tracer, cached by name.
+
+    Returns a no-op tracer when disabled.
+    """
+    if name in _tracers:
+        return _tracers[name]
 
     from opentelemetry import trace
 
-    _tracer = trace.get_tracer(name)
-    return _tracer
+    tracer = trace.get_tracer(name)
+    _tracers[name] = tracer
+    return tracer
 
 
 def trace_step(name):
@@ -207,7 +210,7 @@ def trace_step(name):
 
             tracer = get_tracer()
             attributes, session_id, user_id, metadata = (
-                _build_step_attributes(episode_id)
+                _build_step_attributes(name, episode_id)
             )
 
             with tracer.start_as_current_span(name, attributes=attributes):
@@ -246,7 +249,7 @@ def trace_step(name):
     return decorator
 
 
-def _build_step_attributes(episode_id):
+def _build_step_attributes(step_name, episode_id):
     """Build OTel span attributes for a pipeline step.
 
     Returns (attributes_dict, session_id, user_id, metadata_dict).
@@ -254,7 +257,7 @@ def _build_step_attributes(episode_id):
     from .models import Episode, ProcessingRun
 
     attributes = {
-        "ragtime.step.name": "",
+        "ragtime.step.name": step_name,
         "ragtime.episode.id": str(episode_id),
     }
 
