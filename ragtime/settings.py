@@ -218,8 +218,12 @@ else:
         },
     }
 
-# LLM Observability (Langfuse)
-RAGTIME_LANGFUSE_ENABLED = os.getenv('RAGTIME_LANGFUSE_ENABLED', 'false').lower() in ('true', '1', 'yes')
+# Telemetry (OpenTelemetry)
+RAGTIME_OTEL_COLLECTORS = os.getenv('RAGTIME_OTEL_COLLECTORS', '')
+RAGTIME_OTEL_SERVICE_NAME = os.getenv('RAGTIME_OTEL_SERVICE_NAME', 'ragtime')
+RAGTIME_OTEL_JAEGER_ENDPOINT = os.getenv('RAGTIME_OTEL_JAEGER_ENDPOINT', 'http://localhost:4318')
+
+# Langfuse collector settings (used when 'langfuse' is in RAGTIME_OTEL_COLLECTORS)
 RAGTIME_LANGFUSE_SECRET_KEY = os.getenv('RAGTIME_LANGFUSE_SECRET_KEY', '')
 RAGTIME_LANGFUSE_PUBLIC_KEY = os.getenv('RAGTIME_LANGFUSE_PUBLIC_KEY', '')
 RAGTIME_LANGFUSE_HOST = os.getenv('RAGTIME_LANGFUSE_HOST', 'http://localhost:3000')

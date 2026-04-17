@@ -125,15 +125,23 @@ SYSTEMS = [
         ],
     },
     {
-        "name": "LLM Observability",
-        "description": "Langfuse tracing for LLM calls (optional)",
+        "name": "Telemetry",
+        "description": "OpenTelemetry tracing with optional collectors (console, jaeger, langfuse)",
         "shareable": False,
         "subsystems": [
             {
-                "prefix": "RAGTIME_LANGFUSE",
-                "label": "Langfuse",
+                "prefix": "RAGTIME_OTEL",
+                "label": "OpenTelemetry",
                 "fields": [
-                    ("ENABLED", "false", False),
+                    ("COLLECTORS", "", False),
+                    ("SERVICE_NAME", "ragtime", False),
+                    ("JAEGER_ENDPOINT", "http://localhost:4318", False),
+                ],
+            },
+            {
+                "prefix": "RAGTIME_LANGFUSE",
+                "label": "Langfuse (when enabled as collector)",
+                "fields": [
                     ("SECRET_KEY", "", True),
                     ("PUBLIC_KEY", "", True),
                     ("HOST", "http://localhost:3000", False),

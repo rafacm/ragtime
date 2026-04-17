@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-04-15
+
+### Changed
+
+- Replace Langfuse-specific observability with OpenTelemetry telemetry — `episodes/observability.py` replaced by `episodes/telemetry.py` with OTel as a core dependency. Three optional collectors: console (stdout), Jaeger (via OTLP), and Langfuse (via OTel SpanProcessor). Multiple collectors can run simultaneously. `RAGTIME_OTEL_COLLECTORS` env var replaces `RAGTIME_LANGFUSE_ENABLED`. OpenAI calls auto-instrumented via `opentelemetry-instrumentation-openai` instead of Langfuse monkey-patched client. Jaeger supported via standalone `docker run` — [plan](doc/plans/2026-04-15-opentelemetry-telemetry.md), [feature](doc/features/2026-04-15-opentelemetry-telemetry.md), [planning session](doc/sessions/2026-04-15-opentelemetry-telemetry-planning-session.md), [implementation session](doc/sessions/2026-04-15-opentelemetry-telemetry-implementation-session.md)
+
 ## 2026-03-23
 
 ### Fixed

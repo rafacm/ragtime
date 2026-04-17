@@ -4,7 +4,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from .models import Episode
-from .observability import observe_step
+from .telemetry import trace_step
 from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_scraping_provider
 
@@ -92,7 +92,7 @@ def _has_required_fields(episode: Episode) -> bool:
     return all(getattr(episode, f) for f in REQUIRED_FIELDS)
 
 
-@observe_step("scrape_episode")
+@trace_step("scrape_episode")
 def scrape_episode(episode_id: int) -> None:
     try:
         episode = Episode.objects.get(pk=episode_id)

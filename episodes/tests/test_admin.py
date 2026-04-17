@@ -1,16 +1,9 @@
-import importlib.util
-import unittest
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from episodes.models import Entity, EntityType, Episode, PipelineEvent, ProcessingRun, ProcessingStep, RecoveryAttempt
-
-_has_recovery_deps = (
-    importlib.util.find_spec("pydantic_ai") is not None
-    and importlib.util.find_spec("playwright") is not None
-)
 
 
 class EpisodeAdminTests(TestCase):
@@ -326,7 +319,6 @@ class RecoveryAttemptAdminTests(TestCase):
         mock_admin_async.assert_not_called()
 
 
-@unittest.skipUnless(_has_recovery_deps, "pydantic-ai not installed")
 class RunAgentRecoveryTaskTests(TestCase):
     @patch("episodes.signals.async_task")
     @patch("episodes.agents.run_recovery_agent")

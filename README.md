@@ -39,14 +39,14 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 - **Episode ingestion**: submit episodes by URL, metadata scraping, audio download, transcription, summarization,  chunking, entity extraction and resolution with [Wikidata](https://www.wikidata.org/) integration.
 - **Episode management UI**: Django admin interface to view episode status and metadata and browse extracted entities.
 - **Configuration wizard**: interactive `manage.py configure` command for all `RAGTIME_*` env vars.
-- **LLM observability**: optional [Langfuse](https://langfuse.com) integration for tracing and monitoring LLM calls across the pipeline.
+- **Telemetry**: [OpenTelemetry](https://opentelemetry.io/)-based tracing for pipeline steps and LLM calls with optional collectors: console, [Jaeger](https://www.jaegertracing.io/), and [Langfuse](https://langfuse.com).
 - **Agent-based recovery**: [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation recovers from scraping and downloading failures automatically.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixes, implementation plans, feature documentation and session transcripts.
 
 ### What's coming
 
-- **OpenTelemetry + LangGraph** ([#88](https://github.com/rafacm/ragtime/pull/88)): replace Langfuse-specific instrumentation with OpenTelemetry (export traces to any OTLP backend) and migrate the Django Q2 signal-based pipeline to a LangGraph `StateGraph` with autonomous step skipping, recovery routing, and resume-from-failure. Adds LangGraph Studio support for local graph visualization.
+- **LangGraph pipeline**: migrate the Django Q2 signal-based pipeline to a LangGraph `StateGraph` with autonomous step skipping, recovery routing, and resume-from-failure. Adds LangGraph Studio support for local graph visualization.
 - **Embed step** (pipeline step 9): generate multilingual embeddings for transcript chunks and store them in [ChromaDB](https://www.trychroma.com/).
 - **Scott — the RAG chatbot** (pipeline step 10 + chat app): conversational agent that answers questions strictly from ingested content, with episode/timestamp references, multilingual support, and streaming responses.
 - **AI evaluation**: measure pipeline and Scott quality using [RAGAS](https://docs.ragas.io/) (faithfulness, answer relevancy, context precision/recall) with scores tracked in [Langfuse](https://langfuse.com/docs/scores/model-based-evals/ragas). Enables regression testing across prompt and model changes.
@@ -80,7 +80,7 @@ Detailed documentation lives in the [`doc/`](doc/) directory:
 
 - [Full pipeline documentation](doc/README.md) — per-step details, entity types, recovery layer
 - [How Scott works](doc/README.md#how-scott-works) — RAG architecture and query flow
-- [LLM observability with Langfuse](doc/README.md#llm-observability-langfuse) — tracing setup and traced steps
+- [Telemetry (OpenTelemetry)](doc/README.md#telemetry-opentelemetry) — tracing setup, collectors (console, Jaeger, Langfuse)
 - [Architecture diagrams](doc/architecture/) — processing pipeline diagram
 - [Feature documentation](doc/features/) — per-feature docs with problem, changes, and verification
 - [Plans](doc/plans/) — implementation plans
@@ -105,20 +105,11 @@ docker compose up -d              # Start PostgreSQL
 uv sync                           # Install dependencies
 ```
 
-Optional dependency groups:
+Optional dependency group:
 
 | Extra | Install command | Description |
 |-------|----------------|-------------|
-| `observability` | `uv sync --extra observability` | [LLM observability via Langfuse](doc/README.md#llm-observability-langfuse) |
-| `recovery` | `uv sync --extra recovery` | [Agent recovery with Pydantic AI + Playwright](doc/README.md#recovery) |
-
-To install both extras at once, pass them in a single command — running `uv sync --extra` twice will remove the first extra:
-
-```bash
-uv sync --extra observability --extra recovery
-# or simply:
-uv sync --all-extras
-```
+| `langfuse` | `uv sync --extra langfuse` | [Langfuse collector for telemetry](doc/README.md#telemetry-opentelemetry) |
 
 Set up the database, create an admin account, and start the services:
 
