@@ -3,7 +3,7 @@ import logging
 
 from .languages import ISO_639_LANGUAGE_NAMES, ISO_639_RE
 from .models import Chunk, EntityType, Episode
-from .observability import observe_step
+from .telemetry import trace_step
 from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_extraction_provider
 from .timestamps import filter_words_for_chunk, find_entity_start_time
@@ -105,7 +105,7 @@ def _annotate_timestamps(entities_json, chunk_words, chunk_start, has_words):
                 entity["start_time"] = chunk_start
 
 
-@observe_step("extract_entities")
+@trace_step("extract_entities")
 def extract_entities(episode_id: int) -> None:
     try:
         episode = Episode.objects.get(pk=episode_id)

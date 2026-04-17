@@ -255,7 +255,9 @@ class ConfigureWizardTest(TestCase):
             "",               # Recovery agent enabled (keep default)
             "",               # Recovery agent model (keep default)
             "",               # Recovery agent timeout (keep default)
-            "",               # Langfuse enabled (keep default)
+            "",               # OTel collectors (keep default)
+            "",               # OTel service name (keep default)
+            "",               # OTel Jaeger endpoint (keep default)
             "",               # Langfuse host (keep default)
         ]
 
@@ -360,7 +362,9 @@ class ConfigureWizardTest(TestCase):
             "",               # Recovery agent enabled (keep default)
             "",               # Recovery agent model (keep default)
             "",               # Recovery agent timeout (keep default)
-            "",               # Langfuse enabled (keep default)
+            "",               # OTel collectors (keep default)
+            "",               # OTel service name (keep default)
+            "",               # OTel Jaeger endpoint (keep default)
             "",               # Langfuse host (keep default)
         ]
 

@@ -3,23 +3,20 @@
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-try:
-    from episodes.agents.deps import RecoveryDeps
-    from episodes.agents.tools import (
-        analyze_screenshot,
-        click_at_coordinates,
-        click_element,
-        download_file,
-        extract_text_by_selector,
-        find_audio_links,
-        get_page_content,
-        intercept_audio_requests,
-        navigate_to_url,
-        take_screenshot,
-        translate_text,
-    )
-except ImportError:
-    raise unittest.SkipTest("pydantic-ai/playwright not installed")
+from episodes.agents.deps import RecoveryDeps
+from episodes.agents.tools import (
+    analyze_screenshot,
+    click_at_coordinates,
+    click_element,
+    download_file,
+    extract_text_by_selector,
+    find_audio_links,
+    get_page_content,
+    intercept_audio_requests,
+    navigate_to_url,
+    take_screenshot,
+    translate_text,
+)
 
 
 def _make_deps(**overrides):

@@ -2,16 +2,12 @@
 
 import os
 import tempfile
-import unittest
 from unittest.mock import patch
 
 from django.test import TestCase
 
-try:
-    from episodes.agents.deps import RecoveryAgentResult
-    from episodes.agents.resume import resume_pipeline
-except ImportError:
-    raise unittest.SkipTest("pydantic-ai/playwright not installed")
+from episodes.agents.deps import RecoveryAgentResult
+from episodes.agents.resume import resume_pipeline
 
 from episodes.events import StepFailureEvent
 from episodes.models import Episode, ProcessingRun, ProcessingStep

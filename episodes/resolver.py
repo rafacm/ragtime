@@ -5,7 +5,7 @@ from collections import defaultdict
 from django.db import transaction
 
 from .models import Chunk, Entity, EntityMention, EntityType, Episode
-from .observability import observe_step
+from .telemetry import trace_step
 from .processing import complete_step, fail_step, start_step
 from .providers.factory import get_resolution_provider
 
@@ -178,7 +178,7 @@ def _collect_mentions(name, entity, names_dict, episode, seen):
     return mentions
 
 
-@observe_step("resolve_entities")
+@trace_step("resolve_entities")
 def resolve_entities(episode_id: int) -> None:
     try:
         episode = Episode.objects.get(pk=episode_id)

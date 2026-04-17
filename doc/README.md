@@ -9,7 +9,7 @@
   - [Recovery](#recovery)
 - [How Scott Works](#how-scott-works)
 - [Wikidata Cache](#wikidata-cache)
-- [LLM Observability (Langfuse)](#llm-observability-langfuse)
+- [Telemetry (OpenTelemetry)](#telemetry-opentelemetry)
 - [Development](#development)
 - [Feature Documentation](#feature-documentation)
 
@@ -113,10 +113,9 @@ When any pipeline step fails, the [`step_failed` handler](../episodes/recovery.p
 1. **Agent (steps 2–3 only)** — a [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation navigates the podcast page, finds audio URLs behind JavaScript players or CloudFlare blocks, and downloads files through a real browser. The agent visits the episode page first to establish cookies and session state, then attempts the audio URL directly. When the episode language is known, the agent receives language context and can use a `translate_text` tool to translate UI labels (e.g. "Information", "Download") that may appear in the page's language. On success it resumes the pipeline from the next step automatically. When recovering from a scraping failure, if the agent both finds the audio URL and downloads the MP3 file (using browser cookies), it skips the download step entirely and resumes directly from transcribing — this avoids a redundant `wget` download that would fail without the browser's session cookies. Only applies to scraping and downloading failures. The agent takes a screenshot after every action for full observability.
 2. **Human escalation** — for all other failures, or when the agent fails or is disabled, the failure is marked `awaiting_human` for manual resolution in Django admin.
 
-The agent strategy is **off by default**. To enable it:
+The agent strategy is **off by default**. To enable it, install the Playwright browser and configure:
 
 ```
-uv sync --extra recovery
 uv run playwright install chromium
 ```
 
@@ -131,7 +130,7 @@ RAGTIME_RECOVERY_AGENT_API_KEY=sk-your-key
 RAGTIME_RECOVERY_AGENT_MODEL=openai:gpt-4.1-mini
 ```
 
-The agent's LLM provider is fully independent from other subsystems — configure any [Pydantic AI model string](https://ai.pydantic.dev/models/) (e.g., `anthropic:claude-sonnet-4-20250514`). A maximum of 30 LLM requests per recovery attempt prevents runaway costs. Screenshots taken during recovery are attached to [Langfuse](https://langfuse.com) traces when observability is enabled.
+The agent's LLM provider is fully independent from other subsystems — configure any [Pydantic AI model string](https://ai.pydantic.dev/models/) (e.g., `anthropic:claude-sonnet-4-20250514`). A maximum of 30 LLM requests per recovery attempt prevents runaway costs. Screenshots taken during recovery are attached to traces when telemetry collectors are enabled (binary media attachments require the Langfuse collector).
 
 The `translate_text` tool uses a separate LLM provider to translate UI labels to the episode's language. It is included in the shareable LLM provider group in the configuration wizard. To configure manually, set these variables in `.env`:
 ```
@@ -174,9 +173,9 @@ rm -rf .cache/wikidata/
 
 API requests are rate-limited per process via a token bucket (~5 req/s sustained, bursts up to 10). Only cache misses count against the rate limit.
 
-## LLM Observability (Langfuse)
+## Telemetry (OpenTelemetry)
 
-RAGtime optionally integrates with [Langfuse](https://langfuse.com) to trace all LLM calls across the pipeline. When enabled, every OpenAI API call is captured with prompts, completions, token usage, latency, and cost — grouped by `ProcessingRun`.
+RAGtime uses [OpenTelemetry](https://opentelemetry.io/) to trace pipeline steps and LLM calls. Traces can be exported to any combination of collectors: **console** (stdout), **Jaeger** (self-hosted UI), or **Langfuse** (LLM-specific observability).
 
 ### What is traced
 
@@ -188,16 +187,47 @@ RAGtime optionally integrates with [Langfuse](https://langfuse.com) to trace all
 | Extract | `extract_entities` | Per-chunk entity extraction |
 | Resolve | `resolve_entities` | Entity resolution against DB |
 
-### Setup
+Each step creates an OTel span with episode metadata. OpenAI API calls are auto-instrumented as child spans.
 
-1. Install the optional dependency:
+### Collectors
+
+#### Console
+
+Prints spans to stdout — useful for local debugging.
+
+```
+RAGTIME_OTEL_COLLECTORS=console
+```
+
+#### Jaeger
+
+[Jaeger](https://www.jaegertracing.io/) is the simplest option for local development — a single Docker container that accepts OTLP traces and provides a search UI.
+
+1. Start Jaeger:
+   ```bash
+   docker run -d --name jaeger \
+     -p 4318:4318 -p 16686:16686 \
+     jaegertracing/all-in-one:latest
    ```
-   uv sync --extra observability
+
+2. Set these variables in `.env`:
+   ```
+   RAGTIME_OTEL_COLLECTORS=jaeger
+   RAGTIME_OTEL_JAEGER_ENDPOINT=http://localhost:4318
    ```
 
-2. Run Langfuse locally via Docker Compose.
+3. Process an episode and view traces at `http://localhost:16686`.
 
-   See [this walk through guide](https://langfuse.com/self-hosting/deployment/docker-compose).
+#### Langfuse
+
+[Langfuse](https://langfuse.com) provides LLM-specific observability with cost tracking, prompt management, and evaluation. The Langfuse SDK hooks into the shared OTel `TracerProvider` as a `SpanProcessor`, so traces flow through the same pipeline as other collectors. Langfuse-specific features (session grouping via `session_id`/`user_id`, binary screenshot attachments) are preserved.
+
+1. Install the optional Langfuse dependency:
+   ```bash
+   uv sync --extra langfuse
+   ```
+
+2. Run Langfuse locally via Docker Compose. See [Langfuse self-hosting guide](https://langfuse.com/self-hosting/deployment/docker-compose).
 
    **Port conflict:** Langfuse's docker-compose.yml exposes its PostgreSQL on port 5432, which conflicts with RAGtime's. Run one of these in the Langfuse directory to move it to port 5433:
    ```bash
@@ -207,15 +237,10 @@ RAGtime optionally integrates with [Langfuse](https://langfuse.com) to trace all
    # Linux (GNU sed)
    sed -i 's/127.0.0.1:5432:5432/127.0.0.1:5433:5432/' docker-compose.yml
    ```
-   This only changes the host-side port — Langfuse's internal connections use the Docker network and are unaffected.
 
-3. Configure via the wizard or `.env`:
+3. Set these variables in `.env`:
    ```
-   uv run python manage.py configure
-   ```
-   Or set these variables in `.env`:
-   ```
-   RAGTIME_LANGFUSE_ENABLED=true
+   RAGTIME_OTEL_COLLECTORS=langfuse
    RAGTIME_LANGFUSE_SECRET_KEY=sk-lf-...
    RAGTIME_LANGFUSE_PUBLIC_KEY=pk-lf-...
    RAGTIME_LANGFUSE_HOST=http://localhost:3000
@@ -223,7 +248,32 @@ RAGtime optionally integrates with [Langfuse](https://langfuse.com) to trace all
 
 4. Process an episode and view traces at `http://localhost:3000`.
 
-When disabled (the default), Langfuse is never imported and there is zero overhead.
+#### Multiple collectors
+
+Enable multiple collectors simultaneously:
+
+```
+RAGTIME_OTEL_COLLECTORS=console,jaeger,langfuse
+```
+
+### Configuration
+
+Configure via the wizard or `.env`:
+
+```
+uv run python manage.py configure
+```
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RAGTIME_OTEL_COLLECTORS` | `""` (disabled) | Comma-separated: `console`, `jaeger`, `langfuse` |
+| `RAGTIME_OTEL_SERVICE_NAME` | `ragtime` | OTel service name |
+| `RAGTIME_OTEL_JAEGER_ENDPOINT` | `http://localhost:4318` | OTLP HTTP endpoint for Jaeger |
+| `RAGTIME_LANGFUSE_SECRET_KEY` | `""` | Langfuse auth |
+| `RAGTIME_LANGFUSE_PUBLIC_KEY` | `""` | Langfuse auth |
+| `RAGTIME_LANGFUSE_HOST` | `http://localhost:3000` | Langfuse host |
+
+When no collectors are configured (the default), OTel provides a no-op tracer with zero overhead.
 
 ## Development
 

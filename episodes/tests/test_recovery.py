@@ -1,15 +1,8 @@
 """Tests for the recovery layer."""
 
-import importlib.util
-import unittest
 from unittest.mock import patch
 
 from django.test import TestCase, override_settings
-
-_has_recovery_deps = (
-    importlib.util.find_spec("pydantic_ai") is not None
-    and importlib.util.find_spec("playwright") is not None
-)
 
 from episodes.models import Episode, PipelineEvent, ProcessingRun, ProcessingStep, RecoveryAttempt
 from episodes.recovery import (
@@ -67,7 +60,7 @@ class AgentStrategyTests(TestCase):
         event = _make_failure_event(step_name="transcribing")
         self.assertFalse(strategy.can_handle(event))
 
-    @unittest.skipUnless(_has_recovery_deps, "pydantic-ai not installed")
+
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
     @patch("episodes.agents.run_recovery_agent")
     def test_agent_success_calls_resume(self, mock_agent):
@@ -89,7 +82,7 @@ class AgentStrategyTests(TestCase):
         self.assertFalse(result.should_escalate)
         mock_resume.assert_called_once()
 
-    @unittest.skipUnless(_has_recovery_deps, "pydantic-ai not installed")
+
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
     @patch("episodes.agents.run_recovery_agent")
     def test_agent_failure_escalates(self, mock_agent):
@@ -107,7 +100,7 @@ class AgentStrategyTests(TestCase):
         self.assertFalse(result.success)
         self.assertTrue(result.should_escalate)
 
-    @unittest.skipUnless(_has_recovery_deps, "pydantic-ai not installed")
+
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
     @patch("episodes.agents.run_recovery_agent", side_effect=RuntimeError("Browser crashed"))
     def test_agent_exception_escalates(self, _mock_agent):
@@ -178,7 +171,7 @@ class HandleStepFailureTests(TestCase):
         self.assertEqual(attempt.status, RecoveryAttempt.Status.AWAITING_HUMAN)
         self.assertFalse(attempt.success)
 
-    @unittest.skipUnless(_has_recovery_deps, "pydantic-ai not installed")
+
     @patch("episodes.signals.async_task")
     @patch("episodes.agents.run_recovery_agent")
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)

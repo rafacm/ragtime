@@ -136,15 +136,18 @@ async def take_screenshot(ctx: RunContext[RecoveryDeps], label: str) -> str:
     ctx.deps.screenshots.append(png_bytes)
 
     # Attach image to the current Langfuse span so it's visible in the UI
-    try:
-        import langfuse
-        from langfuse.media import LangfuseMedia
+    from .. import telemetry
 
-        media = LangfuseMedia(content_bytes=png_bytes, content_type="image/png")
-        client = langfuse.get_client()
-        client.update_current_span(output=media)
-    except Exception:
-        pass
+    if telemetry.is_langfuse_enabled():
+        try:
+            import langfuse
+            from langfuse.media import LangfuseMedia
+
+            media = LangfuseMedia(content_bytes=png_bytes, content_type="image/png")
+            client = langfuse.get_client()
+            client.update_current_span(output=media)
+        except Exception:
+            pass
 
     return f"Screenshot saved: {label} ({len(png_bytes)} bytes, #{len(ctx.deps.screenshots)})"
 
@@ -291,16 +294,19 @@ async def analyze_screenshot(ctx: RunContext[RecoveryDeps], label: str) -> ToolR
 
     ctx.deps.screenshots.append(png_bytes)
 
-    # Attach to Langfuse
-    try:
-        import langfuse
-        from langfuse.media import LangfuseMedia
+    # Attach to Langfuse when active
+    from .. import telemetry
 
-        media = LangfuseMedia(content_bytes=png_bytes, content_type="image/png")
-        client = langfuse.get_client()
-        client.update_current_span(output=media)
-    except Exception:
-        pass
+    if telemetry.is_langfuse_enabled():
+        try:
+            import langfuse
+            from langfuse.media import LangfuseMedia
+
+            media = LangfuseMedia(content_bytes=png_bytes, content_type="image/png")
+            client = langfuse.get_client()
+            client.update_current_span(output=media)
+        except Exception:
+            pass
 
     image = BinaryImage(data=png_bytes, media_type="image/png")
     return ToolReturn(

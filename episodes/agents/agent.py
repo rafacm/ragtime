@@ -110,7 +110,7 @@ def _build_model():
 
 def _build_agent() -> Agent[RecoveryDeps, RecoveryAgentResult]:
     """Create and configure the recovery agent."""
-    from .. import observability
+    from .. import telemetry
 
     model = _build_model()
 
@@ -119,8 +119,8 @@ def _build_agent() -> Agent[RecoveryDeps, RecoveryAgentResult]:
         output_type=RecoveryAgentResult,
     )
 
-    # Enable OTel instrumentation when Langfuse is active
-    if observability.is_enabled():
+    # Enable OTel instrumentation when any collector is active
+    if telemetry.is_enabled():
         kwargs["instrument"] = True
 
     agent = Agent(model, **kwargs)
@@ -190,7 +190,7 @@ async def _run_agent_async(event: StepFailureEvent) -> RecoveryAgentResult:
             agent = _build_agent()
 
             result = await asyncio.wait_for(
-                _run_with_langfuse(agent, system_prompt, deps, event),
+                _run_with_tracing(agent, system_prompt, deps, event),
                 timeout=timeout,
             )
 
@@ -218,15 +218,15 @@ async def _run_agent_async(event: StepFailureEvent) -> RecoveryAgentResult:
             return output
 
 
-async def _run_with_langfuse(agent, system_prompt, deps, event):
-    """Run the agent, propagating Langfuse session/user attributes when enabled.
+async def _run_with_tracing(agent, system_prompt, deps, event):
+    """Run the agent with OTel tracing and optional Langfuse attributes.
 
-    Detaches from the parent Langfuse/OTel context (e.g. the pipeline step
-    trace) so the recovery agent gets its own independent trace. Screenshots
-    are attached inside the trace context so they appear as child events of
-    the recovery trace.
+    Detaches from the parent OTel context (e.g. the pipeline step trace)
+    so the recovery agent gets its own independent trace.  Screenshots
+    are attached inside the trace context so they appear as child events
+    of the recovery trace.
     """
-    from .. import observability
+    from .. import telemetry
 
     run_kwargs = dict(
         user_prompt=system_prompt,
@@ -234,89 +234,133 @@ async def _run_with_langfuse(agent, system_prompt, deps, event):
         usage_limits=UsageLimits(request_limit=30),
     )
 
-    if observability.is_enabled():
+    if telemetry.is_enabled():
+        from opentelemetry.context import attach, detach
+        from opentelemetry.context import Context as OTelContext
+
+        # Detach from the parent trace (e.g. scrape_episode) so the
+        # recovery agent creates its own root trace.
+        token = attach(OTelContext())
+
         try:
-            from langfuse import propagate_attributes
-            from opentelemetry.context import attach, detach
-            from opentelemetry.context import Context as OTelContext
+            tracer = telemetry.get_tracer("ragtime.recovery")
+            ts = event.timestamp.strftime("%Y-%m-%d-%H-%M")
+            session_id = (
+                f"recovery-run-{event.processing_run_id}-episode-{event.episode_id}"
+                f"-attempt-{event.attempt_number}-{ts}"
+            )
+            user_id = f"episode-{event.episode_id}"
+            metadata = {
+                "episode_id": str(event.episode_id),
+                "step_name": event.step_name,
+                "error_type": event.error_type,
+                "attempt_number": str(event.attempt_number),
+            }
 
-            # Detach from the parent trace (e.g. scrape_episode) so the
-            # recovery agent creates its own root trace in Langfuse.
-            token = attach(OTelContext())
+            attributes = {
+                "ragtime.session.id": session_id,
+                "ragtime.episode.id": str(event.episode_id),
+                "ragtime.step.name": event.step_name,
+                "ragtime.error.type": event.error_type,
+                "ragtime.attempt.number": event.attempt_number,
+            }
 
-            try:
-                ts = event.timestamp.strftime("%Y-%m-%d-%H-%M")
-                session_id = (
-                    f"recovery-run-{event.processing_run_id}-episode-{event.episode_id}"
-                    f"-attempt-{event.attempt_number}-{ts}"
-                )
-                user_id = f"episode-{event.episode_id}"
-                metadata = {
-                    "episode_id": str(event.episode_id),
-                    "step_name": event.step_name,
-                    "error_type": event.error_type,
-                    "attempt_number": str(event.attempt_number),
-                }
+            with tracer.start_as_current_span(
+                "recovery_agent", attributes=attributes
+            ):
+                if telemetry.is_langfuse_enabled():
+                    try:
+                        from langfuse import propagate_attributes
 
-                with propagate_attributes(
-                    session_id=session_id, user_id=user_id, metadata=metadata
-                ):
-                    result = await agent.run(**run_kwargs)
-                    _attach_screenshots(deps.screenshots, event.episode_id)
-                    return result
-            finally:
-                detach(token)
-        except ImportError:
-            pass
+                        with propagate_attributes(
+                            session_id=session_id,
+                            user_id=user_id,
+                            metadata=metadata,
+                        ):
+                            result = await agent.run(**run_kwargs)
+                            _attach_screenshots(
+                                deps.screenshots, event.episode_id
+                            )
+                            return result
+                    except ImportError:
+                        pass
+
+                result = await agent.run(**run_kwargs)
+                _attach_screenshots(deps.screenshots, event.episode_id)
+                return result
+        finally:
+            detach(token)
 
     return await agent.run(**run_kwargs)
 
 
 def _attach_screenshots(screenshots: list[bytes], episode_id: int):
-    """Attach screenshots as Langfuse events with media content.
+    """Attach screenshots as OTel span events and optionally as Langfuse media.
 
-    Must be called inside a ``propagate_attributes`` context so events
-    are associated with the current trace.
+    Must be called inside an active span context so events are associated
+    with the current trace.
     """
     if not screenshots:
         return
 
-    try:
-        import langfuse
-        from langfuse.media import LangfuseMedia
+    from .. import telemetry
 
-        client = langfuse.get_client()
+    # Add OTel span events for all collectors (metadata only)
+    if telemetry.is_enabled():
+        from opentelemetry import trace
+
+        span = trace.get_current_span()
         for i, png in enumerate(screenshots):
-            media = LangfuseMedia(
-                content_bytes=png,
-                content_type="image/png",
-            )
-            client.create_event(
-                name=f"recovery-screenshot-{i}",
-                input=media,
-                metadata={
+            span.add_event(
+                f"recovery-screenshot-{i}",
+                attributes={
                     "episode_id": episode_id,
                     "screenshot_index": i,
                     "screenshot_size": len(png),
                 },
             )
-    except Exception:
-        logger.debug("Failed to attach screenshots to Langfuse", exc_info=True)
+
+    # Attach binary media to Langfuse if available
+    if telemetry.is_langfuse_enabled():
+        try:
+            import langfuse
+            from langfuse.media import LangfuseMedia
+
+            client = langfuse.get_client()
+            for i, png in enumerate(screenshots):
+                media = LangfuseMedia(
+                    content_bytes=png,
+                    content_type="image/png",
+                )
+                client.create_event(
+                    name=f"recovery-screenshot-{i}",
+                    input=media,
+                    metadata={
+                        "episode_id": episode_id,
+                        "screenshot_index": i,
+                        "screenshot_size": len(png),
+                    },
+                )
+        except Exception:
+            logger.debug(
+                "Failed to attach screenshots to Langfuse", exc_info=True
+            )
 
 
-def _flush_langfuse():
-    """Flush buffered Langfuse/OTel traces so they reach the server."""
-    from .. import observability
+def _flush_traces():
+    """Flush buffered OTel traces so they reach the collectors."""
+    from .. import telemetry
 
-    if not observability.is_enabled():
+    if not telemetry.is_enabled():
         return
     try:
-        import langfuse
+        from opentelemetry import trace
 
-        client = langfuse.get_client()
-        client.flush()
+        provider = trace.get_tracer_provider()
+        if hasattr(provider, "force_flush"):
+            provider.force_flush()
     except Exception:
-        logger.debug("Failed to flush Langfuse traces", exc_info=True)
+        logger.debug("Failed to flush OTel traces", exc_info=True)
 
 
 def run_recovery_agent(event: StepFailureEvent) -> RecoveryAgentResult:
@@ -342,4 +386,4 @@ def run_recovery_agent(event: StepFailureEvent) -> RecoveryAgentResult:
         else:
             return asyncio.run(_run_agent_async(event))
     finally:
-        _flush_langfuse()
+        _flush_traces()
