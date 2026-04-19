@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-04-19
+
+### Changed
+
+- Remove LangGraph from the roadmap — delete the "LangGraph pipeline" bullet from the "What's coming" section of `README.md`. LangGraph is no longer planned: Pydantic AI already covers the project's agentic needs (used in the recovery layer), LangGraph's observability and Studio tooling lean on LangSmith, and LangSmith is a hosted-only service that conflicts with RAGtime's preference for locally runnable telemetry collectors (console, Jaeger, self-hosted Langfuse via OpenTelemetry) — [plan](doc/plans/2026-04-19-remove-langgraph-roadmap.md), [feature](doc/features/2026-04-19-remove-langgraph-roadmap.md), [planning session](doc/sessions/2026-04-19-remove-langgraph-roadmap-planning-session.md), [implementation session](doc/sessions/2026-04-19-remove-langgraph-roadmap-implementation-session.md)
+
 ## 2026-04-15
 
 ### Changed
