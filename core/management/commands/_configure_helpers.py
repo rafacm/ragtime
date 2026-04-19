@@ -90,6 +90,40 @@ SYSTEMS = [
         ],
     },
     {
+        "name": "Embedding",
+        "description": "Chunk embeddings for vector retrieval",
+        "shareable": False,
+        "subsystems": [
+            {
+                "prefix": "RAGTIME_EMBEDDING",
+                "label": "Embedding",
+                "fields": [
+                    ("PROVIDER", "openai", False),
+                    ("API_KEY", "", True),
+                    ("MODEL", "text-embedding-3-small", False),
+                ],
+            },
+        ],
+    },
+    {
+        "name": "Vector Store (Qdrant)",
+        "description": "Qdrant vector database (defaults match docker-compose.yml)",
+        "shareable": False,
+        "subsystems": [
+            {
+                "prefix": "RAGTIME_QDRANT",
+                "label": "Qdrant",
+                "fields": [
+                    ("HOST", "localhost", False),
+                    ("PORT", "6333", False),
+                    ("COLLECTION", "ragtime_chunks", False),
+                    ("API_KEY", "", True),
+                    ("HTTPS", "false", False),
+                ],
+            },
+        ],
+    },
+    {
         "name": "Wikidata",
         "description": "Entity lookup via Wikidata API",
         "shareable": False,
