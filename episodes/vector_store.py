@@ -10,7 +10,6 @@ from qdrant_client.http import models as qm
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_DIM = 1536  # text-embedding-3-small
 DISTANCE = qm.Distance.COSINE
 UPSERT_BATCH_SIZE = 128
 
@@ -20,6 +19,33 @@ class QdrantPoint:
     id: int
     vector: list[float]
     payload: dict
+
+
+@lru_cache(maxsize=1)
+def detect_embedding_dim() -> int:
+    """Probe the configured embedding provider to learn its vector dim.
+
+    Runs one embedding call on a short token and returns the length of the
+    returned vector. Cached for the lifetime of the process so the probe
+    never costs more than a single API call. A provider/model swap needs a
+    process restart (or a manual `detect_embedding_dim.cache_clear()`) to
+    take effect — matches the cadence of every other env-var change.
+    """
+    from .providers.factory import get_embedding_provider
+
+    provider = get_embedding_provider()
+    vectors = provider.embed(["dim-probe"])
+    if not vectors or not vectors[0]:
+        raise RuntimeError(
+            "Embedding provider returned an empty result for the dim probe"
+        )
+    dim = len(vectors[0])
+    logger.debug(
+        "Detected embedding dim %d for model %s",
+        dim,
+        settings.RAGTIME_EMBEDDING_MODEL,
+    )
+    return dim
 
 
 class QdrantVectorStore:
@@ -39,22 +65,26 @@ class QdrantVectorStore:
         return cls(client, settings.RAGTIME_QDRANT_COLLECTION)
 
     def ensure_collection(self) -> None:
-        """Create collection if missing; verify dim if it exists."""
+        """Create collection if missing; verify dim against the live model."""
+        expected_dim = detect_embedding_dim()
+
         if self.client.collection_exists(self.collection):
             info = self.client.get_collection(self.collection)
             actual_dim = info.config.params.vectors.size
-            if actual_dim != EMBEDDING_DIM:
+            if actual_dim != expected_dim:
                 raise RuntimeError(
-                    f"Qdrant collection '{self.collection}' has vector "
-                    f"dim {actual_dim}, expected {EMBEDDING_DIM}. "
-                    f"Did RAGTIME_EMBEDDING_MODEL change? "
-                    f"Drop the collection or use a different name."
+                    f"Qdrant collection '{self.collection}' has vector dim "
+                    f"{actual_dim}, but the configured embedding model "
+                    f"({settings.RAGTIME_EMBEDDING_MODEL}) produces "
+                    f"{expected_dim}-dim vectors. Drop the collection (e.g. "
+                    f"`uv run python manage.py dbreset`) or set "
+                    f"RAGTIME_QDRANT_COLLECTION to a new name."
                 )
             return
 
         self.client.create_collection(
             collection_name=self.collection,
-            vectors_config=qm.VectorParams(size=EMBEDDING_DIM, distance=DISTANCE),
+            vectors_config=qm.VectorParams(size=expected_dim, distance=DISTANCE),
         )
         for field, schema in (
             ("episode_id", qm.PayloadSchemaType.INTEGER),
