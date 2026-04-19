@@ -97,7 +97,6 @@ Detailed documentation lives in the [`doc/`](doc/) directory:
 ```bash
 git clone <repo-url>
 cd ragtime
-docker compose up -d              # Start PostgreSQL (port 5432) and Qdrant (port 6333)
 uv sync                           # Install dependencies
 ```
 
@@ -107,13 +106,27 @@ Optional dependency group:
 |-------|----------------|-------------|
 | `langfuse` | `uv sync --extra langfuse` | [Langfuse collector for telemetry](doc/README.md#telemetry-opentelemetry) |
 
-Set up the database, create an admin account, and start the services:
+### Configuration
+
+Launch the interactive setup wizard for all `RAGTIME_*` env vars:
 
 ```bash
+uv run python manage.py configure
+```
+
+Alternatively, copy [`.env.sample`](.env.sample) to `.env` and fill in your values.
+
+The PostgreSQL variables (`RAGTIME_DB_NAME`, `RAGTIME_DB_USER`, `RAGTIME_DB_PASSWORD`, `RAGTIME_DB_PORT`) are read by [`docker-compose.yml`](docker-compose.yml) when the database container starts — so the values you set here flow straight through to Postgres. Defaults (`ragtime` / port `5432`) are used if the variables are unset.
+
+### Running the services
+
+Start PostgreSQL and Qdrant, apply migrations, create an admin account, and start the web server and task worker:
+
+```bash
+docker compose up -d                      # Start PostgreSQL (5432, reads RAGTIME_DB_* from .env) and Qdrant (6333)
 uv run python manage.py migrate
 uv run python manage.py createsuperuser   # Create an admin user for the Django admin UI
 uv run python manage.py load_entity_types # Seed initial entity types
-uv run python manage.py configure         # Interactive setup wizard for RAGTIME_* env vars
 uv run python manage.py runserver         # Start the web server
 uv run python manage.py qcluster          # Start the Django Q2 task worker (separate terminal)
 ```
@@ -124,12 +137,6 @@ To reset the database (drops all data and recreates):
 uv run python manage.py dbreset
 uv run python manage.py createsuperuser   # Recreate the admin account
 ```
-
-### Configuration
-
-You can run `uv run python manage.py configure` to launch an interactive setup wizard for all `RAGTIME_*` env vars.
-
-Alternatively, copy [`.env.sample`](.env.sample) to `.env` and fill in your values.
 
 ## Tech Stack
 

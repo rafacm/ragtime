@@ -44,4 +44,26 @@ Proposed also updating the stale top-of-section comment in `.env.sample` ("defau
 
 ### Assistant
 
-Updated `.env.sample` comment, created the plan, feature doc, and both session transcripts, added a `### Fixed` entry under `## 2026-04-19` in `CHANGELOG.md`, and prepared to commit on the worktree branch.
+Updated `.env.sample` comment, created the plan, feature doc, and both session transcripts, added a `### Fixed` entry under `## 2026-04-19` in `CHANGELOG.md`, and committed on the worktree branch.
+
+### User
+
+> In the current README. The Configuration section is after Installation. I would like to re-structure the section to be more clear. Maybe we can move the Configuration before so that it is clear then that whatever values for the PostgreSQL database will then be used when starting docker compose.
+
+### Assistant
+
+Noted the wrinkle that `manage.py configure` requires the code cloned and `uv sync` run first, so Configuration cannot literally precede all Installation. Proposed a three-subsection split:
+
+1. **Installation** — `git clone` + `uv sync` (code setup only).
+2. **Configuration** — wizard or `.env.sample` copy, with a note that `RAGTIME_DB_*` feeds docker-compose.
+3. **Running the services** — `docker compose up -d`, `migrate`, `createsuperuser`, `load_entity_types`, `runserver`, `qcluster`.
+
+This keeps the causal chain visible on the page: configure → docker compose reads `.env` → start Django.
+
+### User
+
+> go ahead
+
+### Assistant
+
+Applied the restructure to `README.md` and extended the plan, feature doc, and implementation session transcript to cover the new scope. Kept the existing commit and added a follow-up commit for the README change so the two concerns stay separable in history.

@@ -36,4 +36,16 @@ Wrote the four new documents under `doc/`:
 
 Added a `### Fixed` entry to the existing `## 2026-04-19` section of `CHANGELOG.md`, cross-linking the plan, feature doc, and both session transcripts per the Keep a Changelog convention used throughout the file.
 
-Staged all changes and committed on the worktree branch. This transcript will be updated if PR review feedback produces follow-up changes.
+Staged all changes and committed on the worktree branch as `6e2d56c` ("Read PostgreSQL credentials in docker-compose.yml from .env").
+
+### README restructure follow-up
+
+User then asked to restructure the README's "Getting Started" section so Configuration appears before `docker compose up`, making it visible that `.env` values feed the database container. Noted that `manage.py configure` requires the code cloned and `uv sync` run first, so a literal "Configuration before Installation" ordering was impractical. Proposed and applied a three-subsection split:
+
+1. **Installation** — `git clone` + `uv sync` only.
+2. **Configuration** — wizard (`manage.py configure`) or manual `.env.sample` → `.env` copy. Added an explicit paragraph noting that `RAGTIME_DB_NAME`, `RAGTIME_DB_USER`, `RAGTIME_DB_PASSWORD`, and `RAGTIME_DB_PORT` are read by `docker-compose.yml`, with defaults (`ragtime` / port `5432`) when unset.
+3. **Running the services** — `docker compose up -d`, `migrate`, `createsuperuser`, `load_entity_types`, `runserver`, `qcluster`. The `docker compose up -d` line carries an inline comment noting it reads `RAGTIME_DB_*` from `.env`. Kept the `dbreset` block intact.
+
+Extended the plan and feature documents to cover the README restructure, and added this section to the implementation transcript. Committed the README change as a separate follow-up on the same worktree branch so the docker-compose fix and the README reorganization remain separable in history.
+
+This transcript will be updated if PR review feedback produces follow-up changes.
