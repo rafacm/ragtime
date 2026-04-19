@@ -70,30 +70,31 @@ def embed_episode(episode_id: int) -> None:
     start_step(episode, Episode.Status.EMBEDDING)
 
     chunks = list(episode.chunks.order_by("index"))
-    if not chunks:
-        logger.info("Episode %s has no chunks, skipping embed", episode_id)
-        complete_step(episode, Episode.Status.EMBEDDING)
-        episode.status = Episode.Status.READY
-        episode.save(update_fields=["status", "updated_at"])
-        return
 
     try:
-        provider = get_embedding_provider()
         store = get_vector_store()
         store.ensure_collection()
-        # Wipe stale points first — if the episode was re-chunked, old
-        # chunk IDs would otherwise orphan in Qdrant.
+        # Always wipe stale points first. Covers two cases: re-chunked
+        # episodes (chunk PKs change), and re-runs into an empty chunk set
+        # (would otherwise leave old points queryable for a Ready episode
+        # that no longer has any chunks in Postgres).
         store.delete_by_episode(episode.pk)
 
-        texts = [c.text for c in chunks]
-        vectors = provider.embed(texts)
-        payloads = _build_payloads(episode, chunks)
-
-        points = [
-            QdrantPoint(id=c.pk, vector=v, payload=p)
-            for c, v, p in zip(chunks, vectors, payloads, strict=True)
-        ]
-        store.upsert_points(points)
+        if chunks:
+            provider = get_embedding_provider()
+            texts = [c.text for c in chunks]
+            vectors = provider.embed(texts)
+            payloads = _build_payloads(episode, chunks)
+            points = [
+                QdrantPoint(id=c.pk, vector=v, payload=p)
+                for c, v, p in zip(chunks, vectors, payloads, strict=True)
+            ]
+            store.upsert_points(points)
+        else:
+            logger.info(
+                "Episode %s has no chunks; cleared prior Qdrant points",
+                episode_id,
+            )
 
         complete_step(episode, Episode.Status.EMBEDDING)
         episode.status = Episode.Status.READY
