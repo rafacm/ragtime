@@ -96,11 +96,45 @@ uv run python manage.py lookup_entity "Miles Davis"
 uv run python manage.py lookup_entity --type musician "Miles Davis"
 ```
 
-#### 9. 📐 Embed (status: `embedding`) — *planned, not yet implemented*
+#### 9. 📐 Embed (status: `embedding`)
 
-Generate multilingual embeddings for transcript chunks and store in [ChromaDB](https://www.trychroma.com/).
+Generate multilingual embeddings for every chunk and upsert them into a [Qdrant](https://qdrant.tech/) collection alongside the metadata Scott needs to cite them.
 
-#### 10. ✅ Ready (status: `ready`) — *planned, not yet implemented*
+Default embedding model: OpenAI [`text-embedding-3-small`](https://platform.openai.com/docs/guides/embeddings) (1536-dim, multilingual, cosine distance). Chunks are embedded in batches of 128 texts per OpenAI request; Qdrant points are upserted in batches of 128. The collection is auto-created on first write and defaults to `ragtime_chunks`. Only the raw `chunk.text` is embedded — entity IDs, episode metadata, and timestamps live in the Qdrant point payload, not in the vector.
+
+Point IDs are deterministic (`chunk.pk`), so upserts are idempotent. Before writing, the step wipes any prior points for the same `episode_id` to keep re-runs safe after re-chunking. If the Qdrant collection's vector dim doesn't match the configured embedding model, the step fails fast with a clear error — a sanity check against accidental model swaps (e.g. switching to `text-embedding-3-large`, which is 3072-dim).
+
+Each Qdrant point carries this payload (indexed fields marked with ⚡):
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `chunk_id`, `chunk_index` | int | Chunk identity |
+| `episode_id` ⚡ | int | Filter by episode |
+| `episode_title`, `episode_url`, `episode_published_at`, `episode_image_url` | str | For citation rendering without a Postgres round-trip |
+| `start_time`, `end_time` | float | Deep-link to audio position |
+| `language` ⚡ | str | Bias retrieval by language |
+| `entity_ids` ⚡, `entity_names` | list | Resolved mentions in this chunk |
+| `text` | str | Raw chunk text for snippet display |
+
+When an Episode is deleted, a `post_delete` signal calls `delete_by_episode()` to keep Qdrant consistent with Postgres (errors are logged and swallowed — a stale Qdrant point is better than a failing admin delete).
+
+Configure via the wizard (`uv run python manage.py configure`) or manually in `.env`:
+
+```
+RAGTIME_EMBEDDING_PROVIDER=openai
+RAGTIME_EMBEDDING_API_KEY=sk-your-key
+RAGTIME_EMBEDDING_MODEL=text-embedding-3-small
+
+RAGTIME_QDRANT_HOST=localhost
+RAGTIME_QDRANT_PORT=6333
+RAGTIME_QDRANT_COLLECTION=ragtime_chunks
+RAGTIME_QDRANT_API_KEY=
+RAGTIME_QDRANT_HTTPS=false
+```
+
+`manage.py dbreset` drops the Qdrant collection in addition to recreating Postgres, so a fresh dev database doesn't leave orphaned points under future-colliding chunk IDs.
+
+#### 10. ✅ Ready (status: `ready`)
 
 Episode fully processed and available for Scott to query.
 
@@ -149,7 +183,7 @@ Scott is a strict RAG (Retrieval-Augmented Generation) agent:
 
 1. User asks a question in any language
 2. The question is embedded using the configured multilingual embedding model
-3. Relevant transcript chunks are retrieved from ChromaDB
+3. Relevant transcript chunks are retrieved from Qdrant
 4. The LLM generates an answer strictly from the retrieved content
 5. The response includes references to specific episodes and timestamps
 6. If no relevant content exists, Scott says so — no hallucinated answers
@@ -186,6 +220,7 @@ RAGtime uses [OpenTelemetry](https://opentelemetry.io/) to trace pipeline steps 
 | Summarize | `summarize_episode` | Summary generation |
 | Extract | `extract_entities` | Per-chunk entity extraction |
 | Resolve | `resolve_entities` | Entity resolution against DB |
+| Embed | `embed_episode` | OpenAI embeddings (one batch = one child span) |
 
 Each step creates an OTel span with episode metadata. OpenAI API calls are auto-instrumented as child spans.
 

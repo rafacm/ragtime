@@ -26,7 +26,7 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 - 🎙️ **Episode Ingestion** — Add podcast episodes by URL. RAGtime scrapes metadata (title, description, date, image), downloads audio, and processes it through the pipeline.
 - 📝 **Multilingual Transcription** — Transcribes episodes using configurable backends (Whisper API by default) with segment and word-level timestamps. Supports multiple languages (English, Spanish, German, Swedish, etc.).
 - 🔍 **Entity Extraction** — Identifies jazz entities: musicians, musical groups, albums, music venues, recording sessions, record labels, years. Entities are resolved against existing records using LLM-based matching.
-- 📇 **Episode Indexing** — Splits transcripts into segments and generates multilingual embeddings stored in ChromaDB. Enables cross-language semantic search so Scott can retrieve relevant content regardless of the question's language.
+- 📇 **Episode Indexing** — Splits transcripts into segments and generates multilingual embeddings stored in Qdrant. Enables cross-language semantic search so Scott can retrieve relevant content regardless of the question's language.
 - 🎷 **Scott — Your Jazz AI** — A conversational agent that answers questions strictly from ingested episode content. Scott responds in the user's language and provides references to specific episodes and timestamps. Responses stream in real-time.
 - 📊 **AI Evaluation** — Measures pipeline and Scott quality using [RAGAS](https://docs.ragas.io/) (faithfulness, answer relevancy, context precision/recall) with scores tracked in [Langfuse](https://langfuse.com/docs/scores/model-based-evals/ragas).
 
@@ -36,7 +36,7 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 
 ### What's already implemented
 
-- **Episode ingestion**: submit episodes by URL, metadata scraping, audio download, transcription, summarization,  chunking, entity extraction and resolution with [Wikidata](https://www.wikidata.org/) integration.
+- **Episode ingestion**: submit episodes by URL, metadata scraping, audio download, transcription, summarization,  chunking, entity extraction and resolution with [Wikidata](https://www.wikidata.org/) integration, and multilingual embeddings into [Qdrant](https://qdrant.tech/).
 - **Episode management UI**: Django admin interface to view episode status and metadata and browse extracted entities.
 - **Configuration wizard**: interactive `manage.py configure` command for all `RAGTIME_*` env vars.
 - **Telemetry**: [OpenTelemetry](https://opentelemetry.io/)-based tracing for pipeline steps and LLM calls with optional collectors: console, [Jaeger](https://www.jaegertracing.io/), and [Langfuse](https://langfuse.com).
@@ -46,8 +46,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixe
 
 ### What's coming
 
-- **Embed step** (pipeline step 9): generate multilingual embeddings for transcript chunks and store them in [ChromaDB](https://www.trychroma.com/).
-- **Scott — the RAG chatbot** (pipeline step 10 + chat app): conversational agent that answers questions strictly from ingested content, with episode/timestamp references, multilingual support, and streaming responses.
+- **Scott — the RAG chatbot** (chat app): conversational agent that answers questions strictly from ingested content, with episode/timestamp references, multilingual support, and streaming responses.
 - **AI evaluation**: measure pipeline and Scott quality using [RAGAS](https://docs.ragas.io/) (faithfulness, answer relevancy, context precision/recall) with scores tracked in [Langfuse](https://langfuse.com/docs/scores/model-based-evals/ragas). Enables regression testing across prompt and model changes.
 
 ## Processing Pipeline
@@ -66,10 +65,8 @@ Each step updates the episode's `status` field. A `post_save` signal dispatches 
 | 6 | ✂️ Chunk | `chunking` | Split transcript into ~150-word chunks |
 | 7 | 🔍 Extract | `extracting` | Named entity recognition per chunk |
 | 8 | 🧩 Resolve | `resolving` | Entity linking and deduplication via Wikidata |
-| 9 | 📐 Embed | `embedding` | Multilingual embeddings into ChromaDB |
+| 9 | 📐 Embed | `embedding` | Multilingual embeddings into Qdrant |
 | 10 | ✅ Ready | `ready` | Episode available for Scott to query |
-
-_Steps 9–10 (Embed, Ready) are planned and not yet implemented._
 
 See the [full pipeline documentation](doc/README.md) for per-step details, entity types, and the recovery layer.
 
@@ -91,7 +88,7 @@ Detailed documentation lives in the [`doc/`](doc/) directory:
 
 - [Python 3.13+](https://www.python.org/downloads/)
 - [uv](https://docs.astral.sh/uv/)
-- [Docker](https://docs.docker.com/get-docker/) (for PostgreSQL)
+- [Docker](https://docs.docker.com/get-docker/) (for PostgreSQL and Qdrant)
 - [ffmpeg](https://ffmpeg.org/) (for audio downsampling)
 - [wget](https://www.gnu.org/software/wget/) (for audio downloading)
 
@@ -100,7 +97,7 @@ Detailed documentation lives in the [`doc/`](doc/) directory:
 ```bash
 git clone <repo-url>
 cd ragtime
-docker compose up -d              # Start PostgreSQL
+docker compose up -d              # Start PostgreSQL (port 5432) and Qdrant (port 6333)
 uv sync                           # Install dependencies
 ```
 
@@ -139,7 +136,7 @@ Alternatively, copy [`.env.sample`](.env.sample) to `.env` and fill in your valu
 - **Runtime**: [Python 3.13](https://www.python.org/)
 - **Framework**: [Django 5.2](https://www.djangoproject.com/)
 - **Database**: [PostgreSQL 17](https://www.postgresql.org/) (via [Docker Compose](https://docs.docker.com/compose/))
-- **Vector Store**: [ChromaDB](https://www.trychroma.com/)
+- **Vector Store**: [Qdrant](https://qdrant.tech/) (via [Docker Compose](https://docs.docker.com/compose/))
 - **Task Queue**: [Django Q2](https://django-q2.readthedocs.io/)
 - **AI Agents**: [Pydantic AI](https://ai.pydantic.dev/) (recovery agent)
 - **Transcription**: Configurable — [Whisper API](https://platform.openai.com/docs/guides/speech-to-text) (default), local Whisper, etc.
