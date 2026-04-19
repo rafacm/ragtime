@@ -4,11 +4,13 @@ from django.test import TestCase, override_settings
 from qdrant_client import QdrantClient
 
 from episodes.models import Chunk, Entity, EntityMention, EntityType, Episode
-from episodes.vector_store import EMBEDDING_DIM, QdrantVectorStore
+from episodes.vector_store import QdrantVectorStore, detect_embedding_dim
+
+TEST_DIM = 1536
 
 
 def _vec(value=0.1):
-    return [value] * EMBEDDING_DIM
+    return [value] * TEST_DIM
 
 
 @override_settings(
@@ -19,6 +21,15 @@ def _vec(value=0.1):
 )
 class EmbedEpisodeTests(TestCase):
     def setUp(self):
+        detect_embedding_dim.cache_clear()
+        self._dim_patcher = patch(
+            "episodes.vector_store.detect_embedding_dim",
+            return_value=TEST_DIM,
+        )
+        self._dim_patcher.start()
+        self.addCleanup(self._dim_patcher.stop)
+        self.addCleanup(detect_embedding_dim.cache_clear)
+
         self.qdrant = QdrantClient(":memory:")
         self.store = QdrantVectorStore(self.qdrant, "ragtime_chunks_test")
         self.store.ensure_collection()
@@ -128,10 +139,32 @@ class EmbedEpisodeTests(TestCase):
 
     def test_no_chunks_goes_straight_to_ready(self):
         episode = self._create_episode(url="https://example.com/ep/empty")
+        provider = self._run_embed(episode.pk, [])
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.READY)
+        self.assertEqual(self.qdrant.count("ragtime_chunks_test").count, 0)
+        # Provider.embed() is skipped when there's nothing to embed.
+        provider.embed.assert_not_called()
+
+    def test_reembed_to_zero_chunks_clears_prior_points(self):
+        """Episode previously embedded, then re-chunked to empty: points drop."""
+        episode = self._create_episode(url="https://example.com/ep/to-empty")
+        self._create_chunk(episode, index=0, text="old one")
+        self._create_chunk(episode, index=1, text="old two")
+        self._run_embed(episode.pk, [_vec(0.1), _vec(0.2)])
+        self.assertEqual(self.qdrant.count("ragtime_chunks_test").count, 2)
+
+        # Re-chunk to empty, re-queue the embed step.
+        Chunk.objects.filter(episode=episode).delete()
+        episode.status = Episode.Status.EMBEDDING
+        episode.save(update_fields=["status"])
         self._run_embed(episode.pk, [])
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.READY)
+        # Prior points for this episode are gone — Scott can't retrieve
+        # chunks that no longer exist in Postgres.
         self.assertEqual(self.qdrant.count("ragtime_chunks_test").count, 0)
 
     def test_idempotent_rerun(self):
@@ -277,17 +310,35 @@ class EmbedEpisodeTests(TestCase):
         self.assertFalse(Episode.objects.filter(pk=episode_pk).exists())
 
 
-@override_settings(RAGTIME_QDRANT_COLLECTION="ragtime_chunks_test_dim")
+@override_settings(
+    RAGTIME_EMBEDDING_PROVIDER="openai",
+    RAGTIME_EMBEDDING_API_KEY="test-key",
+    RAGTIME_EMBEDDING_MODEL="text-embedding-3-small",
+    RAGTIME_QDRANT_COLLECTION="ragtime_chunks_test_dim",
+)
 class EnsureCollectionTests(TestCase):
+    def setUp(self):
+        detect_embedding_dim.cache_clear()
+        self.addCleanup(detect_embedding_dim.cache_clear)
+
+    def _patch_dim(self, dim):
+        patcher = patch(
+            "episodes.vector_store.detect_embedding_dim", return_value=dim
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_idempotent_create(self):
+        self._patch_dim(TEST_DIM)
         qdrant = QdrantClient(":memory:")
         store = QdrantVectorStore(qdrant, "ragtime_chunks_test_dim")
         store.ensure_collection()
         store.ensure_collection()  # second call is a no-op
         info = qdrant.get_collection("ragtime_chunks_test_dim")
-        self.assertEqual(info.config.params.vectors.size, EMBEDDING_DIM)
+        self.assertEqual(info.config.params.vectors.size, TEST_DIM)
 
     def test_dim_mismatch_raises(self):
+        self._patch_dim(TEST_DIM)
         from qdrant_client.http import models as qm
 
         qdrant = QdrantClient(":memory:")
@@ -299,7 +350,39 @@ class EnsureCollectionTests(TestCase):
         with self.assertRaises(RuntimeError) as cm:
             store.ensure_collection()
         self.assertIn("3072", str(cm.exception))
-        self.assertIn(str(EMBEDDING_DIM), str(cm.exception))
+        self.assertIn(str(TEST_DIM), str(cm.exception))
+        # Mention the configured model so operators know what to check.
+        self.assertIn("text-embedding-3-small", str(cm.exception))
+
+    def test_create_respects_detected_dim(self):
+        """A different model's dim flows through to the collection schema."""
+        self._patch_dim(3072)  # text-embedding-3-large
+        qdrant = QdrantClient(":memory:")
+        store = QdrantVectorStore(qdrant, "ragtime_chunks_test_dim")
+        store.ensure_collection()
+        info = qdrant.get_collection("ragtime_chunks_test_dim")
+        self.assertEqual(info.config.params.vectors.size, 3072)
+
+    def test_detect_embedding_dim_probes_provider(self):
+        """detect_embedding_dim() goes through the provider factory."""
+        mock_provider = MagicMock()
+        mock_provider.embed.return_value = [[0.0] * 2048]
+        with patch(
+            "episodes.providers.factory.get_embedding_provider",
+            return_value=mock_provider,
+        ):
+            self.assertEqual(detect_embedding_dim(), 2048)
+        mock_provider.embed.assert_called_once_with(["dim-probe"])
+
+    def test_detect_embedding_dim_rejects_empty_response(self):
+        mock_provider = MagicMock()
+        mock_provider.embed.return_value = []
+        with patch(
+            "episodes.providers.factory.get_embedding_provider",
+            return_value=mock_provider,
+        ):
+            with self.assertRaises(RuntimeError):
+                detect_embedding_dim()
 
 
 class OpenAIEmbeddingProviderTests(TestCase):
