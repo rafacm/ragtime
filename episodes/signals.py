@@ -1,10 +1,14 @@
+import logging
+
 import django.dispatch
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from django_q.tasks import async_task
 
 from .models import Episode
 from .processing import create_run
+
+logger = logging.getLogger(__name__)
 
 # Custom signals for pipeline events
 step_completed = django.dispatch.Signal()  # sends: event=StepCompletedEvent
@@ -37,3 +41,23 @@ def queue_next_step(sender, instance, created, **kwargs):
         async_task("episodes.extractor.extract_entities", instance.pk)
     elif instance.status == Episode.Status.RESOLVING:
         async_task("episodes.resolver.resolve_entities", instance.pk)
+    elif instance.status == Episode.Status.EMBEDDING:
+        async_task("episodes.embedder.embed_episode", instance.pk)
+
+
+@receiver(post_delete, sender=Episode)
+def cleanup_qdrant_on_episode_delete(sender, instance, **kwargs):
+    """Remove the episode's chunks from Qdrant when the Episode row is deleted.
+
+    Postgres cascades on delete, but Qdrant is external. A stale Qdrant
+    point is much better than a failing admin delete, so any error is
+    logged and swallowed.
+    """
+    try:
+        from .vector_store import get_vector_store
+
+        get_vector_store().delete_by_episode(instance.pk)
+    except Exception:
+        logger.exception(
+            "Failed to delete Qdrant points for episode %s", instance.pk
+        )
