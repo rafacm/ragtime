@@ -1,6 +1,6 @@
 from django.conf import settings
 
-from .base import LLMProvider, TranscriptionProvider
+from .base import EmbeddingProvider, LLMProvider, TranscriptionProvider
 
 
 def get_scraping_provider() -> LLMProvider:
@@ -97,3 +97,19 @@ def get_translation_provider() -> LLMProvider:
         return OpenAILLMProvider(api_key=api_key, model=model)
 
     raise ValueError(f"Unknown translation provider: {provider_name}")
+
+
+def get_embedding_provider() -> EmbeddingProvider:
+    provider_name = settings.RAGTIME_EMBEDDING_PROVIDER
+    api_key = settings.RAGTIME_EMBEDDING_API_KEY
+    model = settings.RAGTIME_EMBEDDING_MODEL
+
+    if not api_key:
+        raise ValueError("RAGTIME_EMBEDDING_API_KEY is not set")
+
+    if provider_name == "openai":
+        from .openai import OpenAIEmbeddingProvider
+
+        return OpenAIEmbeddingProvider(api_key=api_key, model=model)
+
+    raise ValueError(f"Unknown embedding provider: {provider_name}")
