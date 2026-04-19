@@ -65,7 +65,7 @@ class ClassifyErrorTests(TestCase):
 class PipelineEventEmissionTests(TestCase):
     """Test that complete_step and fail_step emit PipelineEvent records."""
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     def test_complete_step_creates_event(self, _):
         episode = Episode.objects.create(url="https://example.com/evt/1")
         run = ProcessingRun.objects.create(episode=episode)
@@ -81,7 +81,7 @@ class PipelineEventEmissionTests(TestCase):
         self.assertEqual(event.event_type, PipelineEvent.EventType.COMPLETED)
         self.assertIn("duration_seconds", event.context)
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     def test_fail_step_with_exc_creates_event(self, _):
         episode = Episode.objects.create(url="https://example.com/evt/2")
         run = ProcessingRun.objects.create(episode=episode)
@@ -99,7 +99,7 @@ class PipelineEventEmissionTests(TestCase):
         self.assertEqual(event.error_type, "system")
         self.assertIn("download failed", event.error_message)
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     def test_fail_step_without_exc_creates_no_event(self, _):
         episode = Episode.objects.create(url="https://example.com/evt/3")
         run = ProcessingRun.objects.create(episode=episode)

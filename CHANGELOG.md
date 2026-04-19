@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## 2026-04-19
 
+### Changed
+
+- Replace Django Q2 task queue with DBOS Transact durable workflows — pipeline steps now run as a single `@DBOS.workflow()` with PostgreSQL-backed checkpointing instead of signal-driven `async_task()` dispatch. Eliminates the need for a separate `qcluster` worker process. Stepping stone for planned Pydantic AI agent-based architecture — [plan](doc/plans/2026-04-19-dbos-migration.md), [feature](doc/features/2026-04-19-dbos-migration.md), [planning session](doc/sessions/2026-04-19-dbos-migration-planning-session.md), [implementation session](doc/sessions/2026-04-19-dbos-migration-implementation-session.md)
+
 ### Added
 
 - Embed step (pipeline step 9) — generate multilingual OpenAI `text-embedding-3-small` embeddings for every chunk and upsert them into a [Qdrant](https://qdrant.tech/) collection with chunk + episode + entity metadata. Adds `episodes/embedder.py`, `episodes/vector_store.py` (`QdrantVectorStore` with fail-fast dim check and episode-scoped deletes), `OpenAIEmbeddingProvider`, and `get_embedding_provider()` factory. `docker-compose.yml` now runs a Qdrant service alongside Postgres; `manage.py dbreset` also drops the Qdrant collection; a `post_delete` signal on `Episode` cleans Qdrant when an episode is deleted from the admin — [plan](doc/plans/2026-04-19-embed-step.md), [feature](doc/features/2026-04-19-embed-step.md), [planning session](doc/sessions/2026-04-19-embed-step-planning-session.md), [implementation session](doc/sessions/2026-04-19-embed-step-implementation-session.md)

@@ -34,7 +34,7 @@ class SummarizeEpisodeTests(TestCase):
             cls.coltrane_whisper = json.load(f)
 
     def _create_episode(self, **kwargs):
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             return Episode.objects.create(**kwargs)
 
     @patch("episodes.summarizer.get_summarization_provider")
@@ -51,7 +51,7 @@ class SummarizeEpisodeTests(TestCase):
             transcript=self.reinhardt_whisper["text"],
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             summarize_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -85,7 +85,7 @@ class SummarizeEpisodeTests(TestCase):
             transcript="",
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             summarize_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -106,7 +106,7 @@ class SummarizeEpisodeTests(TestCase):
             transcript="Some transcript text.",
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             summarize_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -129,7 +129,7 @@ class SummarizeEpisodeTests(TestCase):
             language="de",
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             summarize_episode(episode.pk)
 
         mock_provider.generate.assert_called_once()
@@ -153,7 +153,7 @@ class SummarizeEpisodeTests(TestCase):
             language="",
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             summarize_episode(episode.pk)
 
         mock_provider.generate.assert_called_once()
@@ -175,7 +175,7 @@ class SummarizeEpisodeTests(TestCase):
             language="INVALID",
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             summarize_episode(episode.pk)
 
         mock_provider.generate.assert_called_once()

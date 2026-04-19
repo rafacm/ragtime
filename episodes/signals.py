@@ -1,12 +1,11 @@
 import logging
 
 import django.dispatch
+from dbos import DBOS
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
-from django_q.tasks import async_task
 
 from .models import Episode
-from .processing import create_run
 
 logger = logging.getLogger(__name__)
 
@@ -18,31 +17,10 @@ step_failed = django.dispatch.Signal()     # sends: event=StepFailureEvent
 @receiver(post_save, sender=Episode)
 def queue_next_step(sender, instance, created, **kwargs):
     if created and instance.status == Episode.Status.PENDING:
-        create_run(instance)
-        async_task("episodes.scraper.scrape_episode", instance.pk)
-        return
+        from .workflows import process_episode
 
-    if created:
+        DBOS.start_workflow(process_episode, instance.pk)
         return
-
-    update_fields = kwargs.get("update_fields")
-    if not update_fields or "status" not in update_fields:
-        return
-
-    if instance.status == Episode.Status.CHUNKING:
-        async_task("episodes.chunker.chunk_episode", instance.pk)
-    elif instance.status == Episode.Status.DOWNLOADING:
-        async_task("episodes.downloader.download_episode", instance.pk)
-    elif instance.status == Episode.Status.TRANSCRIBING:
-        async_task("episodes.transcriber.transcribe_episode", instance.pk)
-    elif instance.status == Episode.Status.SUMMARIZING:
-        async_task("episodes.summarizer.summarize_episode", instance.pk)
-    elif instance.status == Episode.Status.EXTRACTING:
-        async_task("episodes.extractor.extract_entities", instance.pk)
-    elif instance.status == Episode.Status.RESOLVING:
-        async_task("episodes.resolver.resolve_entities", instance.pk)
-    elif instance.status == Episode.Status.EMBEDDING:
-        async_task("episodes.embedder.embed_episode", instance.pk)
 
 
 @receiver(post_delete, sender=Episode)

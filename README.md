@@ -132,8 +132,7 @@ docker compose up -d                      # Start PostgreSQL and Qdrant (both re
 uv run python manage.py migrate
 uv run python manage.py createsuperuser   # Create an admin user for the Django admin UI
 uv run python manage.py load_entity_types # Seed initial entity types
-uv run python manage.py runserver         # Start the web server
-uv run python manage.py qcluster          # Start the Django Q2 task worker (separate terminal)
+uv run python manage.py runserver --noreload  # Start the web server (--noreload required by DBOS)
 ```
 
 To reset the database (drops all data and recreates):
@@ -149,7 +148,7 @@ uv run python manage.py createsuperuser   # Recreate the admin account
 - **Framework**: [Django 5.2](https://www.djangoproject.com/)
 - **Database**: [PostgreSQL 17](https://www.postgresql.org/) (via [Docker Compose](https://docs.docker.com/compose/))
 - **Vector Store**: [Qdrant](https://qdrant.tech/) (via [Docker Compose](https://docs.docker.com/compose/))
-- **Task Queue**: [Django Q2](https://django-q2.readthedocs.io/)
+- **Durable Workflows**: [DBOS Transact](https://docs.dbos.dev/) (PostgreSQL-backed durable execution)
 - **AI Agents**: [Pydantic AI](https://ai.pydantic.dev/) (recovery agent)
 - **Transcription**: Configurable — [Whisper API](https://platform.openai.com/docs/guides/speech-to-text) (default), local Whisper, etc.
 - **LLM**: Configurable — [Claude](https://www.anthropic.com/) (Anthropic), [GPT](https://openai.com/) (OpenAI), etc.

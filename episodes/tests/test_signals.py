@@ -6,123 +6,31 @@ from episodes.models import Episode
 
 
 class SignalTests(TestCase):
-    @patch("episodes.signals.async_task")
-    def test_creating_episode_queues_scrape(self, mock_async):
+    @patch("episodes.signals.DBOS")
+    def test_creating_episode_starts_workflow(self, mock_dbos):
         episode = Episode.objects.create(url="https://example.com/ep/signal-1")
-        mock_async.assert_called_once_with(
-            "episodes.scraper.scrape_episode", episode.pk
+        from episodes.workflows import process_episode
+
+        mock_dbos.start_workflow.assert_called_once_with(
+            process_episode, episode.pk
         )
 
-    @patch("episodes.signals.async_task")
-    def test_updating_episode_does_not_requeue(self, mock_async):
+    @patch("episodes.signals.DBOS")
+    def test_updating_episode_does_not_start_workflow(self, mock_dbos):
         episode = Episode.objects.create(url="https://example.com/ep/signal-2")
-        mock_async.reset_mock()
+        mock_dbos.reset_mock()
 
         episode.title = "Updated"
         episode.save()
 
-        mock_async.assert_not_called()
+        mock_dbos.start_workflow.assert_not_called()
 
-
-class DownloadSignalTests(TestCase):
-    @patch("episodes.signals.async_task")
-    def test_status_change_to_downloading_queues_download(self, mock_async):
-        episode = Episode.objects.create(url="https://example.com/ep/sig-dl-1")
-        mock_async.reset_mock()
+    @patch("episodes.signals.DBOS")
+    def test_status_change_does_not_start_workflow(self, mock_dbos):
+        episode = Episode.objects.create(url="https://example.com/ep/signal-3")
+        mock_dbos.reset_mock()
 
         episode.status = Episode.Status.DOWNLOADING
         episode.save(update_fields=["status", "updated_at"])
 
-        mock_async.assert_called_once_with(
-            "episodes.downloader.download_episode", episode.pk
-        )
-
-    @patch("episodes.signals.async_task")
-    def test_other_status_change_does_not_queue(self, mock_async):
-        episode = Episode.objects.create(url="https://example.com/ep/sig-other")
-        mock_async.reset_mock()
-
-        episode.status = Episode.Status.FAILED
-        episode.save(update_fields=["status", "updated_at"])
-
-        mock_async.assert_not_called()
-
-    @patch("episodes.signals.async_task")
-    def test_save_without_update_fields_does_not_queue(self, mock_async):
-        episode = Episode.objects.create(url="https://example.com/ep/sig-nuf")
-        mock_async.reset_mock()
-
-        episode.status = Episode.Status.DOWNLOADING
-        episode.save()  # no update_fields
-
-        mock_async.assert_not_called()
-
-
-class TranscribeSignalTests(TestCase):
-    @patch("episodes.signals.async_task")
-    def test_status_change_to_transcribing_queues_transcribe(self, mock_async):
-        episode = Episode.objects.create(url="https://example.com/ep/sig-tr-1")
-        mock_async.reset_mock()
-
-        episode.status = Episode.Status.TRANSCRIBING
-        episode.save(update_fields=["status", "updated_at"])
-
-        mock_async.assert_called_once_with(
-            "episodes.transcriber.transcribe_episode", episode.pk
-        )
-
-
-class SummarizeSignalTests(TestCase):
-    @patch("episodes.signals.async_task")
-    def test_status_change_to_summarizing_queues_summarize(self, mock_async):
-        episode = Episode.objects.create(url="https://example.com/ep/sig-sum-1")
-        mock_async.reset_mock()
-
-        episode.status = Episode.Status.SUMMARIZING
-        episode.save(update_fields=["status", "updated_at"])
-
-        mock_async.assert_called_once_with(
-            "episodes.summarizer.summarize_episode", episode.pk
-        )
-
-
-class ChunkSignalTests(TestCase):
-    @patch("episodes.signals.async_task")
-    def test_status_change_to_chunking_queues_chunk(self, mock_async):
-        episode = Episode.objects.create(url="https://example.com/ep/sig-chk-1")
-        mock_async.reset_mock()
-
-        episode.status = Episode.Status.CHUNKING
-        episode.save(update_fields=["status", "updated_at"])
-
-        mock_async.assert_called_once_with(
-            "episodes.chunker.chunk_episode", episode.pk
-        )
-
-
-class ExtractSignalTests(TestCase):
-    @patch("episodes.signals.async_task")
-    def test_status_change_to_extracting_queues_extract(self, mock_async):
-        episode = Episode.objects.create(url="https://example.com/ep/sig-ext-1")
-        mock_async.reset_mock()
-
-        episode.status = Episode.Status.EXTRACTING
-        episode.save(update_fields=["status", "updated_at"])
-
-        mock_async.assert_called_once_with(
-            "episodes.extractor.extract_entities", episode.pk
-        )
-
-
-class ResolveSignalTests(TestCase):
-    @patch("episodes.signals.async_task")
-    def test_status_change_to_resolving_queues_resolve(self, mock_async):
-        episode = Episode.objects.create(url="https://example.com/ep/sig-res-1")
-        mock_async.reset_mock()
-
-        episode.status = Episode.Status.RESOLVING
-        episode.save(update_fields=["status", "updated_at"])
-
-        mock_async.assert_called_once_with(
-            "episodes.resolver.resolve_entities", episode.pk
-        )
+        mock_dbos.start_workflow.assert_not_called()

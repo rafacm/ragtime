@@ -5,7 +5,7 @@ description = "Retrieval Augmented Generation (RAG) in the Key of Jazz"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "django>=5.2,<5.3",
-    "django-q2>=1.7,<2",
+    "dbos>=2.18,<3",
     "openai>=1.0,<2",
     "httpx>=0.27,<1",
     "beautifulsoup4>=4.12,<5",

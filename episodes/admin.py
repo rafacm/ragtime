@@ -6,7 +6,7 @@ from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
-from django_q.tasks import async_task
+from dbos import DBOS
 
 from .models import (
     PIPELINE_STEPS,
@@ -20,7 +20,6 @@ from .models import (
     ProcessingStep,
     RecoveryAttempt,
 )
-from .processing import create_run
 
 
 class ChunkInlineForEpisode(admin.TabularInline):
@@ -289,6 +288,8 @@ class EpisodeAdmin(admin.ModelAdmin):
         )
 
     def _execute_reprocess(self, request, queryset):
+        from .workflows import process_episode
+
         from_step = request.POST["from_step"]
         episode_ids = request.POST.getlist("episode_ids")
         episodes = Episode.objects.filter(pk__in=episode_ids)
@@ -304,16 +305,10 @@ class EpisodeAdmin(admin.ModelAdmin):
                 resolved_by="human:admin",
             )
 
-            resume_from = "" if from_step == Episode.Status.SCRAPING else from_step
-            create_run(episode, resume_from=resume_from)
             episode.status = from_step
             episode.error_message = ""
             episode.save(update_fields=["status", "error_message", "updated_at"])
-            # Scraping is the pipeline entry point — the scraper sets its own
-            # status internally, so it can't be dispatched via the signal
-            # (that would loop). All other steps are dispatched by the signal.
-            if from_step == Episode.Status.SCRAPING:
-                async_task("episodes.scraper.scrape_episode", episode.pk)
+            DBOS.start_workflow(process_episode, episode.pk, from_step)
             count += 1
 
         self.message_user(
@@ -683,8 +678,10 @@ class RecoveryAttemptAdmin(admin.ModelAdmin):
             attempt.resolved_by = "human:admin-retry"
             attempt.save(update_fields=["status", "resolved_at", "resolved_by"])
 
-            async_task(
-                "episodes.admin._run_agent_recovery_task",
+            from .workflows import run_agent_recovery
+
+            DBOS.start_workflow(
+                run_agent_recovery,
                 attempt.episode_id,
                 pe.pk,
             )
@@ -699,81 +696,3 @@ class RecoveryAttemptAdmin(admin.ModelAdmin):
         return False
 
 
-def _run_agent_recovery_task(episode_id, pipeline_event_id):
-    """Django Q2 task that retries agent recovery for a failed step."""
-    import logging
-
-    from .events import StepFailureEvent
-    from .models import Episode, PipelineEvent, RecoveryAttempt
-
-    logger = logging.getLogger(__name__)
-
-    pe = PipelineEvent.objects.select_related("processing_step").get(pk=pipeline_event_id)
-    episode = Episode.objects.get(pk=episode_id)
-
-    attempt_number = RecoveryAttempt.objects.filter(
-        episode_id=episode_id,
-        pipeline_event__step_name=pe.step_name,
-    ).count() + 1
-
-    event = StepFailureEvent(
-        episode_id=episode_id,
-        step_name=pe.step_name,
-        processing_run_id=pe.processing_step.run_id,
-        processing_step_id=pe.processing_step_id,
-        error_type=pe.error_type,
-        error_message=pe.error_message,
-        http_status=pe.http_status,
-        exception_class=pe.exception_class,
-        attempt_number=attempt_number,
-        cached_data=pe.context.get("cached_data", {}),
-        timestamp=timezone.now(),
-    )
-
-    try:
-        from .agents import run_recovery_agent
-        from .agents.resume import resume_pipeline
-
-        result = run_recovery_agent(event)
-        if result.success:
-            resumed = resume_pipeline(event, result)
-            if resumed:
-                RecoveryAttempt.objects.create(
-                    episode=episode,
-                    pipeline_event=pe,
-                    strategy="agent",
-                    status=RecoveryAttempt.Status.ATTEMPTED,
-                    success=True,
-                    message=result.message,
-                )
-                logger.info("Admin-triggered agent recovery succeeded for episode %s", episode_id)
-            else:
-                RecoveryAttempt.objects.create(
-                    episode=episode,
-                    pipeline_event=pe,
-                    strategy="agent",
-                    status=RecoveryAttempt.Status.AWAITING_HUMAN,
-                    success=False,
-                    message="Agent reported success but pipeline could not resume",
-                )
-                logger.warning("Admin-triggered agent recovery: resume failed for episode %s", episode_id)
-        else:
-            RecoveryAttempt.objects.create(
-                episode=episode,
-                pipeline_event=pe,
-                strategy="agent",
-                status=RecoveryAttempt.Status.AWAITING_HUMAN,
-                success=False,
-                message=result.message or "Agent could not recover",
-            )
-            logger.info("Admin-triggered agent recovery failed for episode %s", episode_id)
-    except Exception as exc:
-        RecoveryAttempt.objects.create(
-            episode=episode,
-            pipeline_event=pe,
-            strategy="agent",
-            status=RecoveryAttempt.Status.AWAITING_HUMAN,
-            success=False,
-            message=f"Agent error: {exc}",
-        )
-        logger.exception("Admin-triggered agent recovery error for episode %s", episode_id)

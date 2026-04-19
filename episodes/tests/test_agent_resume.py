@@ -10,7 +10,7 @@ from episodes.agents.deps import RecoveryAgentResult
 from episodes.agents.resume import resume_pipeline
 
 from episodes.events import StepFailureEvent
-from episodes.models import Episode, ProcessingRun, ProcessingStep
+from episodes.models import Episode
 
 
 def _make_failure_event(**overrides):
@@ -34,8 +34,9 @@ def _make_failure_event(**overrides):
 
 
 class ResumePipelineScrapingTests(TestCase):
-    @patch("episodes.signals.async_task")
-    def test_sets_audio_url_and_creates_run(self, _mock_task):
+    @patch("episodes.signals.DBOS")
+    @patch("episodes.agents.resume.DBOS")
+    def test_sets_audio_url_and_starts_workflow(self, mock_dbos, _):
         episode = Episode.objects.create(
             url="https://example.com/pod/1",
             status=Episode.Status.FAILED,
@@ -56,20 +57,16 @@ class ResumePipelineScrapingTests(TestCase):
         self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
         self.assertEqual(episode.error_message, "")
 
-        # A new ProcessingRun should exist, resumed from downloading
-        run = ProcessingRun.objects.filter(episode=episode).order_by("-started_at").first()
-        self.assertIsNotNone(run)
-        self.assertEqual(run.resumed_from_step, Episode.Status.DOWNLOADING)
+        from episodes.workflows import process_episode
 
-        # Scraping step should be SKIPPED, downloading should be PENDING
-        steps = {s.step_name: s.status for s in run.steps.all()}
-        self.assertEqual(steps["scraping"], ProcessingStep.Status.SKIPPED)
-        self.assertEqual(steps["downloading"], ProcessingStep.Status.PENDING)
+        mock_dbos.start_workflow.assert_called_once_with(
+            process_episode, episode.pk, Episode.Status.DOWNLOADING,
+        )
 
-
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
+    @patch("episodes.agents.resume.DBOS")
     @patch("episodes.agents.resume.MP3")
-    def test_skips_download_when_file_already_downloaded(self, mock_mp3, _mock_task):
+    def test_skips_download_when_file_already_downloaded(self, mock_mp3, mock_dbos, _):
         """When scraping recovery also downloaded the file, skip to transcribing."""
         episode = Episode.objects.create(
             url="https://example.com/pod/skip-dl",
@@ -106,17 +103,11 @@ class ResumePipelineScrapingTests(TestCase):
             # Temp file should be cleaned up
             self.assertFalse(os.path.exists(tmp.name))
 
-            # Run should resume from transcribing, not downloading
-            run = ProcessingRun.objects.filter(
-                episode=episode
-            ).order_by("-started_at").first()
-            self.assertIsNotNone(run)
-            self.assertEqual(run.resumed_from_step, Episode.Status.TRANSCRIBING)
+            from episodes.workflows import process_episode
 
-            steps = {s.step_name: s.status for s in run.steps.all()}
-            self.assertEqual(steps["scraping"], ProcessingStep.Status.SKIPPED)
-            self.assertEqual(steps["downloading"], ProcessingStep.Status.SKIPPED)
-            self.assertEqual(steps["transcribing"], ProcessingStep.Status.PENDING)
+            mock_dbos.start_workflow.assert_called_once_with(
+                process_episode, episode.pk, Episode.Status.TRANSCRIBING,
+            )
         finally:
             if episode.audio_file:
                 try:
@@ -126,9 +117,10 @@ class ResumePipelineScrapingTests(TestCase):
 
 
 class ResumePipelineDownloadingTests(TestCase):
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
+    @patch("episodes.agents.resume.DBOS")
     @patch("episodes.agents.resume.MP3")
-    def test_saves_file_and_creates_run(self, mock_mp3, _mock_task):
+    def test_saves_file_and_starts_workflow(self, mock_mp3, mock_dbos, _):
         episode = Episode.objects.create(
             url="https://example.com/pod/2",
             audio_url="https://cdn.example.com/ep2.mp3",
@@ -165,17 +157,11 @@ class ResumePipelineDownloadingTests(TestCase):
             # Temp file should be cleaned up by resume_pipeline
             self.assertFalse(os.path.exists(tmp.name))
 
-            # A new ProcessingRun resumed from transcribing
-            run = ProcessingRun.objects.filter(
-                episode=episode
-            ).order_by("-started_at").first()
-            self.assertIsNotNone(run)
-            self.assertEqual(run.resumed_from_step, Episode.Status.TRANSCRIBING)
+            from episodes.workflows import process_episode
 
-            steps = {s.step_name: s.status for s in run.steps.all()}
-            self.assertEqual(steps["scraping"], ProcessingStep.Status.SKIPPED)
-            self.assertEqual(steps["downloading"], ProcessingStep.Status.SKIPPED)
-            self.assertEqual(steps["transcribing"], ProcessingStep.Status.PENDING)
+            mock_dbos.start_workflow.assert_called_once_with(
+                process_episode, episode.pk, Episode.Status.TRANSCRIBING,
+            )
         finally:
             # Clean up saved audio file
             if episode.audio_file:

@@ -42,7 +42,6 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_q',
     'core',
     'episodes',
 ]
@@ -139,18 +138,6 @@ MEDIA_URL = '/media/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Django Q2 — async task queue with ORM broker
-Q_CLUSTER = {
-    'name': 'ragtime',
-    'workers': 2,
-    'timeout': 900,
-    'retry': 1200,
-    'orm': 'default',
-    'save_limit': 250,
-    'ack_failures': True,
-    'max_attempts': 1,
-    'catch_up': False,
-}
 
 # RAGtime provider configuration
 RAGTIME_SCRAPING_PROVIDER = os.getenv('RAGTIME_SCRAPING_PROVIDER', 'openai')

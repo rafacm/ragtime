@@ -3,12 +3,12 @@
 import logging
 import os
 
+from dbos import DBOS
 from django.core.files import File
 from mutagen.mp3 import MP3
 
 from ..events import StepFailureEvent
 from ..models import Episode
-from ..processing import create_run
 from .deps import RecoveryAgentResult
 
 logger = logging.getLogger(__name__)
@@ -61,14 +61,18 @@ def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult) -> bool
         try:
             _save_audio_file(episode, result.downloaded_file)
 
-            create_run(episode, resume_from=Episode.Status.TRANSCRIBING)
-
             episode.status = Episode.Status.TRANSCRIBING
             episode.save(
                 update_fields=[
                     "audio_url", "audio_file", "duration",
                     "status", "error_message", "updated_at",
                 ]
+            )
+
+            from ..workflows import process_episode
+
+            DBOS.start_workflow(
+                process_episode, episode.pk, Episode.Status.TRANSCRIBING,
             )
 
             logger.info(
@@ -92,10 +96,12 @@ def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult) -> bool
             )
 
     # No downloaded file — resume from downloading (wget will fetch the URL).
-    create_run(episode, resume_from=Episode.Status.DOWNLOADING)
-
     episode.status = Episode.Status.DOWNLOADING
     episode.save(update_fields=["audio_url", "status", "error_message", "updated_at"])
+
+    from ..workflows import process_episode
+
+    DBOS.start_workflow(process_episode, episode.pk, Episode.Status.DOWNLOADING)
 
     logger.info(
         "Scraping recovery succeeded for episode %s — audio_url=%s, resuming from downloading",
@@ -120,12 +126,15 @@ def _resume_from_downloading(episode: Episode, result: RecoveryAgentResult) -> b
         _save_audio_file(episode, filepath)
         episode.error_message = ""
 
-        # Create run BEFORE saving status to avoid race with post_save signal
-        create_run(episode, resume_from=Episode.Status.TRANSCRIBING)
-
         episode.status = Episode.Status.TRANSCRIBING
         episode.save(
             update_fields=["audio_file", "duration", "status", "error_message", "updated_at"]
+        )
+
+        from ..workflows import process_episode
+
+        DBOS.start_workflow(
+            process_episode, episode.pk, Episode.Status.TRANSCRIBING,
         )
 
         logger.info(

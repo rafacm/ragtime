@@ -1,4 +1,7 @@
+import os
+
 from django.apps import AppConfig
+from django.conf import settings
 
 
 class EpisodesConfig(AppConfig):
@@ -14,3 +17,33 @@ class EpisodesConfig(AppConfig):
 
         step_failed.connect(handle_step_failure, dispatch_uid="recovery_step_failed")
         setup_telemetry()
+
+        self._init_dbos()
+
+    def _init_dbos(self):
+        import sys
+
+        if "test" in sys.argv:
+            return
+
+        from dbos import DBOS, DBOSConfig
+
+        db = settings.DATABASES["default"]
+        user = db["USER"]
+        password = db["PASSWORD"]
+        host = db["HOST"]
+        port = db["PORT"]
+        name = db["NAME"]
+        system_db_url = os.getenv(
+            "DBOS_SYSTEM_DATABASE_URL",
+            f"postgresql://{user}:{password}@{host}:{port}/{name}",
+        )
+
+        import episodes.workflows  # noqa: F401 — register workflows
+
+        dbos_config: DBOSConfig = {
+            "name": "ragtime",
+            "system_database_url": system_db_url,
+        }
+        DBOS(config=dbos_config)
+        DBOS.launch()
