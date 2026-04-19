@@ -92,7 +92,7 @@ Postgres reset wipes row IDs; without clearing Qdrant, future `chunk.pk` values 
 ## Verification
 
 ```bash
-docker compose up -d qdrant db
+docker compose up -d qdrant postgres
 uv sync
 uv run python manage.py migrate
 uv run python manage.py configure          # set RAGTIME_EMBEDDING_* + RAGTIME_QDRANT_*
