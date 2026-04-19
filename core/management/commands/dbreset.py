@@ -71,6 +71,29 @@ class Command(BaseCommand):
         call_command("load_entity_types", verbosity=0)
         self.stdout.write(self.style.SUCCESS("Entity types loaded."))
 
+        self.stdout.write("Clearing Qdrant collection...")
+        try:
+            from episodes.vector_store import get_vector_store
+
+            store = get_vector_store()
+            if store.client.collection_exists(store.collection):
+                store.client.delete_collection(store.collection)
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"Qdrant collection '{store.collection}' dropped."
+                    )
+                )
+            else:
+                self.stdout.write(
+                    f"Qdrant collection '{store.collection}' does not exist; skipping."
+                )
+        except Exception as exc:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Could not reset Qdrant (continuing): {exc}"
+                )
+            )
+
         self.stdout.write(
             "\nDone. Run 'uv run python manage.py createsuperuser' to create an admin account."
         )
