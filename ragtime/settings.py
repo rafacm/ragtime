@@ -185,6 +185,18 @@ RAGTIME_TRANSLATION_PROVIDER = os.getenv('RAGTIME_TRANSLATION_PROVIDER', 'openai
 RAGTIME_TRANSLATION_API_KEY = os.getenv('RAGTIME_TRANSLATION_API_KEY', '')
 RAGTIME_TRANSLATION_MODEL = os.getenv('RAGTIME_TRANSLATION_MODEL', 'gpt-4.1-mini')
 
+# Embeddings
+RAGTIME_EMBEDDING_PROVIDER = os.getenv('RAGTIME_EMBEDDING_PROVIDER', 'openai')
+RAGTIME_EMBEDDING_API_KEY = os.getenv('RAGTIME_EMBEDDING_API_KEY', '')
+RAGTIME_EMBEDDING_MODEL = os.getenv('RAGTIME_EMBEDDING_MODEL', 'text-embedding-3-small')
+
+# Qdrant vector store — defaults match docker-compose.yml
+RAGTIME_QDRANT_HOST = os.getenv('RAGTIME_QDRANT_HOST', 'localhost')
+RAGTIME_QDRANT_PORT = int(os.getenv('RAGTIME_QDRANT_PORT', '6333'))
+RAGTIME_QDRANT_COLLECTION = os.getenv('RAGTIME_QDRANT_COLLECTION', 'ragtime_chunks')
+RAGTIME_QDRANT_API_KEY = os.getenv('RAGTIME_QDRANT_API_KEY', '')
+RAGTIME_QDRANT_HTTPS = os.getenv('RAGTIME_QDRANT_HTTPS', 'false').lower() in ('true', '1', 'yes')
+
 # Wikidata integration
 RAGTIME_WIKIDATA_USER_AGENT = os.getenv(
     'RAGTIME_WIKIDATA_USER_AGENT',
