@@ -102,7 +102,9 @@ Generate multilingual embeddings for every chunk and upsert them into a [Qdrant]
 
 Default embedding model: OpenAI [`text-embedding-3-small`](https://platform.openai.com/docs/guides/embeddings) (1536-dim, multilingual, cosine distance). Chunks are embedded in batches of 128 texts per OpenAI request; Qdrant points are upserted in batches of 128. The collection is auto-created on first write and defaults to `ragtime_chunks`. Only the raw `chunk.text` is embedded — entity IDs, episode metadata, and timestamps live in the Qdrant point payload, not in the vector.
 
-Point IDs are deterministic (`chunk.pk`), so upserts are idempotent. Before writing, the step wipes any prior points for the same `episode_id` to keep re-runs safe after re-chunking. If the Qdrant collection's vector dim doesn't match the configured embedding model, the step fails fast with a clear error — a sanity check against accidental model swaps (e.g. switching to `text-embedding-3-large`, which is 3072-dim).
+Point IDs are deterministic (`chunk.pk`), so upserts are idempotent. The step always calls `delete_by_episode()` before writing — this keeps re-runs safe after re-chunking, and clears stale points when an episode is re-ingested into zero chunks (otherwise Scott could retrieve content that no longer exists in Postgres).
+
+Vector dimensions are **detected at runtime** by probing the configured embedding provider once per process (one single-word `provider.embed(["dim-probe"])` call, cached via `@lru_cache`). The collection is created with whatever dim the live model produces. If an existing collection was created with a different dim, `ensure_collection()` fails fast with a clear error that names both dims and the current model, protecting against silent schema drift when `RAGTIME_EMBEDDING_MODEL` is changed. `manage.py configure` additionally prints a warning when the user changes the model value, pointing at `manage.py dbreset` as the recovery path.
 
 Each Qdrant point carries this payload (indexed fields marked with ⚡):
 

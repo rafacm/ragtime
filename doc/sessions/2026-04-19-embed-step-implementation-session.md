@@ -100,3 +100,44 @@ OK
 ```
 
 End-to-end verification against a running Qdrant container is documented in the feature doc but was not executed during this implementation session.
+
+## PR #92 review feedback
+
+### User (review comment on `episodes/vector_store.py:13`)
+
+> `RAGTIME_EMBEDDING_MODEL` is configurable in settings/configure, but the collection schema is hard-wired to `1536` here. The existing dim check only protects an already-existing collection; on a fresh deploy with any non-`text-embedding-3-small` model, `ensure_collection()` will create the wrong schema and the first upsert will fail at runtime. Either validate and lock the supported model to `text-embedding-3-small`, or derive the dimension from the configured model before creating the collection.
+
+### User (review comment on `episodes/embedder.py:73`)
+
+> This early return skips `delete_by_episode()`. If an episode was previously embedded and later reprocessed into zero chunks, it will be marked `READY` while its old Qdrant points remain queryable. That breaks the idempotency goal for re-runs and can leave Scott retrieving stale content that no longer exists in Postgres. The zero-chunk path should clear any existing points first, with a regression test covering re-embed-to-empty.
+
+### Assistant
+
+Summarized both issues with severity and a proposed fix. For the first, outlined a `MODEL_DIMS` static map option. The user pushed back with a stronger alternative: "Is there a mechanism by which instead of hard-coding the dimensions, on start-up we query the configured model and find out it's dimensions and then check whether the existing collections support those dimensions. Additionally we would add a warning when changing the value via the configure.py script."
+
+### Follow-up implementation
+
+**1. Dynamic dim detection.** Replaced the hard-coded `EMBEDDING_DIM = 1536` constant with a `detect_embedding_dim()` function that probes the configured embedding provider once with `provider.embed(["dim-probe"])` and caches the result via `@lru_cache(maxsize=1)`. `QdrantVectorStore.ensure_collection()` now:
+
+- Calls `detect_embedding_dim()` to learn the expected dim before create/check.
+- Creates collections with whatever dim the live model produces.
+- On mismatch, raises a `RuntimeError` that names both dims, the current model name, and the recovery command (`manage.py dbreset`).
+
+This removes the static map entirely — any OpenAI-compatible model works without code changes, and the source of truth is the live model itself rather than a maintainer-curated list.
+
+**2. Zero-chunk cleanup.** Restructured `embed_episode()` so the Qdrant side is unified: always `ensure_collection()` + `delete_by_episode()`, then branch on whether `chunks` is empty. Zero-chunk episodes skip the provider call (no API cost) but still hit Qdrant for the cleanup delete. Added `test_reembed_to_zero_chunks_clears_prior_points` as a regression test — embed 2 chunks, delete them, re-queue EMBEDDING, assert `points_count == 0`.
+
+**3. Configure wizard warning.** Added `_warn_if_embedding_model_changed()` to `core/management/commands/configure.py`. After the wizard writes the new `.env`, it compares `existing` vs `new_values` for `RAGTIME_EMBEDDING_MODEL`. If both are set and differ, it prints a WARNING pointing at `manage.py dbreset` as the recovery path. New test `test_warns_when_embedding_model_changes` asserts the warning is emitted when the value changes from `text-embedding-3-small` to `text-embedding-3-large`.
+
+**Tests updated.**
+
+- `episodes/tests/test_embed.py` — dropped the `EMBEDDING_DIM` import, replaced with a local `TEST_DIM = 1536`. Added `detect_embedding_dim` patching in `setUp` (with `cache_clear()` cleanup). New tests: `test_reembed_to_zero_chunks_clears_prior_points`, `test_create_respects_detected_dim` (3072-dim collection), `test_detect_embedding_dim_probes_provider` (asserts `provider.embed(["dim-probe"])` call), `test_detect_embedding_dim_rejects_empty_response`. Updated `test_no_chunks_goes_straight_to_ready` to assert that `provider.embed` is NOT called (we now know the cleanup path runs but the provider isn't touched for empty input).
+- `core/tests/test_configure.py` — added `test_warns_when_embedding_model_changes`.
+
+**Docs updated.**
+
+- `doc/README.md` — rewrote the dim-mismatch paragraph to describe runtime detection and the `manage.py configure` warning.
+- `doc/features/2026-04-19-embed-step.md` — updated the vector-store wrapper description, the embedder control-flow description, the configure-wizard description, and the key-parameters table. Dropped the `EMBEDDING_DIM=1536` row in favor of "detected from live model".
+- `doc/plans/2026-04-19-embed-step.md` — replaced the fail-fast dim-check paragraph with the detection-based description, and updated the corresponding risks entry.
+
+**Test suite green:** 281 passing (5 new tests).
