@@ -72,7 +72,7 @@ class ChunkEpisodeTests(TestCase):
             cls.transcript_json = json.load(f)
 
     def _create_episode(self, **kwargs):
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             return Episode.objects.create(**kwargs)
 
     def test_chunk_episode_success(self):
@@ -84,7 +84,7 @@ class ChunkEpisodeTests(TestCase):
             transcript_json=self.transcript_json,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             chunk_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -100,7 +100,7 @@ class ChunkEpisodeTests(TestCase):
             transcript_json=None,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             chunk_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -140,7 +140,7 @@ class ChunkEpisodeTests(TestCase):
             segment_end=0,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             chunk_episode(episode.pk)
 
         episode.refresh_from_db()

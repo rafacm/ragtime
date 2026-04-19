@@ -51,7 +51,7 @@ class ResolveEntitiesTests(TestCase):
         _seed_entity_types()
 
     def _create_episode(self, **kwargs):
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             return Episode.objects.create(**kwargs)
 
     def _create_chunk(self, episode, index=0, entities_json=None, text="chunk text"):
@@ -81,7 +81,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=self.SAMPLE_ENTITIES)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -135,7 +135,7 @@ class ResolveEntitiesTests(TestCase):
         )
         chunk = self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -194,7 +194,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -233,7 +233,7 @@ class ResolveEntitiesTests(TestCase):
         chunk1 = self._create_chunk(episode, index=0, entities_json=entities_chunk1)
         chunk2 = self._create_chunk(episode, index=1, entities_json=entities_chunk2)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -297,7 +297,7 @@ class ResolveEntitiesTests(TestCase):
         self._create_chunk(episode, index=0, entities_json=entities_chunk1)
         self._create_chunk(episode, index=1, entities_json=entities_chunk2)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         # Only 1 LLM call (one entity type: musician)
@@ -335,7 +335,7 @@ class ResolveEntitiesTests(TestCase):
         instrument_type = _get_entity_type("musical_instrument")
 
         # First episode — no existing entities, so created directly with extracted name
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         entity = Entity.objects.get(entity_type=instrument_type)
@@ -363,7 +363,7 @@ class ResolveEntitiesTests(TestCase):
             ],
         })
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode2.pk)
 
         # Still only 1 instrument entity (matched)
@@ -393,7 +393,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -439,7 +439,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -462,7 +462,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=None)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -514,7 +514,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -537,7 +537,7 @@ class ResolveEntitiesTests(TestCase):
         self._create_chunk(episode, index=0, entities_json=self.SAMPLE_ENTITIES)
 
         # First run — no existing entities, creates all 59 as new (no LLM call)
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         self.assertEqual(Entity.objects.count(), 59)
@@ -569,7 +569,7 @@ class ResolveEntitiesTests(TestCase):
 
         # Reset status and run again
         episode.status = Episode.Status.RESOLVING
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             episode.save(update_fields=["status", "updated_at"])
             resolve_entities(episode.pk)
 
@@ -606,7 +606,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -655,7 +655,7 @@ class ResolveEntitiesTests(TestCase):
         }
 
         with patch("episodes.resolver._fetch_wikidata_candidates", return_value=wikidata_candidates):
-            with patch("episodes.signals.async_task"):
+            with patch("episodes.signals.DBOS"):
                 resolve_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -706,7 +706,7 @@ class ResolveEntitiesTests(TestCase):
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
         with patch("episodes.resolver._fetch_wikidata_candidates", return_value={}):
-            with patch("episodes.signals.async_task"):
+            with patch("episodes.signals.DBOS"):
                 resolve_entities(episode.pk)
 
         # Should match existing entity by wikidata_id
@@ -751,7 +751,7 @@ class ResolveEntitiesTests(TestCase):
         }
 
         with patch("episodes.resolver._fetch_wikidata_candidates", return_value=wikidata_candidates):
-            with patch("episodes.signals.async_task"):
+            with patch("episodes.signals.DBOS"):
                 resolve_entities(episode.pk)
 
         # Entity created with wikidata_id
@@ -797,7 +797,7 @@ class ResolveEntitiesTests(TestCase):
         }
 
         with patch("episodes.resolver._fetch_wikidata_candidates", return_value=wikidata_candidates):
-            with patch("episodes.signals.async_task"):
+            with patch("episodes.signals.DBOS"):
                 resolve_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -851,7 +851,7 @@ class ResolveEntitiesTests(TestCase):
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
         with patch("episodes.resolver._fetch_wikidata_candidates", return_value={}):
-            with patch("episodes.signals.async_task"):
+            with patch("episodes.signals.DBOS"):
                 resolve_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -906,7 +906,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -939,7 +939,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -969,7 +969,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         mention = EntityMention.objects.get(episode=episode)
@@ -996,7 +996,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         mention = EntityMention.objects.get(episode=episode)
@@ -1029,7 +1029,7 @@ class ResolveEntitiesTests(TestCase):
         self._create_chunk(episode, index=0, entities_json=entities_chunk1)
         self._create_chunk(episode, index=1, entities_json=entities_chunk2)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         mentions = EntityMention.objects.filter(episode=episode).order_by("chunk__index")
@@ -1075,7 +1075,7 @@ class ResolveEntitiesTests(TestCase):
         )
         self._create_chunk(episode, index=0, entities_json=entities_json)
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
         episode.refresh_from_db()

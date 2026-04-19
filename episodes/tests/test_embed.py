@@ -35,7 +35,7 @@ class EmbedEpisodeTests(TestCase):
         self.store.ensure_collection()
 
     def _create_episode(self, **kwargs):
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             defaults = {
                 "title": "Test Episode",
                 "language": "en",

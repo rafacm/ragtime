@@ -146,7 +146,7 @@ class RecoveryChainTests(TestCase):
 
 @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=False)
 class HandleStepFailureTests(TestCase):
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     def test_creates_awaiting_human_attempt(self, _):
         """Default chain (agent disabled) escalates directly to human."""
         episode = Episode.objects.create(url="https://example.com/rec/1")
@@ -172,7 +172,7 @@ class HandleStepFailureTests(TestCase):
         self.assertFalse(attempt.success)
 
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     @patch("episodes.agents.run_recovery_agent")
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
     def test_agent_escalates_to_human(self, mock_agent, _):
@@ -206,7 +206,7 @@ class HandleStepFailureTests(TestCase):
         self.assertEqual(attempts[1].strategy, "human")
         self.assertEqual(attempts[1].status, RecoveryAttempt.Status.AWAITING_HUMAN)
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     def test_max_attempts_prevents_recovery(self, _):
         """After MAX_RECOVERY_ATTEMPTS, no further recovery is attempted."""
         episode = Episode.objects.create(url="https://example.com/rec/3")
@@ -241,7 +241,7 @@ class HandleStepFailureTests(TestCase):
 class IntegrationTests(TestCase):
     """Test that pipeline failures trigger recovery via signals."""
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     def test_fail_step_with_exc_triggers_recovery(self, _):
         """fail_step with exc triggers the full signal -> recovery chain."""
         episode = Episode.objects.create(url="https://example.com/int/1")

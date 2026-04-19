@@ -134,7 +134,7 @@ class ExtractEntitiesTests(TestCase):
         _seed_entity_types()
 
     def _create_episode(self, **kwargs):
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             return Episode.objects.create(**kwargs)
 
     def _create_chunks(self, episode, texts):
@@ -166,7 +166,7 @@ class ExtractEntitiesTests(TestCase):
         )
         self._create_chunks(episode, ["Miles Davis played trumpet.", "Kind of Blue in 1959."])
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             extract_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -201,7 +201,7 @@ class ExtractEntitiesTests(TestCase):
         )
         self._create_chunks(episode, ["chunk 1", "chunk 2", "chunk 3"])
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             extract_entities(episode.pk)
 
         self.assertEqual(mock_provider.structured_extract.call_count, 3)
@@ -222,7 +222,7 @@ class ExtractEntitiesTests(TestCase):
         )
         self._create_chunks(episode, ["Chunk text here."])
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             extract_entities(episode.pk)
 
         mock_provider.structured_extract.assert_called_once()
@@ -240,7 +240,7 @@ class ExtractEntitiesTests(TestCase):
             transcript="Some transcript but no chunks.",
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             extract_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -280,7 +280,7 @@ class ExtractEntitiesTests(TestCase):
         )
         self._create_chunks(episode, ["Some transcript."])
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             extract_entities(episode.pk)
 
         episode.refresh_from_db()
@@ -320,7 +320,7 @@ class ExtractEntitiesTests(TestCase):
         )
         self._create_chunks(episode, ["Miles Davis played trumpet."])
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             extract_entities(episode.pk)
 
         chunk = episode.chunks.first()
@@ -353,7 +353,7 @@ class ExtractEntitiesTests(TestCase):
         )
         self._create_chunks(episode, ["Miles Davis played trumpet."])
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             extract_entities(episode.pk)
 
         chunk = episode.chunks.first()
@@ -394,7 +394,7 @@ class ExtractEntitiesTests(TestCase):
         )
         self._create_chunks(episode, ["The new style of fast jazz."])
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             extract_entities(episode.pk)
 
         chunk = episode.chunks.first()

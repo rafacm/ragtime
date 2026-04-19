@@ -14,7 +14,7 @@ from .providers.factory import get_transcription_provider
 
 logger = logging.getLogger(__name__)
 
-FFMPEG_TIMEOUT = 300  # 5 minutes — must fit within Q_CLUSTER['timeout']
+FFMPEG_TIMEOUT = 300  # 5 minutes
 
 # Tiers ordered from highest to lowest quality.
 # Each tuple: (channels, sample_rate, bitrate_kbps)

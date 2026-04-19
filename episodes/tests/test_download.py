@@ -10,7 +10,7 @@ class DownloadEpisodeTests(TestCase):
     """Tests for the download_episode task function."""
 
     def _create_episode(self, **kwargs):
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             return Episode.objects.create(**kwargs)
 
     @patch("episodes.downloader.MP3")
@@ -35,7 +35,7 @@ class DownloadEpisodeTests(TestCase):
             status=Episode.Status.DOWNLOADING,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             download_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -64,7 +64,7 @@ class DownloadEpisodeTests(TestCase):
             status=Episode.Status.DOWNLOADING,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             download_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -83,7 +83,7 @@ class DownloadEpisodeTests(TestCase):
             status=Episode.Status.DOWNLOADING,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             download_episode(episode.pk)
 
         episode.refresh_from_db()

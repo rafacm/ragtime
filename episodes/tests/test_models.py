@@ -6,7 +6,7 @@ from django.test import TestCase
 from episodes.models import Episode
 
 
-@patch("episodes.signals.async_task")
+@patch("episodes.signals.DBOS")
 class EpisodeModelTests(TestCase):
     def test_default_status_is_pending(self, mock_async):
         episode = Episode.objects.create(url="https://example.com/episode/1")

@@ -39,7 +39,7 @@ class TranscribeEpisodeTests(TestCase):
     def _create_episode_with_audio(self, **kwargs):
         from django.core.files.base import ContentFile
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             episode = Episode.objects.create(**kwargs)
             episode.audio_file.save(
                 f"{episode.pk}.mp3",
@@ -49,7 +49,7 @@ class TranscribeEpisodeTests(TestCase):
         return episode
 
     def _create_episode(self, **kwargs):
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             return Episode.objects.create(**kwargs)
 
     @patch("episodes.transcriber.get_transcription_provider")
@@ -65,7 +65,7 @@ class TranscribeEpisodeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -82,7 +82,7 @@ class TranscribeEpisodeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -103,7 +103,7 @@ class TranscribeEpisodeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -142,7 +142,7 @@ class TranscribeEpisodeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             transcribe_episode(episode.pk)
 
         mock_provider.transcribe.assert_called_once()
@@ -163,7 +163,7 @@ class TranscribeEpisodeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             transcribe_episode(episode.pk)
 
         mock_provider.transcribe.assert_called_once()
@@ -182,7 +182,7 @@ class ResizeWithinTranscribeTests(TestCase):
     def _create_episode_with_audio(self, audio_size=100, **kwargs):
         from django.core.files.base import ContentFile
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             episode = Episode.objects.create(**kwargs)
             episode.audio_file.save(
                 f"{episode.pk}.mp3",
@@ -207,7 +207,7 @@ class ResizeWithinTranscribeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -239,7 +239,7 @@ class ResizeWithinTranscribeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -268,7 +268,7 @@ class ResizeWithinTranscribeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -288,7 +288,7 @@ class ResizeWithinTranscribeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -313,7 +313,7 @@ class ResizeWithinTranscribeTests(TestCase):
             status=Episode.Status.TRANSCRIBING,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -348,7 +348,7 @@ class ResizeWithinTranscribeTests(TestCase):
             duration=10,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -390,7 +390,7 @@ class ResizeWithinTranscribeTests(TestCase):
             duration=10,
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
@@ -427,7 +427,7 @@ class ResizeWithinTranscribeTests(TestCase):
             # no duration set
         )
 
-        with patch("episodes.signals.async_task"):
+        with patch("episodes.signals.DBOS"):
             transcribe_episode(episode.pk)
 
         episode.refresh_from_db()

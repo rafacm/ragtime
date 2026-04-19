@@ -26,13 +26,13 @@ class EpisodeAdminTests(TestCase):
         response = self.client.get("/admin/episodes/episode/add/")
         self.assertEqual(response.status_code, 200)
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     def test_detail_page_loads(self, mock_async):
         episode = Episode.objects.create(url="https://example.com/ep/admin-1")
         response = self.client.get(f"/admin/episodes/episode/{episode.pk}/change/")
         self.assertEqual(response.status_code, 200)
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     def test_reprocess_action_shows_intermediate_page(self, mock_async):
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-2",
@@ -52,7 +52,7 @@ class EpisodeAdminTests(TestCase):
         self.assertContains(response, "Reprocess from step")
         self.assertContains(response, str(episode.pk))
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     def test_reprocess_action_executes(self, mock_async):
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-2b",
@@ -61,7 +61,7 @@ class EpisodeAdminTests(TestCase):
         mock_async.reset_mock()
 
         # Submit the intermediate page with from_step
-        with patch("episodes.admin.async_task") as mock_admin_async:
+        with patch("episodes.admin.DBOS") as mock_admin_async:
             response = self.client.post(
                 "/admin/episodes/episode/",
                 {
@@ -73,14 +73,16 @@ class EpisodeAdminTests(TestCase):
                 follow=True,
             )
             self.assertEqual(response.status_code, 200)
-            mock_admin_async.assert_called_once_with(
-                "episodes.scraper.scrape_episode", episode.pk
+            from episodes.workflows import process_episode
+
+            mock_admin_async.start_workflow.assert_called_once_with(
+                process_episode, episode.pk, Episode.Status.SCRAPING
             )
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.SCRAPING)
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     def test_metadata_fields_readonly_when_failed(self, mock_async):
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-3",
@@ -91,7 +93,7 @@ class EpisodeAdminTests(TestCase):
         # title field should be readonly (no editable input)
         self.assertNotIn('name="title"', content)
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     def test_metadata_fields_editable_when_awaiting_human(self, mock_async):
         from episodes.models import PipelineEvent, ProcessingRun, ProcessingStep, RecoveryAttempt
 
@@ -209,7 +211,7 @@ class EntityAdminTests(TestCase):
     def setUp(self):
         self.client.login(username="admin", password="testpass")
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     def test_list_shows_wikidata_link(self, _mock):
         et = EntityType.objects.create(
             key="ent_admin_list", name="Test Artist", wikidata_id="Q639669", description="Musician.",
@@ -220,7 +222,7 @@ class EntityAdminTests(TestCase):
         self.assertContains(response, "https://www.wikidata.org/wiki/Q93341")
         self.assertContains(response, 'target="_blank"')
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     def test_detail_shows_wikidata_link(self, _mock):
         et = EntityType.objects.create(
             key="ent_admin_detail", name="Test Artist", wikidata_id="Q639669", description="Musician.",
@@ -231,7 +233,7 @@ class EntityAdminTests(TestCase):
         self.assertContains(response, "https://www.wikidata.org/wiki/Q93341")
         self.assertContains(response, 'target="_blank"')
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     def test_detail_no_wikidata_shows_dash(self, _mock):
         et = EntityType.objects.create(
             key="ent_admin_nodash", name="Test Artist", wikidata_id="Q639669", description="Musician.",
@@ -272,8 +274,8 @@ class RecoveryAttemptAdminTests(TestCase):
         )
         return attempt
 
-    @patch("episodes.signals.async_task")
-    @patch("episodes.admin.async_task")
+    @patch("episodes.signals.DBOS")
+    @patch("episodes.admin.DBOS")
     def test_retry_queues_task_and_resolves_attempt(self, mock_admin_async, _):
         attempt = self._make_awaiting_attempt()
 
@@ -292,14 +294,16 @@ class RecoveryAttemptAdminTests(TestCase):
         self.assertEqual(attempt.resolved_by, "human:admin-retry")
         self.assertIsNotNone(attempt.resolved_at)
 
-        mock_admin_async.assert_called_once_with(
-            "episodes.admin._run_agent_recovery_task",
+        from episodes.workflows import run_agent_recovery
+
+        mock_admin_async.start_workflow.assert_called_once_with(
+            run_agent_recovery,
             attempt.episode_id,
             attempt.pipeline_event_id,
         )
 
-    @patch("episodes.signals.async_task")
-    @patch("episodes.admin.async_task")
+    @patch("episodes.signals.DBOS")
+    @patch("episodes.admin.DBOS")
     def test_retry_skips_non_awaiting_attempts(self, mock_admin_async, _):
         attempt = self._make_awaiting_attempt(
             episode_url="https://example.com/rec/admin-2"
@@ -316,15 +320,15 @@ class RecoveryAttemptAdminTests(TestCase):
             follow=True,
         )
         self.assertEqual(response.status_code, 200)
-        mock_admin_async.assert_not_called()
+        mock_admin_async.start_workflow.assert_not_called()
 
 
 class RunAgentRecoveryTaskTests(TestCase):
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     @patch("episodes.agents.run_recovery_agent")
     def test_success_creates_resolved_attempt_and_resumes(self, mock_agent, _):
-        from episodes.admin import _run_agent_recovery_task
         from episodes.agents.deps import RecoveryAgentResult
+        from episodes.workflows import execute_agent_recovery
 
         mock_agent.return_value = RecoveryAgentResult(
             success=True,
@@ -346,7 +350,7 @@ class RunAgentRecoveryTaskTests(TestCase):
         )
 
         with patch("episodes.agents.resume.resume_pipeline") as mock_resume:
-            _run_agent_recovery_task(episode.pk, pe.pk)
+            execute_agent_recovery(episode.pk, pe.pk)
 
         mock_resume.assert_called_once()
         new_attempt = RecoveryAttempt.objects.filter(
@@ -355,11 +359,11 @@ class RunAgentRecoveryTaskTests(TestCase):
         self.assertIsNotNone(new_attempt)
         self.assertTrue(new_attempt.success)
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     @patch("episodes.agents.run_recovery_agent")
     def test_failure_creates_awaiting_human_attempt(self, mock_agent, _):
-        from episodes.admin import _run_agent_recovery_task
         from episodes.agents.deps import RecoveryAgentResult
+        from episodes.workflows import execute_agent_recovery
 
         mock_agent.return_value = RecoveryAgentResult(
             success=False,
@@ -379,7 +383,7 @@ class RunAgentRecoveryTaskTests(TestCase):
             error_type="http", error_message="403 Forbidden",
         )
 
-        _run_agent_recovery_task(episode.pk, pe.pk)
+        execute_agent_recovery(episode.pk, pe.pk)
 
         new_attempt = RecoveryAttempt.objects.filter(
             episode=episode, strategy="agent"
@@ -388,10 +392,10 @@ class RunAgentRecoveryTaskTests(TestCase):
         self.assertFalse(new_attempt.success)
         self.assertEqual(new_attempt.status, RecoveryAttempt.Status.AWAITING_HUMAN)
 
-    @patch("episodes.signals.async_task")
+    @patch("episodes.signals.DBOS")
     @patch("episodes.agents.run_recovery_agent", side_effect=RuntimeError("Crash"))
     def test_exception_creates_awaiting_human_attempt(self, _, __):
-        from episodes.admin import _run_agent_recovery_task
+        from episodes.workflows import execute_agent_recovery
 
         episode = Episode.objects.create(
             url="https://example.com/task/3", status=Episode.Status.FAILED
@@ -406,7 +410,7 @@ class RunAgentRecoveryTaskTests(TestCase):
             error_type="http", error_message="403 Forbidden",
         )
 
-        _run_agent_recovery_task(episode.pk, pe.pk)
+        execute_agent_recovery(episode.pk, pe.pk)
 
         new_attempt = RecoveryAttempt.objects.filter(
             episode=episode, strategy="agent"

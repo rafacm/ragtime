@@ -10,7 +10,7 @@ RAGtime is a Django app for ingesting jazz podcast episodes — scraping metadat
 
 ```bash
 uv sync                                    # Install/update dependencies
-uv run python manage.py runserver          # Run dev server
+uv run python manage.py runserver --noreload  # Run dev server (--noreload required by DBOS)
 uv run python manage.py migrate            # Apply migrations
 uv run python manage.py makemigrations     # Generate migrations
 uv run python manage.py test               # Run all tests
@@ -31,7 +31,7 @@ Use `uv` for everything — never `pip install` directly.
 
 **Provider abstraction:** LLM, transcription, and embedding backends are pluggable via abstract base classes in `episodes/providers/base.py` with a factory in `episodes/providers/factory.py`. Configured through `RAGTIME_*` environment variables.
 
-**10-step pipeline** (steps defined in `episodes/models.py:PIPELINE_STEPS`, dispatched by `episodes/signals.py`): submit → scrape → download → transcribe → summarize → chunk → extract → resolve → embed → ready. Each step updates the episode status. Failures set status to `failed`. Runs async via Django Q2.
+**10-step pipeline** (steps defined in `episodes/models.py:PIPELINE_STEPS`, orchestrated by `episodes/workflows.py`): submit → scrape → download → transcribe → summarize → chunk → extract → resolve → embed → ready. Each step updates the episode status. Failures set status to `failed`. Runs as a DBOS durable workflow with PostgreSQL-backed checkpointing.
 
 > **Keep in sync:** When adding, removing, or changing a pipeline step, update the summary table in `README.md` and the detailed step descriptions in `doc/README.md`. If the change affects a diagram (e.g., Excalidraw files in `doc/`), flag it explicitly — diagrams cannot be auto-updated and may be out of sync after the change.
 
@@ -44,7 +44,7 @@ Use `uv` for everything — never `pip install` directly.
 - Python 3.13 (`requires-python = ">=3.13,<3.14"`)
 - No build-system in `pyproject.toml` (this is an app, not a library)
 - PostgreSQL for relational data (via Docker Compose), ChromaDB for vector store
-- Django Q2 with ORM broker (no Redis needed)
+- DBOS Transact for durable workflow execution (PostgreSQL-backed, no Redis needed)
 - Frontend: Django templates + HTMX + Tailwind CSS (CDN)
 - `python-dotenv` for env vars (`.env` file, `RAGTIME_*` prefix)
 - ffmpeg required for audio downsampling (files > 25MB)
