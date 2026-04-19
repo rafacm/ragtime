@@ -229,6 +229,8 @@ class ConfigureWizardTest(TestCase):
             "",               # DB password (keep default)
             "sk-newkey123",   # Shared LLM API key
             "sk-newkey123",   # Transcription API key
+            "",               # Embedding API key (reuse shared LLM key)
+            "",               # Qdrant API key (keep default)
             "",               # Recovery agent API key (keep default)
             "",               # Langfuse secret key (keep default)
             "",               # Langfuse public key (keep default)
@@ -247,6 +249,12 @@ class ConfigureWizardTest(TestCase):
             "gpt-4.1-mini",  # Translation model
             "openai",         # Transcription provider
             "whisper-1",      # Transcription model
+            "",               # Embedding provider (keep default)
+            "",               # Embedding model (keep default)
+            "",               # Qdrant host (keep default)
+            "",               # Qdrant port (keep default)
+            "",               # Qdrant collection (keep default)
+            "",               # Qdrant https (keep default)
             "",               # Wikidata user agent (keep default)
             "",               # Wikidata cache backend (keep default)
             "",               # Wikidata cache TTL (keep default)
@@ -336,6 +344,8 @@ class ConfigureWizardTest(TestCase):
             "",               # DB password (keep default)
             "sk-newkey123",   # Shared LLM API key
             "sk-newkey123",   # Transcription API key
+            "",               # Embedding API key (reuse shared LLM key)
+            "",               # Qdrant API key (keep default)
             "",               # Recovery agent API key (keep default)
             "",               # Langfuse secret key (keep default)
             "",               # Langfuse public key (keep default)
@@ -354,6 +364,12 @@ class ConfigureWizardTest(TestCase):
             "gpt-4.1-mini",  # Translation model
             "openai",         # Transcription provider
             "whisper-1",      # Transcription model
+            "",               # Embedding provider (keep default)
+            "",               # Embedding model (keep default)
+            "",               # Qdrant host (keep default)
+            "",               # Qdrant port (keep default)
+            "",               # Qdrant collection (keep default)
+            "",               # Qdrant https (keep default)
             "",               # Wikidata user agent (keep default)
             "",               # Wikidata cache backend (keep default)
             "",               # Wikidata cache TTL (keep default)
