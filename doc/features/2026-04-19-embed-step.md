@@ -10,21 +10,22 @@ The 9th pipeline step (`Episode.Status.EMBEDDING`) existed in the status enum bu
 
 1. **Qdrant client wrapper** — new `episodes/vector_store.py`:
    - `QdrantVectorStore` with `ensure_collection()`, `upsert_points()`, `delete_by_episode()`, `from_settings()`.
-   - `ensure_collection()` creates the collection (1536-dim, cosine) and indexes `episode_id`, `language`, `entity_ids` for fast payload filtering. If a collection already exists with a different vector dim, it raises with a clear error rather than silently failing on write.
+   - `detect_embedding_dim()` probes the configured embedding provider once (via `provider.embed(["dim-probe"])`) and caches the result with `@lru_cache(maxsize=1)`. No hard-coded model→dim map — the live model is the source of truth, so any OpenAI-compatible model (now or in the future) works without code changes.
+   - `ensure_collection()` creates the collection with the detected dim and indexes `episode_id`, `language`, `entity_ids` for fast payload filtering. If a collection already exists with a different dim, it raises a clear error naming both dims and the current model rather than silently failing on write.
    - Module-level `get_vector_store()` is `@lru_cache(maxsize=1)` — one shared HTTP connection pool per process.
 2. **OpenAI embedding provider** — `OpenAIEmbeddingProvider` in `episodes/providers/openai.py` subclasses the pre-existing abstract `EmbeddingProvider`. Batches inputs at `BATCH_SIZE=128`, traced via `@trace_provider`, records input count and vector count as span events.
 3. **Provider factory** — `get_embedding_provider()` follows the same shape as the other six provider factories; reads `RAGTIME_EMBEDDING_{PROVIDER,API_KEY,MODEL}`.
 4. **Embed step handler** — `embed_episode(episode_id)` in `episodes/embedder.py`:
    - Guards `status == EMBEDDING`; warns and returns otherwise.
    - One `EntityMention` query per episode (grouped by chunk) hydrates entity payloads without N+1.
-   - Wipes existing points for the episode (`delete_by_episode`) before upsert — safe for re-runs after a re-chunk.
+   - Always calls `ensure_collection()` + `delete_by_episode()` before branching on the chunk set. This covers two re-run scenarios: chunks were re-generated with new PKs (old points would orphan), and episode was re-ingested into zero chunks (old points would stay queryable for a Ready episode with no chunks in Postgres).
    - Transitions EMBEDDING → READY on success. On exception: sets status FAILED, records `error_message`, calls `fail_step(..., exc=exc)` so the recovery layer can observe the failure.
-   - Zero-chunks episodes transition straight to READY without any Qdrant calls.
+   - Zero-chunk episodes skip the provider call (nothing to embed) but still hit Qdrant for the cleanup delete.
 5. **Signal wiring** in `episodes/signals.py`:
    - `post_save` branch for `EMBEDDING` dispatches `embed_episode` to Django Q2.
    - New `post_delete` receiver calls `delete_by_episode(instance.pk)` to keep Qdrant consistent with Postgres when an episode is admin-deleted. Errors are logged and swallowed so a transient Qdrant issue can never block a delete.
 6. **Settings + env vars** — `RAGTIME_EMBEDDING_{PROVIDER,API_KEY,MODEL}` and `RAGTIME_QDRANT_{HOST,PORT,COLLECTION,API_KEY,HTTPS}` added to `ragtime/settings.py` and `.env.sample`. The old ChromaDB placeholders (`RAGTIME_VECTOR_STORE`, `RAGTIME_CHROMA_HOST`, `RAGTIME_CHROMA_PORT`, `RAGTIME_CHROMA_COLLECTION`) are removed.
-7. **Configure wizard** — new Embedding and Vector Store (Qdrant) systems in `_configure_helpers.py::SYSTEMS`. Embedding's API key reuses the shared LLM key flow that already exists in `_prompt_system`.
+7. **Configure wizard** — new Embedding and Vector Store (Qdrant) systems in `_configure_helpers.py::SYSTEMS`. Embedding's API key reuses the shared LLM key flow that already exists in `_prompt_system`. When the user changes `RAGTIME_EMBEDDING_MODEL` during the wizard, the command prints a warning pointing at `manage.py dbreset` — because models produce vectors of different dims and the existing Qdrant collection can't accept new-model vectors until it is recreated.
 8. **Docker Compose** — new `qdrant` service (image `qdrant/qdrant:v1.17.1`, ports 6333/6334, `qdrant_data` volume). Healthcheck uses a bash `/dev/tcp` probe on `/readyz`; the Qdrant image ships without `curl` or `wget`.
 9. **`manage.py dbreset`** — after recreating the Postgres database, the command also drops the Qdrant collection. Without this, a reset would leave orphaned Qdrant points under chunk IDs that future rows would then collide with.
 
@@ -47,11 +48,11 @@ The 9th pipeline step (`Episode.Status.EMBEDDING`) existed in the status enum bu
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
-| `EMBEDDING_DIM` | 1536 | Fixed by `text-embedding-3-small` |
+| Vector dim | detected from live model | `detect_embedding_dim()` probes the provider once; no code change needed for a different model |
 | `DISTANCE` | `COSINE` | Standard for semantic similarity over OpenAI embeddings |
 | `OpenAIEmbeddingProvider.BATCH_SIZE` | 128 | OpenAI accepts ≥ 2048 per call, but 128 keeps request payloads manageable and gives one progress tick per batch on long episodes |
 | `UPSERT_BATCH_SIZE` | 128 | Matches embedding batch size; keeps a single long-running `upsert` from stalling the step |
-| Default model | `text-embedding-3-small` | Multilingual, $0.02 / 1M tokens, widely benchmarked |
+| Default model | `text-embedding-3-small` | Multilingual (1536-dim), $0.02 / 1M tokens, widely benchmarked |
 
 ## Diagram drift
 

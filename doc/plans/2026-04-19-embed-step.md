@@ -18,7 +18,7 @@ The earlier spec called for ChromaDB. We are switching to **Qdrant** instead —
 4. **What is embedded:** only raw `chunk.text`. Entity names, episode metadata, and timestamps go into the Qdrant point payload, not into the vector.
 5. **Point IDs** are `chunk.pk`. Deterministic IDs make upserts naturally idempotent.
 6. **Idempotent re-runs:** before writing, the step calls `delete_by_episode(episode.pk)` so stale chunk IDs from a re-chunk cannot orphan.
-7. **Fail-fast dim check:** `ensure_collection()` verifies an existing collection's vector dim matches the configured model — guards against silent 400s after someone switches `RAGTIME_EMBEDDING_MODEL`.
+7. **Dim detection + fail-fast check:** `detect_embedding_dim()` probes the configured embedding provider once per process (cached) and `ensure_collection()` uses the detected dim for both create and mismatch checks — no hard-coded model→dim map, and any future OpenAI-compatible model works without code changes. `manage.py configure` additionally warns when the user changes the embedding model.
 
 ### Payload schema (per point)
 
@@ -105,7 +105,7 @@ End-to-end check: submit an episode; watch it walk `scrape → … → resolve �
 
 ## Risks / open questions
 
-1. **Vector dim drift.** Swapping `RAGTIME_EMBEDDING_MODEL` to a different-dim model breaks upserts. Mitigated by fail-fast check in `ensure_collection()`.
+1. **Vector dim drift.** Swapping `RAGTIME_EMBEDDING_MODEL` to a different-dim model breaks upserts against an existing collection. Mitigated by runtime dim detection (`detect_embedding_dim()` via a one-token probe) plus a fail-fast check that names both dims and the current model, plus a `manage.py configure` warning that points at `manage.py dbreset` as the recovery path.
 2. **Qdrant down mid-pipeline.** Step sets FAILED + `error_message`. The recovery layer currently only retries scrape/download; embed failures escalate to human. Acceptable — re-running is idempotent.
 3. **Payload size.** Storing `text` roughly doubles per-point storage. Fine at podcast scale; easy to drop and hydrate from Postgres if it ever hurts.
 4. **Entity staleness.** `entity_names` in Qdrant go stale if an Entity is renamed/merged after embed. Known limitation.
