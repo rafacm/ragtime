@@ -73,7 +73,7 @@ Applied:
 - `docker-compose.yml` — renamed `db` → `postgres`; parameterized the Qdrant HTTP port via `${RAGTIME_QDRANT_PORT:-6333}`. Left the gRPC port `6334` hard-coded since no matching env var exists in `.env.sample`.
 - `.env.sample` — updated the Qdrant section header comment to match the new DB pattern (from "defaults match docker-compose.yml" to "docker-compose.yml reads `RAGTIME_QDRANT_PORT`").
 - `README.md` — expanded the Configuration paragraph into a bullet list covering both Postgres vars and `RAGTIME_QDRANT_PORT` with their defaults. Updated the `docker compose up -d` inline comment to mention both services read their config from `.env`.
-- `doc/features/2026-04-19-embed-step.md` and `doc/plans/2026-04-19-embed-step.md` — updated the `docker compose up -d qdrant db` verification command to `qdrant postgres` so the instructions still work after the rename.
+- `doc/features/2026-04-19-embed-step.md` and `doc/plans/2026-04-19-embed-step.md` — updated the `docker compose up -d qdrant db` verification command to `postgres qdrant` so the instructions still work after the rename.
 - Extended the plan, feature doc, and this transcript to reflect the expanded scope.
 
 Validated with `docker compose config` and the full test suite before committing.
