@@ -26,6 +26,16 @@ Docker Compose auto-loads `.env` from the project directory, so any value set th
 
 The comment at the top of the DB section in `.env.sample` was updated from "defaults match docker-compose.yml" to note that docker-compose reads these values, since the relationship is now explicit rather than coincidental.
 
+### README restructure
+
+The "Getting Started" section was reorganized so the causal chain is visible on the page: configure first, then docker compose picks up those values, then start Django. It now has three subsections:
+
+1. **Installation** — `git clone` + `uv sync`. No service startup yet.
+2. **Configuration** — run `manage.py configure` (or copy `.env.sample` to `.env`). Explicit note that `RAGTIME_DB_*` are read by `docker-compose.yml`, with defaults (`ragtime` / port `5432`) when unset.
+3. **Running the services** — `docker compose up -d`, `migrate`, `createsuperuser`, `load_entity_types`, `runserver`, `qcluster`. The `docker compose up -d` line carries an inline comment noting it reads `RAGTIME_DB_*` from `.env`.
+
+Previously the wizard ran near the end — after the database container had already been initialized — so any DB customization had no effect without manual container recreation. The new order removes that footgun.
+
 ## Key parameters
 
 | Variable | Default | Used for |
@@ -61,6 +71,7 @@ The comment at the top of the DB section in `.env.sample` was updated from "defa
 |---|---|
 | `docker-compose.yml` | Replaced hard-coded DB name/user/password/port with `${RAGTIME_DB_*}` substitutions (with literal defaults). |
 | `.env.sample` | Updated the DB section header comment to note docker-compose reads these values. |
+| `README.md` | Restructured "Getting Started" into Installation / Configuration / Running the services so configure runs before `docker compose up`. |
 | `CHANGELOG.md` | Added 2026-04-19 `### Fixed` entry. |
 | `doc/plans/2026-04-19-fix-docker-compose-env-vars.md` | **New** — plan document. |
 | `doc/features/2026-04-19-fix-docker-compose-env-vars.md` | **New** — this file. |

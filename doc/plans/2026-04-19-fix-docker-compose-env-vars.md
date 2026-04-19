@@ -14,8 +14,9 @@ Replace the hard-coded values in `docker-compose.yml` with Compose variable subs
 
 1. **`docker-compose.yml`** — use `${RAGTIME_DB_NAME:-ragtime}`, `${RAGTIME_DB_USER:-ragtime}`, `${RAGTIME_DB_PASSWORD:-ragtime}`, and `${RAGTIME_DB_PORT:-5432}` for the `POSTGRES_*` environment entries, the published host port, and the `pg_isready -U` flag in the healthcheck.
 2. **`.env.sample`** — update the existing comment on the DB section from "defaults match docker-compose.yml" to note that docker-compose reads these values.
-3. **`CHANGELOG.md`** — add a `### Fixed` entry under `## 2026-04-19` linking to the plan, feature doc, and both session transcripts.
-4. **Docs** — new plan, feature, and session transcripts under `doc/`.
+3. **`README.md`** — restructure the "Getting Started" section so Configuration comes before services start, making the causal chain visible (configure → docker compose reads `.env` → start Django). Split the section into three subsections: **Installation** (`git clone` + `uv sync`), **Configuration** (wizard or `.env.sample` copy, with an explicit note that `RAGTIME_DB_*` feeds docker-compose), and **Running the services** (`docker compose up -d`, `migrate`, `createsuperuser`, `load_entity_types`, `runserver`, `qcluster`).
+4. **`CHANGELOG.md`** — add a `### Fixed` entry under `## 2026-04-19` linking to the plan, feature doc, and both session transcripts.
+5. **Docs** — new plan, feature, and session transcripts under `doc/`.
 
 ## Non-goals
 
