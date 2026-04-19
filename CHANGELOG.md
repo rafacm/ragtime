@@ -10,13 +10,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Embed step (pipeline step 9) — generate multilingual OpenAI `text-embedding-3-small` embeddings for every chunk and upsert them into a [Qdrant](https://qdrant.tech/) collection with chunk + episode + entity metadata. Adds `episodes/embedder.py`, `episodes/vector_store.py` (`QdrantVectorStore` with fail-fast dim check and episode-scoped deletes), `OpenAIEmbeddingProvider`, and `get_embedding_provider()` factory. `docker-compose.yml` now runs a Qdrant service alongside Postgres; `manage.py dbreset` also drops the Qdrant collection; a `post_delete` signal on `Episode` cleans Qdrant when an episode is deleted from the admin — [plan](doc/plans/2026-04-19-embed-step.md), [feature](doc/features/2026-04-19-embed-step.md), [planning session](doc/sessions/2026-04-19-embed-step-planning-session.md), [implementation session](doc/sessions/2026-04-19-embed-step-implementation-session.md)
 
+### Changed
+
+- Remove LangGraph from the roadmap — delete the "LangGraph pipeline" bullet from the "What's coming" section of `README.md`. LangGraph is no longer planned: Pydantic AI already covers the project's agentic needs (used in the recovery layer), LangGraph's observability and Studio tooling lean on LangSmith, and LangSmith is a hosted-only service that conflicts with RAGtime's preference for locally runnable telemetry collectors (console, Jaeger, self-hosted Langfuse via OpenTelemetry) — [plan](doc/plans/2026-04-19-remove-langgraph-roadmap.md), [feature](doc/features/2026-04-19-remove-langgraph-roadmap.md), [planning session](doc/sessions/2026-04-19-remove-langgraph-roadmap-planning-session.md), [implementation session](doc/sessions/2026-04-19-remove-langgraph-roadmap-implementation-session.md)
+
 ### Removed
 
 - ChromaDB placeholder env vars (`RAGTIME_VECTOR_STORE`, `RAGTIME_CHROMA_HOST`, `RAGTIME_CHROMA_PORT`, `RAGTIME_CHROMA_COLLECTION`). Replaced by `RAGTIME_QDRANT_*` with the Embed step implementation above.
 
-### Changed
+### Fixed
 
-- Remove LangGraph from the roadmap — delete the "LangGraph pipeline" bullet from the "What's coming" section of `README.md`. LangGraph is no longer planned: Pydantic AI already covers the project's agentic needs (used in the recovery layer), LangGraph's observability and Studio tooling lean on LangSmith, and LangSmith is a hosted-only service that conflicts with RAGtime's preference for locally runnable telemetry collectors (console, Jaeger, self-hosted Langfuse via OpenTelemetry) — [plan](doc/plans/2026-04-19-remove-langgraph-roadmap.md), [feature](doc/features/2026-04-19-remove-langgraph-roadmap.md), [planning session](doc/sessions/2026-04-19-remove-langgraph-roadmap-planning-session.md), [implementation session](doc/sessions/2026-04-19-remove-langgraph-roadmap-implementation-session.md)
+- `docker-compose.yml` duplicated PostgreSQL credentials — replace hard-coded `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, and the published port with Compose variable substitution (`${RAGTIME_DB_NAME:-ragtime}`, etc.), so `.env` / `manage.py configure` becomes the single source of truth. Healthcheck `pg_isready -U` also follows the substituted user. Literal defaults preserve zero-config `docker compose up` behaviour; no new env vars introduced — [plan](doc/plans/2026-04-19-fix-docker-compose-env-vars.md), [feature](doc/features/2026-04-19-fix-docker-compose-env-vars.md), [planning session](doc/sessions/2026-04-19-fix-docker-compose-env-vars-planning-session.md), [implementation session](doc/sessions/2026-04-19-fix-docker-compose-env-vars-implementation-session.md)
 
 ## 2026-04-15
 
