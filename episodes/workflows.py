@@ -9,7 +9,7 @@ import logging
 
 from dbos import DBOS
 
-from .models import PIPELINE_STEPS, Episode, ProcessingRun
+from .models import PIPELINE_STEPS, Episode, ProcessingRun, ProcessingStep
 from .processing import create_run
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,10 @@ def process_episode(episode_id: int, from_step: str = "") -> None:
         if not is_run_still_active(run_id):
             return
 
+        if not did_step_complete(run_id, step_name):
+            mark_run_failed(run_id, step_name)
+            return
+
 
 @DBOS.step()
 def create_run_step(episode_id: int, from_step: str) -> int:
@@ -63,6 +67,30 @@ def execute_pipeline_step(episode_id: int, step_name: str) -> None:
 @DBOS.step()
 def is_run_still_active(run_id: int) -> bool:
     return ProcessingRun.objects.get(pk=run_id).status == ProcessingRun.Status.RUNNING
+
+
+@DBOS.step()
+def did_step_complete(run_id: int, step_name: str) -> bool:
+    return (
+        ProcessingStep.objects.filter(
+            run_id=run_id, step_name=step_name, status=ProcessingStep.Status.COMPLETED
+        ).exists()
+    )
+
+
+@DBOS.step()
+def mark_run_failed(run_id: int, step_name: str) -> None:
+    from django.utils import timezone
+
+    run = ProcessingRun.objects.get(pk=run_id)
+    run.status = ProcessingRun.Status.FAILED
+    run.finished_at = timezone.now()
+    run.save(update_fields=["status", "finished_at"])
+    logger.error(
+        "Step %s returned without completing or failing — marking run %s as failed",
+        step_name,
+        run_id,
+    )
 
 
 @DBOS.workflow()

@@ -23,14 +23,19 @@ class EpisodesConfig(AppConfig):
     def _init_dbos(self):
         import sys
 
-        if "test" in sys.argv:
+        # Only initialize DBOS for server/worker entrypoints — other commands
+        # (migrate, check, shell, …) don't need a live DBOS connection.
+        _DBOS_COMMANDS = {"runserver"}
+        if not _DBOS_COMMANDS.intersection(sys.argv):
             return
 
         from dbos import DBOS, DBOSConfig
 
+        from urllib.parse import quote_plus
+
         db = settings.DATABASES["default"]
-        user = db["USER"]
-        password = db["PASSWORD"]
+        user = quote_plus(db["USER"])
+        password = quote_plus(db["PASSWORD"])
         host = db["HOST"]
         port = db["PORT"]
         name = db["NAME"]

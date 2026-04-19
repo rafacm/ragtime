@@ -73,4 +73,32 @@ Create a PR
 
 ### Assistant
 
-Created plan, feature, and session documentation. Committed and pushed. Created PR.
+Created plan, feature, and session documentation. Committed and pushed. Created PR #94.
+
+### User
+
+/pr-review-comments-process
+
+### Assistant
+
+Reviewed 3 PR review comments from rafacm:
+
+1. **`episodes/apps.py:39` — URL-encode DB credentials**: `quote_plus()` needed on user/password for special characters. Severity: medium.
+2. **`episodes/apps.py:21` — Gate DBOS init to server entrypoints**: `_init_dbos()` runs for every Django command (`check`, `makemigrations`, `shell`), which is a regression — those commands previously didn't need PostgreSQL. Severity: medium.
+3. **`episodes/workflows.py:44` — Detect silent step no-op**: If a step function returns early (status mismatch), `is_run_still_active` still returns True, so the workflow silently proceeds. Need to verify step actually completed. Severity: medium.
+
+### User
+
+implement your suggestions
+
+### Assistant
+
+Applied all three fixes:
+
+**Fix 1**: Added `quote_plus()` on `db["USER"]` and `db["PASSWORD"]` in `episodes/apps.py`.
+
+**Fix 2**: Replaced `"test" in sys.argv` guard with a whitelist approach — `_DBOS_COMMANDS = {"runserver"}` — so only server entrypoints initialize DBOS. Commands like `migrate`, `check`, `shell`, `makemigrations` skip DBOS entirely.
+
+**Fix 3**: Added `did_step_complete()` and `mark_run_failed()` step functions in `episodes/workflows.py`. After `execute_pipeline_step()`, if the run is still active but the step's `ProcessingStep` record didn't transition to `COMPLETED`, the run is marked `FAILED` with a log message and the workflow returns.
+
+All 274 tests pass.

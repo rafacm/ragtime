@@ -20,7 +20,7 @@ The custom orchestration layer (`ProcessingRun`/`ProcessingStep`/`PipelineEvent`
 |-----------|-------|-----------|
 | DBOS version | `>=2.18,<3` | Latest stable with Django integration |
 | `system_database_url` | Built from Django `DATABASES["default"]` | Single source of truth, no config duplication |
-| DBOS init skip in tests | `"test" in sys.argv` | DBOS.launch() connects to PostgreSQL eagerly; tests mock DBOS |
+| DBOS init guard | Whitelist of commands (`runserver`) | Only server entrypoints need a live DBOS connection; prevents `migrate`, `check`, `shell`, etc. from requiring PostgreSQL |
 | `--noreload` for runserver | Required | DBOS cannot handle Django's auto-reloader restarting the process |
 
 ## Verification
@@ -36,11 +36,11 @@ uv run python manage.py runserver --noreload  # Dev server with DBOS
 | File | Change |
 |------|--------|
 | `pyproject.toml` | Replace `django-q2>=1.7,<2` with `dbos>=2.18,<3` |
-| `episodes/workflows.py` | New: DBOS workflow (`process_episode`) + step functions + `run_agent_recovery` workflow |
+| `episodes/workflows.py` | New: DBOS workflow (`process_episode`) + step functions + `run_agent_recovery` workflow + silent no-op detection (`did_step_complete`/`mark_run_failed`) |
 | `episodes/signals.py` | Replace `async_task` dispatch chain with single `DBOS.start_workflow` on creation |
 | `episodes/admin.py` | Replace `async_task` calls with `DBOS.start_workflow`; remove `_run_agent_recovery_task` (moved to workflows); remove unused `create_run` import |
 | `episodes/agents/resume.py` | Replace `create_run()` + signal dispatch with `DBOS.start_workflow()` |
-| `episodes/apps.py` | Add `_init_dbos()` — programmatic DBOS config from Django DATABASES, skipped in tests |
+| `episodes/apps.py` | Add `_init_dbos()` — programmatic DBOS config from Django DATABASES, gated to server entrypoints only, URL-encodes credentials |
 | `ragtime/settings.py` | Remove `django_q` from INSTALLED_APPS; remove `Q_CLUSTER` config |
 | `episodes/transcriber.py` | Remove stale `Q_CLUSTER` comment on `FFMPEG_TIMEOUT` |
 | `AGENTS.md` | Update architecture and tech choices; add `--noreload` to runserver command |
