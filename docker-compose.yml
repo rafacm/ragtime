@@ -2,15 +2,15 @@ services:
   db:
     image: postgres:17-alpine
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${RAGTIME_DB_PORT:-5432}:5432"
     environment:
-      POSTGRES_DB: ragtime
-      POSTGRES_USER: ragtime
-      POSTGRES_PASSWORD: ragtime
+      POSTGRES_DB: ${RAGTIME_DB_NAME:-ragtime}
+      POSTGRES_USER: ${RAGTIME_DB_USER:-ragtime}
+      POSTGRES_PASSWORD: ${RAGTIME_DB_PASSWORD:-ragtime}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "ragtime"]
+      test: ["CMD", "pg_isready", "-U", "${RAGTIME_DB_USER:-ragtime}"]
       interval: 5s
       timeout: 5s
       retries: 5
