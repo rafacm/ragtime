@@ -61,7 +61,7 @@ The 9th pipeline step (`Episode.Status.EMBEDDING`) existed in the status enum bu
 ## Verification
 
 ```bash
-docker compose up -d qdrant postgres
+docker compose up -d postgres qdrant
 uv sync
 uv run python manage.py migrate
 uv run python manage.py configure          # populate RAGTIME_EMBEDDING_* + RAGTIME_QDRANT_*

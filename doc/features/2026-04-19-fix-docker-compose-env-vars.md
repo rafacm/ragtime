@@ -26,7 +26,7 @@ Docker Compose auto-loads `.env` from the project directory, so any value set th
 
 The same treatment was applied to Qdrant: the published HTTP port now uses `${RAGTIME_QDRANT_PORT:-6333}`, so a user who overrides `RAGTIME_QDRANT_PORT` in `.env` gets both the published host port and the Django client (which reads the same var) on the same value. The gRPC port `6334` stays hard-coded since no matching env var exists in `.env.sample`.
 
-The DB service was renamed from `db` to `postgres` to match the official image name and the service name already used in `.github/workflows/ci.yml`. The two archival doc commands that used `docker compose up -d qdrant db` (in `doc/features/2026-04-19-embed-step.md` and `doc/plans/2026-04-19-embed-step.md`) were updated to `qdrant postgres` so the instructions still work. The internal Compose hostname a container uses to reach Postgres also changes from `db` to `postgres`, but Django always connects from the host via `localhost:5432`, so no Django config needed changing.
+The DB service was renamed from `db` to `postgres` to match the official image name and the service name already used in `.github/workflows/ci.yml`. The two archival doc commands that used `docker compose up -d qdrant db` (in `doc/features/2026-04-19-embed-step.md` and `doc/plans/2026-04-19-embed-step.md`) were updated to `postgres qdrant` so the instructions still work. The internal Compose hostname a container uses to reach Postgres also changes from `db` to `postgres`, but Django always connects from the host via `localhost:5432`, so no Django config needed changing.
 
 The comments at the top of the DB and Qdrant sections in `.env.sample` were updated from "defaults match docker-compose.yml" to note that docker-compose reads these values, since the relationship is now explicit rather than coincidental.
 
@@ -78,7 +78,7 @@ Previously the wizard ran near the end — after the database container had alre
 | `docker-compose.yml` | Replaced hard-coded DB name/user/password/port with `${RAGTIME_DB_*}` substitutions; parameterized Qdrant HTTP port with `${RAGTIME_QDRANT_PORT:-6333}`; renamed `db` service to `postgres`. |
 | `.env.sample` | Updated the DB and Qdrant section header comments to note docker-compose reads these values. |
 | `README.md` | Restructured "Getting Started" into Installation / Configuration / Running the services so configure runs before `docker compose up`. Configuration paragraph now lists both Postgres and Qdrant vars that feed docker-compose. |
-| `doc/features/2026-04-19-embed-step.md` | Updated `docker compose up -d qdrant db` → `qdrant postgres` to track the service rename. |
+| `doc/features/2026-04-19-embed-step.md` | Updated `docker compose up -d qdrant db` → `postgres qdrant` to track the service rename. |
 | `doc/plans/2026-04-19-embed-step.md` | Same rename as above. |
 | `CHANGELOG.md` | Added 2026-04-19 `### Fixed` entry. |
 | `doc/plans/2026-04-19-fix-docker-compose-env-vars.md` | **New** — plan document. |
