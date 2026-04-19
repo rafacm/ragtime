@@ -42,6 +42,35 @@ class Command(BaseCommand):
             self.style.SUCCESS(f"\nConfiguration written to {env_path}")
         )
 
+        self._warn_if_embedding_model_changed(existing, new_values)
+
+    def _warn_if_embedding_model_changed(self, existing, new_values):
+        """Warn when the embedding model is changed.
+
+        Different embedding models produce vectors of different dimensions;
+        a Qdrant collection created for the old model cannot store vectors
+        from the new one. The user needs to drop and recreate the
+        collection before re-ingesting.
+        """
+        old_model = existing.get("RAGTIME_EMBEDDING_MODEL", "")
+        new_model = new_values.get("RAGTIME_EMBEDDING_MODEL", "")
+        if old_model and new_model and old_model != new_model:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"\n\u26a0  RAGTIME_EMBEDDING_MODEL changed "
+                    f"({old_model!r} -> {new_model!r}).\n"
+                    f"   Embedding models typically produce vectors with "
+                    f"different dimensions, so any existing Qdrant "
+                    f"collection\n"
+                    f"   was created with the old model's dim and will "
+                    f"reject new upserts until recreated. To recreate:\n"
+                    f"     uv run python manage.py dbreset\n"
+                    f"   or drop only the collection "
+                    f"(RAGTIME_QDRANT_COLLECTION, default 'ragtime_chunks') "
+                    f"via the Qdrant API."
+                )
+            )
+
     def _show_config(self, existing):
         """Print current RAGTIME_* configuration with masked secrets."""
         self.stdout.write("\nRAGtime Configuration")

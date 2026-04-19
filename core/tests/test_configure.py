@@ -415,3 +415,69 @@ class ConfigureWizardTest(TestCase):
                     self.assertIn("DEBUG=true\n", written_lines)
         finally:
             env_path.unlink(missing_ok=True)
+
+    @patch("core.management.commands._configure_helpers.getpass.getpass")
+    @patch("builtins.input")
+    def test_warns_when_embedding_model_changes(self, mock_input, mock_getpass):
+        """Changing RAGTIME_EMBEDDING_MODEL prints a Qdrant-reset warning."""
+        mock_getpass.side_effect = [
+            "",               # DB password (keep default)
+            "sk-newkey123",   # Shared LLM API key
+            "sk-newkey123",   # Transcription API key
+            "",               # Embedding API key (reuse shared LLM key)
+            "",               # Qdrant API key (keep default)
+            "",               # Recovery agent API key (keep default)
+            "",               # Langfuse secret key (keep default)
+            "",               # Langfuse public key (keep default)
+        ]
+        mock_input.side_effect = [
+            "",               # DB name (keep default)
+            "",               # DB user (keep default)
+            "",               # DB host (keep default)
+            "",               # DB port (keep default)
+            "Y",              # Share provider/key? Yes
+            "openai",         # Provider
+            "gpt-4.1-mini",
+            "gpt-4.1-mini",
+            "gpt-4.1-mini",
+            "gpt-4.1-mini",
+            "gpt-4.1-mini",
+            "openai",         # Transcription provider
+            "whisper-1",
+            "",               # Embedding provider (keep default)
+            "text-embedding-3-large",  # Embedding model (CHANGED)
+            "",               # Qdrant host
+            "",               # Qdrant port
+            "",               # Qdrant collection
+            "",               # Qdrant https
+            "", "", "", "", "",  # Wikidata (5 fields)
+            "", "", "",         # Recovery agent (3 fields)
+            "", "", "",         # OTel (3 fields)
+            "",                 # Langfuse host
+        ]
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".env", delete=False
+        ) as f:
+            env_path = Path(f.name)
+
+        try:
+            out = StringIO()
+            with patch(
+                "core.management.commands.configure.read_env"
+            ) as mock_read:
+                mock_read.return_value = (
+                    {"RAGTIME_EMBEDDING_MODEL": "text-embedding-3-small"},
+                    [],
+                )
+                with patch("core.management.commands.configure.write_env"):
+                    with override_settings(BASE_DIR=env_path.parent):
+                        call_command("configure", stdout=out)
+
+            output = out.getvalue()
+            self.assertIn("RAGTIME_EMBEDDING_MODEL changed", output)
+            self.assertIn("text-embedding-3-small", output)
+            self.assertIn("text-embedding-3-large", output)
+            self.assertIn("dbreset", output)
+        finally:
+            env_path.unlink(missing_ok=True)
