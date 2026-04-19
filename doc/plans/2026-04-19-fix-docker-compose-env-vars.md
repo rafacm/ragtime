@@ -12,16 +12,17 @@ Replace the hard-coded values in `docker-compose.yml` with Compose variable subs
 
 ## Changes
 
-1. **`docker-compose.yml`** — use `${RAGTIME_DB_NAME:-ragtime}`, `${RAGTIME_DB_USER:-ragtime}`, `${RAGTIME_DB_PASSWORD:-ragtime}`, and `${RAGTIME_DB_PORT:-5432}` for the `POSTGRES_*` environment entries, the published host port, and the `pg_isready -U` flag in the healthcheck.
-2. **`.env.sample`** — update the existing comment on the DB section from "defaults match docker-compose.yml" to note that docker-compose reads these values.
-3. **`README.md`** — restructure the "Getting Started" section so Configuration comes before services start, making the causal chain visible (configure → docker compose reads `.env` → start Django). Split the section into three subsections: **Installation** (`git clone` + `uv sync`), **Configuration** (wizard or `.env.sample` copy, with an explicit note that `RAGTIME_DB_*` feeds docker-compose), and **Running the services** (`docker compose up -d`, `migrate`, `createsuperuser`, `load_entity_types`, `runserver`, `qcluster`).
-4. **`CHANGELOG.md`** — add a `### Fixed` entry under `## 2026-04-19` linking to the plan, feature doc, and both session transcripts.
-5. **Docs** — new plan, feature, and session transcripts under `doc/`.
+1. **`docker-compose.yml`** — use `${RAGTIME_DB_NAME:-ragtime}`, `${RAGTIME_DB_USER:-ragtime}`, `${RAGTIME_DB_PASSWORD:-ragtime}`, and `${RAGTIME_DB_PORT:-5432}` for the `POSTGRES_*` environment entries, the published host port, and the `pg_isready -U` flag in the healthcheck. Apply the same treatment to Qdrant's published HTTP port via `${RAGTIME_QDRANT_PORT:-6333}` (gRPC port `6334` stays hardcoded since no env var exists for it). Rename the `db` service to `postgres` to match the image name and the existing `.github/workflows/ci.yml` service name.
+2. **`.env.sample`** — update the DB section header comment from "defaults match docker-compose.yml" to note that docker-compose reads these values. Apply the same update to the Qdrant section comment.
+3. **`README.md`** — restructure "Getting Started" so Configuration comes before services start: **Installation** (`git clone` + `uv sync`), **Configuration** (wizard or `.env.sample` copy, with an explicit note that `RAGTIME_DB_*` and `RAGTIME_QDRANT_PORT` feed docker-compose), **Running the services** (`docker compose up -d`, `migrate`, `createsuperuser`, `load_entity_types`, `runserver`, `qcluster`).
+4. **Archival doc updates** — update the `docker compose up -d qdrant db` command in `doc/features/2026-04-19-embed-step.md` and `doc/plans/2026-04-19-embed-step.md` to `qdrant postgres` so the instructions still work after the service rename.
+5. **`CHANGELOG.md`** — add a `### Fixed` entry under `## 2026-04-19` linking to the plan, feature doc, and both session transcripts.
+6. **Docs** — new plan, feature, and session transcripts under `doc/`.
 
 ## Non-goals
 
 - No new env vars.
-- `RAGTIME_DB_HOST` is not referenced by the Compose file (the container always listens on its own hostname `db`); `.env` uses it to tell Django where to connect and that stays unchanged.
+- `RAGTIME_DB_HOST` is not referenced by the Compose file (the container always listens on its own hostname, which becomes `postgres` after the rename); `.env` uses it to tell Django where to connect and that stays unchanged.
 - The `manage.py configure` wizard already writes `RAGTIME_DB_*` — no changes needed there.
 
 ## Verification

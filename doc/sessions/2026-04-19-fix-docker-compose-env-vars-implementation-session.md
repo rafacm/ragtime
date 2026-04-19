@@ -48,4 +48,34 @@ User then asked to restructure the README's "Getting Started" section so Configu
 
 Extended the plan and feature documents to cover the README restructure, and added this section to the implementation transcript. Committed the README change as a separate follow-up on the same worktree branch so the docker-compose fix and the README reorganization remain separable in history.
 
+### Rebase onto main after Embed-step merge
+
+User merged a PR into `main` that introduced the Embed pipeline step and added a Qdrant service to `docker-compose.yml`. Fetched `origin/main` and rebased the branch. Three conflicts:
+
+1. `CHANGELOG.md` — main's `### Added` (Embed) and `### Removed` (Chroma vars) sat under the same `## 2026-04-19` date as the local `### Fixed`. Resolved by reordering to Keep a Changelog convention: Added, Changed (existing LangGraph entry), Removed, Fixed.
+2. `README.md` — main added a `docker compose up -d` line to the Installation code block that the local restructure had moved out of Installation entirely. Resolved by dropping that line (already present in the new "Running the services" section) and updating the comment there to mention both services.
+3. `docker-compose.yml` and `.env.sample` — auto-merged cleanly; local db-service substitutions sit alongside main's new Qdrant service and env vars.
+
+Verified `docker compose config` still resolves correctly with and without env overrides, and `uv run python manage.py test` passes 281 tests (up from 261, +20 from the new Embed-step tests).
+
+### Qdrant + service rename follow-up
+
+User then asked for two follow-ups: apply the same env-var substitution treatment to Qdrant, and rename the `db` service to `postgres`/`postgresql`. Checked existing usage:
+
+- `.github/workflows/ci.yml` already uses `postgres` as the service name.
+- The Docker Hub image is `postgres`.
+- Django's `DATABASES[...]['ENGINE']` uses `django.db.backends.postgresql`, but that's unrelated to the compose service name.
+
+Went with `postgres` — shorter, matches the image and the CI service.
+
+Applied:
+
+- `docker-compose.yml` — renamed `db` → `postgres`; parameterized the Qdrant HTTP port via `${RAGTIME_QDRANT_PORT:-6333}`. Left the gRPC port `6334` hard-coded since no matching env var exists in `.env.sample`.
+- `.env.sample` — updated the Qdrant section header comment to match the new DB pattern (from "defaults match docker-compose.yml" to "docker-compose.yml reads `RAGTIME_QDRANT_PORT`").
+- `README.md` — expanded the Configuration paragraph into a bullet list covering both Postgres vars and `RAGTIME_QDRANT_PORT` with their defaults. Updated the `docker compose up -d` inline comment to mention both services read their config from `.env`.
+- `doc/features/2026-04-19-embed-step.md` and `doc/plans/2026-04-19-embed-step.md` — updated the `docker compose up -d qdrant db` verification command to `qdrant postgres` so the instructions still work after the rename.
+- Extended the plan, feature doc, and this transcript to reflect the expanded scope.
+
+Validated with `docker compose config` and the full test suite before committing.
+
 This transcript will be updated if PR review feedback produces follow-up changes.

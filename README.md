@@ -116,14 +116,19 @@ uv run python manage.py configure
 
 Alternatively, copy [`.env.sample`](.env.sample) to `.env` and fill in your values.
 
-The PostgreSQL variables (`RAGTIME_DB_NAME`, `RAGTIME_DB_USER`, `RAGTIME_DB_PASSWORD`, `RAGTIME_DB_PORT`) are read by [`docker-compose.yml`](docker-compose.yml) when the database container starts — so the values you set here flow straight through to Postgres. Defaults (`ragtime` / port `5432`) are used if the variables are unset.
+The service variables are read by [`docker-compose.yml`](docker-compose.yml) when the containers start, so the values you set here flow straight through:
+
+- `RAGTIME_DB_NAME`, `RAGTIME_DB_USER`, `RAGTIME_DB_PASSWORD`, `RAGTIME_DB_PORT` → Postgres (defaults: `ragtime` / port `5432`).
+- `RAGTIME_QDRANT_PORT` → Qdrant published HTTP port (default: `6333`).
+
+Defaults are used if the variables are unset, so a fresh clone runs with zero configuration.
 
 ### Running the services
 
 Start PostgreSQL and Qdrant, apply migrations, create an admin account, and start the web server and task worker:
 
 ```bash
-docker compose up -d                      # Start PostgreSQL (5432, reads RAGTIME_DB_* from .env) and Qdrant (6333)
+docker compose up -d                      # Start PostgreSQL and Qdrant (both read ports/creds from .env)
 uv run python manage.py migrate
 uv run python manage.py createsuperuser   # Create an admin user for the Django admin UI
 uv run python manage.py load_entity_types # Seed initial entity types

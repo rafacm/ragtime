@@ -67,3 +67,24 @@ This keeps the causal chain visible on the page: configure → docker compose re
 ### Assistant
 
 Applied the restructure to `README.md` and extended the plan, feature doc, and implementation session transcript to cover the new scope. Kept the existing commit and added a follow-up commit for the README change so the two concerns stay separable in history.
+
+### User
+
+> I just merged a PR into main. Can you pull the changes and verify your work against the main branch changes?
+
+### Assistant
+
+Fetched `origin/main`, which had advanced to `4cf2475` with the Embed-step + Qdrant service merge. Rebased the branch, resolving three conflicts: `CHANGELOG.md` ordering (Keep a Changelog: Added → Changed → Removed → Fixed), `README.md` Installation block (main had re-added a `docker compose up -d` line to Installation that the restructure had moved to "Running the services"), and clean auto-merges on `docker-compose.yml` and `.env.sample`.
+
+Flagged two follow-up candidates:
+
+1. Main's new Qdrant service in `docker-compose.yml` and its `RAGTIME_QDRANT_*` block in `.env.sample` repeated the old DB pattern (hard-coded ports, "defaults match docker-compose.yml" comment) — the same duplication we had just fixed for Postgres.
+2. The README Configuration paragraph only mentioned Postgres vars flowing through, so if Qdrant got the same treatment, that paragraph would need to cover it too.
+
+### User
+
+> Implement points 1 and 2 above. Can we also rename the "db" service in the docker-compose file to "postgres" or "postgresql"? What's more used?
+
+### Assistant
+
+Checked existing usage: `.github/workflows/ci.yml` already uses `postgres`, the Docker Hub image is `postgres`, and the shorter name is more common in community compose files. Recommended `postgres`, applied the rename, parameterized the Qdrant HTTP port with `${RAGTIME_QDRANT_PORT:-6333}`, updated the `.env.sample` Qdrant section comment to match the DB pattern, expanded the README Configuration paragraph to list both Postgres and Qdrant vars, and updated two archival doc commands (`docker compose up -d qdrant db` → `qdrant postgres` in the Embed-step plan and feature docs) so the instructions still work after the rename. Extended the plan, feature, and session transcripts to cover the new scope, then committed on the worktree branch.

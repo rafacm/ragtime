@@ -1,5 +1,5 @@
 services:
-  db:
+  postgres:
     image: postgres:17-alpine
     ports:
       - "127.0.0.1:${RAGTIME_DB_PORT:-5432}:5432"
@@ -18,7 +18,7 @@ services:
   qdrant:
     image: qdrant/qdrant:v1.17.1
     ports:
-      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:${RAGTIME_QDRANT_PORT:-6333}:6333"
       - "127.0.0.1:6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
