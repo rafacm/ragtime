@@ -5,7 +5,7 @@ import getpass
 SYSTEMS = [
     {
         "name": "Database",
-        "description": "PostgreSQL connection (defaults match docker-compose.yml)",
+        "description": "PostgreSQL connection — docker-compose reads these values",
         "shareable": False,
         "subsystems": [
             {
@@ -107,7 +107,7 @@ SYSTEMS = [
     },
     {
         "name": "Vector Store (Qdrant)",
-        "description": "Qdrant vector database (defaults match docker-compose.yml)",
+        "description": "Qdrant vector database — docker-compose reads RAGTIME_QDRANT_PORT",
         "shareable": False,
         "subsystems": [
             {
