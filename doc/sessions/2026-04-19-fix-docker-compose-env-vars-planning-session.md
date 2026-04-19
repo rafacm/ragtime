@@ -88,3 +88,11 @@ Flagged two follow-up candidates:
 ### Assistant
 
 Checked existing usage: `.github/workflows/ci.yml` already uses `postgres`, the Docker Hub image is `postgres`, and the shorter name is more common in community compose files. Recommended `postgres`, applied the rename, parameterized the Qdrant HTTP port with `${RAGTIME_QDRANT_PORT:-6333}`, updated the `.env.sample` Qdrant section comment to match the DB pattern, expanded the README Configuration paragraph to list both Postgres and Qdrant vars, and updated two archival doc commands (`docker compose up -d qdrant db` → `postgres qdrant` in the Embed-step plan and feature docs) so the instructions still work after the rename. Extended the plan, feature, and session transcripts to cover the new scope, then committed on the worktree branch.
+
+### User
+
+> When running uv run python manage.py configure [...] I can see still the text "defaults match docker-compose.yml"
+
+### Assistant
+
+Confirmed the wizard still printed the old phrasing because the text lives in `SYSTEMS` inside `core/management/commands/_configure_helpers.py`, not `.env.sample`. Also found a stale header comment in `ragtime/settings.py` for the Qdrant block. Updated all three to the new wording and re-ran the wizard header + full test suite to confirm.

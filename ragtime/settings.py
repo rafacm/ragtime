@@ -190,7 +190,7 @@ RAGTIME_EMBEDDING_PROVIDER = os.getenv('RAGTIME_EMBEDDING_PROVIDER', 'openai')
 RAGTIME_EMBEDDING_API_KEY = os.getenv('RAGTIME_EMBEDDING_API_KEY', '')
 RAGTIME_EMBEDDING_MODEL = os.getenv('RAGTIME_EMBEDDING_MODEL', 'text-embedding-3-small')
 
-# Qdrant vector store — defaults match docker-compose.yml
+# Qdrant vector store — docker-compose.yml reads RAGTIME_QDRANT_PORT
 RAGTIME_QDRANT_HOST = os.getenv('RAGTIME_QDRANT_HOST', 'localhost')
 RAGTIME_QDRANT_PORT = int(os.getenv('RAGTIME_QDRANT_PORT', '6333'))
 RAGTIME_QDRANT_COLLECTION = os.getenv('RAGTIME_QDRANT_COLLECTION', 'ragtime_chunks')

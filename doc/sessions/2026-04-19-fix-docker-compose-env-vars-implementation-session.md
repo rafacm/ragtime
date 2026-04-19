@@ -78,4 +78,16 @@ Applied:
 
 Validated with `docker compose config` and the full test suite before committing.
 
+### Configure wizard wording follow-up
+
+User ran `uv run python manage.py configure` after the PR was open and saw the Database section header still print `(defaults match docker-compose.yml)`. Grepped for remaining occurrences of that string and found two live references outside `.env.sample`: `SYSTEMS[0]["description"]` and `SYSTEMS[5]["description"]` in `core/management/commands/_configure_helpers.py`, plus a stale header comment in `ragtime/settings.py:193` for the Qdrant block.
+
+Updated all three to the new wording:
+
+- Database: `"PostgreSQL connection — docker-compose reads these values"`.
+- Qdrant: `"Qdrant vector database — docker-compose reads RAGTIME_QDRANT_PORT"`.
+- `ragtime/settings.py` header comment: `# Qdrant vector store — docker-compose.yml reads RAGTIME_QDRANT_PORT`.
+
+Previewed the wizard (`echo "" | uv run python manage.py configure | head`) and confirmed the new header renders correctly: `--- Database (PostgreSQL connection — docker-compose reads these values) ---`. Ran the full test suite (281 pass) after starting the renamed `postgres` and `qdrant` services.
+
 This transcript will be updated if PR review feedback produces follow-up changes.
