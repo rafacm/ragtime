@@ -5,7 +5,7 @@ from openai import OpenAI
 
 from episodes.telemetry import record_llm_input, record_llm_output, trace_provider
 
-from .base import LLMProvider, TranscriptionProvider
+from .base import EmbeddingProvider, LLMProvider, TranscriptionProvider
 
 
 class OpenAILLMProvider(LLMProvider):
@@ -87,3 +87,30 @@ class OpenAITranscriptionProvider(TranscriptionProvider):
             return result
         finally:
             kwargs["file"].close()
+
+
+class OpenAIEmbeddingProvider(EmbeddingProvider):
+    # OpenAI allows up to ~2048 inputs per call; 128 keeps payloads modest
+    # and gives one progress tick per batch on long episodes.
+    BATCH_SIZE = 128
+
+    def __init__(self, api_key: str, model: str):
+        self.client = OpenAI(api_key=api_key)
+        self.model = model
+
+    @trace_provider
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        record_llm_input(model=self.model, input_count=len(texts))
+        out: list[list[float]] = []
+        for i in range(0, len(texts), self.BATCH_SIZE):
+            batch = texts[i : i + self.BATCH_SIZE]
+            response = self.client.embeddings.create(
+                model=self.model, input=batch
+            )
+            out.extend(d.embedding for d in response.data)
+        record_llm_output(
+            {"vectors": len(out), "dim": len(out[0]) if out else 0}
+        )
+        return out
