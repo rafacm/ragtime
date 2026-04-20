@@ -10,7 +10,8 @@ RAGtime is a Django app for ingesting jazz podcast episodes — scraping metadat
 
 ```bash
 uv sync                                    # Install/update Python dependencies
-uv run python manage.py runserver --noreload  # Run dev server (--noreload required by DBOS)
+uv run python manage.py runserver --noreload  # Dev server (WSGI only — see note below)
+uv run uvicorn ragtime.asgi:application --host 127.0.0.1 --port 8000  # ASGI, required for Scott
 uv run python manage.py migrate            # Apply migrations
 uv run python manage.py makemigrations     # Generate migrations
 uv run python manage.py test               # Run all tests
@@ -24,6 +25,8 @@ cd frontend && npm install                 # Install JS dependencies
 cd frontend && npm run dev                 # Vite dev server (HMR) for chat UI
 cd frontend && npm run build               # Production build into frontend/dist/
 ```
+
+> **Scott needs ASGI.** Django's `manage.py runserver` runs in WSGI mode, which doesn't load `ragtime/asgi.py` — the path dispatcher that routes `/chat/agent/` to the Pydantic AI AG-UI app. Use `uvicorn ragtime.asgi:application` when working on Scott. `runserver` still works for everything else (admin, episodes, ingestion pipeline).
 
 Use `uv` for Python; `npm` (or compatible) for the `frontend/` workspace. Never `pip install` directly.
 

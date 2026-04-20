@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.ag_ui import StateDeps
 
-from episodes.vector_store import search_chunks
+from episodes.vector_store import search_chunks as _search_chunks_helper
 
 logger = logging.getLogger(__name__)
 
@@ -86,14 +86,18 @@ def get_scott_agent() -> Agent[StateDeps[ScottState]]:
     """Construct Scott lazily so tests and management commands don't need
     the OpenAI API key at import time."""
 
+    # Use `instructions=` (the canonical modern way) rather than
+    # `system_prompt=` — the latter is mapped differently by
+    # OpenAIResponsesModel and was not reaching the LLM, causing Scott
+    # to answer from general knowledge instead of calling search_chunks.
     agent: Agent[StateDeps[ScottState]] = Agent(
         model=_build_model(),
         deps_type=StateDeps[ScottState],
-        system_prompt=SCOTT_SYSTEM_PROMPT,
+        instructions=SCOTT_SYSTEM_PROMPT,
     )
 
     @agent.tool
-    def search_chunks_tool(
+    def search_chunks(
         ctx: RunContext[StateDeps[ScottState]],
         query: str,
         episode_id: int | None = None,
@@ -116,12 +120,19 @@ def get_scott_agent() -> Agent[StateDeps[ScottState]]:
             episode title, start/end timestamps, language, and text.
         """
         limit = top_k or settings.RAGTIME_SCOTT_TOP_K
-        results = search_chunks(
+        logger.info(
+            "scott.search_chunks called query=%r episode_id=%r top_k=%d",
+            query,
+            episode_id,
+            limit,
+        )
+        results = _search_chunks_helper(
             query=query,
             top_k=limit,
             episode_id=episode_id,
             score_threshold=settings.RAGTIME_SCOTT_SCORE_THRESHOLD,
         )
+        logger.info("scott.search_chunks returned %d chunks", len(results))
 
         state = ctx.deps.state
         existing_ids = {c["chunk_id"] for c in state.retrieved_chunks}
@@ -167,7 +178,7 @@ async def scott_endpoint(request):
     Constructs a **fresh** :class:`StateDeps[ScottState]` on every call.
     Without this, ``Agent.to_ag_ui()`` would share a single ``deps`` across
     all requests — Pydantic AI's own docstring says so explicitly, and
-    ``search_chunks_tool`` mutates ``deps.state.retrieved_chunks``, so
+    ``search_chunks`` mutates ``deps.state.retrieved_chunks``, so
     reusing the singleton would let one user's citation registry bleed
     into another user's turn.
     """
