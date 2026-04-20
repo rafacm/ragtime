@@ -9,7 +9,7 @@ RAGtime is a Django app for ingesting jazz podcast episodes — scraping metadat
 ## Commands
 
 ```bash
-uv sync                                    # Install/update dependencies
+uv sync                                    # Install/update Python dependencies
 uv run python manage.py runserver --noreload  # Run dev server (--noreload required by DBOS)
 uv run python manage.py migrate            # Apply migrations
 uv run python manage.py makemigrations     # Generate migrations
@@ -18,9 +18,14 @@ uv run python manage.py test episodes      # Run tests for one app
 uv run python manage.py configure          # Interactive setup wizard
 uv run python manage.py configure --show   # Show current config (masked)
 uv run python manage.py check              # Django system checks
+
+# Frontend (Scott chat UI)
+cd frontend && npm install                 # Install JS dependencies
+cd frontend && npm run dev                 # Vite dev server (HMR) for chat UI
+cd frontend && npm run build               # Production build into frontend/dist/
 ```
 
-Use `uv` for everything — never `pip install` directly.
+Use `uv` for Python; `npm` (or compatible) for the `frontend/` workspace. Never `pip install` directly.
 
 ## Architecture
 
@@ -37,15 +42,16 @@ Use `uv` for everything — never `pip install` directly.
 
 **Entity resolution:** After extraction, entities (artists, bands, albums, venues, sessions, labels, years) are resolved against existing DB records using LLM-based fuzzy matching to prevent duplicates.
 
-**Scott (RAG agent):** Embeds user question → retrieves chunks from ChromaDB → LLM answers strictly from retrieved content with episode/timestamp references. Responds in the user's language via multilingual embeddings. No hallucination — refuses if no relevant content found.
+**Scott (RAG agent):** A Pydantic AI agent exposed as an AG-UI (HTTP+SSE) ASGI app mounted inside Django at `/chat/agent/`. The agent uses tool-call RAG: `search_chunks` embeds the user's question and retrieves top-k chunks from Qdrant; the system prompt mandates calling the tool before any factual answer and forbids general-knowledge fallbacks. Cites with `[N]` markers stable across multi-tool turns. Responds in the user's language via multilingual embeddings. Frontend is a React island built with assistant-ui + `@assistant-ui/react-ag-ui` via Vite + `django-vite`.
 
 ## Tech Choices
 
 - Python 3.13 (`requires-python = ">=3.13,<3.14"`)
 - No build-system in `pyproject.toml` (this is an app, not a library)
-- PostgreSQL for relational data (via Docker Compose), ChromaDB for vector store
+- PostgreSQL for relational data (via Docker Compose); Qdrant for vector store
 - DBOS Transact for durable workflow execution (PostgreSQL-backed, no Redis needed)
-- Frontend: Django templates + HTMX + Tailwind CSS (CDN)
+- Pydantic AI for agent logic (recovery agent + Scott); AG-UI protocol for the chat streaming contract
+- Frontend for the chat UI: React 19 + assistant-ui + Tailwind 4 via Vite + `django-vite`. Other pages stay server-rendered Django templates.
 - `python-dotenv` for env vars (`.env` file, `RAGTIME_*` prefix)
 - ffmpeg required for audio downsampling (files > 25MB)
 

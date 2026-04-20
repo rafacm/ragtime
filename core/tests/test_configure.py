@@ -231,6 +231,7 @@ class ConfigureWizardTest(TestCase):
             "sk-newkey123",   # Transcription API key
             "",               # Embedding API key (reuse shared LLM key)
             "",               # Qdrant API key (keep default)
+            "",               # Scott API key (keep default)
             "",               # Recovery agent API key (keep default)
             "",               # Langfuse secret key (keep default)
             "",               # Langfuse public key (keep default)
@@ -255,6 +256,10 @@ class ConfigureWizardTest(TestCase):
             "",               # Qdrant port (keep default)
             "",               # Qdrant collection (keep default)
             "",               # Qdrant https (keep default)
+            "",               # Scott provider (keep default)
+            "",               # Scott model (keep default)
+            "",               # Scott top_k (keep default)
+            "",               # Scott score threshold (keep default)
             "",               # Wikidata user agent (keep default)
             "",               # Wikidata cache backend (keep default)
             "",               # Wikidata cache TTL (keep default)
@@ -346,6 +351,7 @@ class ConfigureWizardTest(TestCase):
             "sk-newkey123",   # Transcription API key
             "",               # Embedding API key (reuse shared LLM key)
             "",               # Qdrant API key (keep default)
+            "",               # Scott API key (keep default)
             "",               # Recovery agent API key (keep default)
             "",               # Langfuse secret key (keep default)
             "",               # Langfuse public key (keep default)
@@ -370,6 +376,10 @@ class ConfigureWizardTest(TestCase):
             "",               # Qdrant port (keep default)
             "",               # Qdrant collection (keep default)
             "",               # Qdrant https (keep default)
+            "",               # Scott provider (keep default)
+            "",               # Scott model (keep default)
+            "",               # Scott top_k (keep default)
+            "",               # Scott score threshold (keep default)
             "",               # Wikidata user agent (keep default)
             "",               # Wikidata cache backend (keep default)
             "",               # Wikidata cache TTL (keep default)
@@ -426,6 +436,7 @@ class ConfigureWizardTest(TestCase):
             "sk-newkey123",   # Transcription API key
             "",               # Embedding API key (reuse shared LLM key)
             "",               # Qdrant API key (keep default)
+            "",               # Scott API key (keep default)
             "",               # Recovery agent API key (keep default)
             "",               # Langfuse secret key (keep default)
             "",               # Langfuse public key (keep default)
@@ -450,6 +461,7 @@ class ConfigureWizardTest(TestCase):
             "",               # Qdrant port
             "",               # Qdrant collection
             "",               # Qdrant https
+            "", "", "", "",     # Scott (4 non-secret fields)
             "", "", "", "", "",  # Wikidata (5 fields)
             "", "", "",         # Recovery agent (3 fields)
             "", "", "",         # OTel (3 fields)

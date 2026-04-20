@@ -21,6 +21,20 @@ class QdrantPoint:
     payload: dict
 
 
+@dataclass(frozen=True)
+class ChunkSearchResult:
+    chunk_id: int
+    episode_id: int
+    episode_title: str
+    episode_url: str
+    episode_image_url: str
+    start_time: float
+    end_time: float
+    language: str
+    text: str
+    score: float
+
+
 @lru_cache(maxsize=1)
 def detect_embedding_dim() -> int:
     """Probe the configured embedding provider to learn its vector dim.
@@ -122,7 +136,68 @@ class QdrantVectorStore:
             ),
         )
 
+    def search(
+        self,
+        query_vector: list[float],
+        top_k: int,
+        episode_id: int | None = None,
+        score_threshold: float | None = None,
+    ) -> list[ChunkSearchResult]:
+        query_filter = None
+        if episode_id is not None:
+            query_filter = qm.Filter(
+                must=[
+                    qm.FieldCondition(
+                        key="episode_id",
+                        match=qm.MatchValue(value=episode_id),
+                    )
+                ]
+            )
+
+        hits = self.client.query_points(
+            collection_name=self.collection,
+            query=query_vector,
+            limit=top_k,
+            query_filter=query_filter,
+            score_threshold=score_threshold,
+            with_payload=True,
+        ).points
+
+        return [
+            ChunkSearchResult(
+                chunk_id=int(hit.payload.get("chunk_id", hit.id)),
+                episode_id=int(hit.payload["episode_id"]),
+                episode_title=hit.payload.get("episode_title", ""),
+                episode_url=hit.payload.get("episode_url", ""),
+                episode_image_url=hit.payload.get("episode_image_url", ""),
+                start_time=float(hit.payload.get("start_time", 0.0)),
+                end_time=float(hit.payload.get("end_time", 0.0)),
+                language=hit.payload.get("language", ""),
+                text=hit.payload.get("text", ""),
+                score=float(hit.score),
+            )
+            for hit in hits
+        ]
+
 
 @lru_cache(maxsize=1)
 def get_vector_store() -> QdrantVectorStore:
     return QdrantVectorStore.from_settings()
+
+
+def search_chunks(
+    query: str,
+    top_k: int = 5,
+    episode_id: int | None = None,
+    score_threshold: float | None = None,
+) -> list[ChunkSearchResult]:
+    """Embed ``query`` with the configured provider and return top-k chunks."""
+    from .providers.factory import get_embedding_provider
+
+    vector = get_embedding_provider().embed([query])[0]
+    return get_vector_store().search(
+        query_vector=vector,
+        top_k=top_k,
+        episode_id=episode_id,
+        score_threshold=score_threshold,
+    )

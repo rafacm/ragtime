@@ -124,6 +124,24 @@ SYSTEMS = [
         ],
     },
     {
+        "name": "Scott (RAG chatbot)",
+        "description": "LLM + retrieval settings for Scott, the RAG chat agent",
+        "shareable": False,
+        "subsystems": [
+            {
+                "prefix": "RAGTIME_SCOTT",
+                "label": "Scott",
+                "fields": [
+                    ("PROVIDER", "openai", False),
+                    ("API_KEY", "", True),
+                    ("MODEL", "gpt-4.1-mini", False),
+                    ("TOP_K", "5", False),
+                    ("SCORE_THRESHOLD", "0.3", False),
+                ],
+            },
+        ],
+    },
+    {
         "name": "Wikidata",
         "description": "Entity lookup via Wikidata API",
         "shareable": False,

@@ -1,0 +1,15 @@
+{% load django_vite %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Scott — RAGtime</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% csrf_token %}
+  {% vite_hmr_client %}
+  {% vite_asset 'src/chat.tsx' %}
+</head>
+<body>
+  <div id="scott-root"></div>
+</body>
+</html>
