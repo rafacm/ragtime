@@ -161,7 +161,32 @@ def get_scott_agent() -> Agent[StateDeps[ScottState]]:
     return agent
 
 
+async def scott_endpoint(request):
+    """Per-request AG-UI endpoint for Scott.
+
+    Constructs a **fresh** :class:`StateDeps[ScottState]` on every call.
+    Without this, ``Agent.to_ag_ui()`` would share a single ``deps`` across
+    all requests — Pydantic AI's own docstring says so explicitly, and
+    ``search_chunks_tool`` mutates ``deps.state.retrieved_chunks``, so
+    reusing the singleton would let one user's citation registry bleed
+    into another user's turn.
+    """
+    from pydantic_ai.ag_ui import AGUIAdapter
+
+    return await AGUIAdapter.dispatch_request(
+        request,
+        agent=get_scott_agent(),
+        deps=StateDeps(ScottState()),
+    )
+
+
 @lru_cache(maxsize=1)
 def get_agui_app():
-    """Return the AG-UI ASGI app, built lazily so settings are loaded."""
-    return get_scott_agent().to_ag_ui(deps=StateDeps(ScottState()))
+    """Return a Starlette ASGI app that dispatches each request to
+    :func:`scott_endpoint` with a fresh ``StateDeps`` instance."""
+    from starlette.applications import Starlette
+    from starlette.routing import Route
+
+    return Starlette(
+        routes=[Route("/", scott_endpoint, methods=["POST"])],
+    )

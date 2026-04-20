@@ -90,6 +90,20 @@ def _agui_app():
     return get_agui_app()
 
 
+AGUI_PREFIX = "/chat/agent"
+
+
+def _substitute_prefix(scope, prefix):
+    """Return a new scope with ``prefix`` stripped from ``path`` (standard
+    ASGI sub-mount pattern). Leaves the original ``scope`` untouched."""
+    path = scope.get("path", "")
+    new_path = path[len(prefix):] or "/"
+    new_scope = dict(scope)
+    new_scope["path"] = new_path
+    new_scope["root_path"] = scope.get("root_path", "") + prefix
+    return new_scope
+
+
 async def _authenticated_agui(scope, receive, send):
     if scope["type"] != "http":
         await _send_unauthorized(send)
@@ -101,12 +115,12 @@ async def _authenticated_agui(scope, receive, send):
         await _send_unauthorized(send)
         return
 
-    await _agui_app()(scope, receive, send)
+    await _agui_app()(_substitute_prefix(scope, AGUI_PREFIX), receive, send)
 
 
 async def application(scope, receive, send):
     path = scope.get("path", "") if scope.get("type") in {"http", "websocket"} else ""
-    if path.startswith("/chat/agent/"):
+    if path == AGUI_PREFIX or path.startswith(AGUI_PREFIX + "/"):
         await _authenticated_agui(scope, receive, send)
         return
     await _django_app(scope, receive, send)

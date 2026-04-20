@@ -259,23 +259,31 @@ class ChatAPITests(TestCase):
         assert listing.status_code == 200
         assert [c["id"] for c in listing.json()["conversations"]] == [conv_id]
 
-        msg = self.client.post(
-            reverse("chat:conversation_messages", args=[conv_id]),
+        append = self.client.post(
+            reverse("chat:conversation_history", args=[conv_id]),
             data=json.dumps(
-                {"role": "user", "content": [{"type": "text", "text": "hello"}]}
+                {
+                    "parentId": None,
+                    "message": {
+                        "id": "msg-1",
+                        "role": "user",
+                        "content": [{"type": "text", "text": "hello"}],
+                    },
+                }
             ),
             content_type="application/json",
         )
-        assert msg.status_code == 201
+        assert append.status_code == 201
 
-        detail = self.client.get(
-            reverse("chat:conversation_detail", args=[conv_id])
+        history = self.client.get(
+            reverse("chat:conversation_history", args=[conv_id])
         )
-        assert detail.status_code == 200
-        body = detail.json()
-        assert body["title"] == "Blue Notes"
-        assert len(body["messages"]) == 1
-        assert body["messages"][0]["role"] == "user"
+        assert history.status_code == 200
+        items = history.json()["messages"]
+        assert len(items) == 1
+        assert items[0]["message"]["id"] == "msg-1"
+        assert items[0]["message"]["role"] == "user"
+        assert items[0]["parentId"] is None
 
         deleted = self.client.delete(
             reverse("chat:conversation_detail", args=[conv_id])
@@ -283,6 +291,82 @@ class ChatAPITests(TestCase):
         assert deleted.status_code == 200
         assert not Conversation.objects.filter(pk=conv_id).exists()
         assert not Message.objects.filter(conversation_id=conv_id).exists()
+
+    def test_history_round_trip_preserves_parent_chain(self):
+        conv = Conversation.objects.create(user=self.user, title="t")
+        self.client.force_login(self.user)
+
+        items = [
+            {
+                "parentId": None,
+                "message": {
+                    "id": "u1",
+                    "role": "user",
+                    "content": [{"type": "text", "text": "q1"}],
+                },
+            },
+            {
+                "parentId": "u1",
+                "message": {
+                    "id": "a1",
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "a1"}],
+                },
+            },
+            {
+                "parentId": "a1",
+                "message": {
+                    "id": "u2",
+                    "role": "user",
+                    "content": [{"type": "text", "text": "q2"}],
+                },
+            },
+        ]
+        for item in items:
+            res = self.client.post(
+                reverse("chat:conversation_history", args=[conv.pk]),
+                data=json.dumps(item),
+                content_type="application/json",
+            )
+            assert res.status_code == 201
+
+        history = self.client.get(
+            reverse("chat:conversation_history", args=[conv.pk])
+        ).json()["messages"]
+        assert [i["message"]["id"] for i in history] == ["u1", "a1", "u2"]
+        assert [i["parentId"] for i in history] == [None, "u1", "a1"]
+
+    def test_history_append_is_idempotent_on_duplicate_id(self):
+        conv = Conversation.objects.create(user=self.user, title="t")
+        self.client.force_login(self.user)
+
+        item = {
+            "parentId": None,
+            "message": {
+                "id": "only",
+                "role": "user",
+                "content": [{"type": "text", "text": "hello"}],
+            },
+        }
+        for _ in range(3):
+            res = self.client.post(
+                reverse("chat:conversation_history", args=[conv.pk]),
+                data=json.dumps(item),
+                content_type="application/json",
+            )
+            assert res.status_code == 201
+
+        assert Message.objects.filter(conversation=conv).count() == 1
+
+    def test_history_rejects_message_without_id(self):
+        conv = Conversation.objects.create(user=self.user, title="t")
+        self.client.force_login(self.user)
+        res = self.client.post(
+            reverse("chat:conversation_history", args=[conv.pk]),
+            data=json.dumps({"parentId": None, "message": {"role": "user"}}),
+            content_type="application/json",
+        )
+        assert res.status_code == 400
 
     def test_conversations_are_scoped_to_owner(self):
         other = get_user_model().objects.create_user(
@@ -295,15 +379,71 @@ class ChatAPITests(TestCase):
         assert listing.status_code == 200
         assert listing.json()["conversations"] == []
 
-    def test_invalid_role_rejected(self):
-        conv = Conversation.objects.create(user=self.user, title="t")
-        self.client.force_login(self.user)
-        bad = self.client.post(
-            reverse("chat:conversation_messages", args=[conv.pk]),
-            data=json.dumps({"role": "banana", "content": []}),
-            content_type="application/json",
+    def test_history_endpoints_scoped_to_owner(self):
+        other = get_user_model().objects.create_user(
+            username="bob", password="secret-pass"
         )
-        assert bad.status_code == 400
+        other_conv = Conversation.objects.create(user=other, title="theirs")
+
+        self.client.force_login(self.user)
+        res = self.client.get(
+            reverse("chat:conversation_history", args=[other_conv.pk])
+        )
+        assert res.status_code == 404
+
+
+@override_settings(RAGTIME_SCOTT_API_KEY="sk-test-placeholder")
+class ScottStateIsolationTests(TestCase):
+    """Regression: agent runs must not share ScottState across requests.
+
+    Pydantic AI's ``AGUIApp`` reuses the single ``deps`` it was constructed
+    with — so ``to_ag_ui(deps=StateDeps(ScottState()))`` would leak one
+    user's ``retrieved_chunks`` into the next request. We switched to a
+    per-request ``AGUIAdapter.dispatch_request`` call; this test guards
+    against regressing to the singleton pattern.
+    """
+
+    def setUp(self):
+        get_scott_agent.cache_clear()
+
+    def _run_once(self, chunks):
+        deps = StateDeps(ScottState())
+        script = [
+            ModelResponse(
+                parts=[
+                    ToolCallPart(
+                        tool_name="search_chunks_tool",
+                        args={"query": "kind of blue"},
+                    )
+                ]
+            ),
+            ModelResponse(parts=[TextPart(content="ok [1]")]),
+        ]
+        calls = {"n": 0}
+
+        def responder(messages, info):
+            idx = calls["n"]
+            calls["n"] += 1
+            return script[idx]
+
+        with patch(
+            "chat.agent.search_chunks",
+            side_effect=lambda **_: chunks,
+        ):
+            with get_scott_agent().override(model=FunctionModel(responder)):
+                get_scott_agent().run_sync("q", deps=deps)
+        return deps.state
+
+    def test_second_run_starts_with_empty_registry(self):
+        first = self._run_once([_chunk(1)])
+        assert [c["chunk_id"] for c in first.retrieved_chunks] == [1]
+
+        second = self._run_once([_chunk(2)])
+        assert [c["chunk_id"] for c in second.retrieved_chunks] == [2], (
+            "Second run's state should be isolated from the first. "
+            "If this fails, a singleton ScottState is being reused across "
+            "requests and chunk [1] leaked in."
+        )
 
 
 class ChunkSearchResultShapeTests(TestCase):
