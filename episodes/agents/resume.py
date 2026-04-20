@@ -1,9 +1,16 @@
-"""Resume pipeline after successful agent recovery."""
+"""Resume pipeline after successful agent recovery.
+
+Recovery runs synchronously inside a DBOS step (triggered by the
+``step_failed`` signal from ``fail_step``). Inside a step, DBOS forbids
+starting new workflows, so this module only updates persistent state —
+setting ``episode.status`` to the pipeline step the agent recovered to.
+The ``process_episode`` workflow detects this state after the step
+returns and dispatches a new workflow from workflow context.
+"""
 
 import logging
 import os
 
-from dbos import DBOS
 from django.core.files import File
 from mutagen.mp3 import MP3
 
@@ -69,12 +76,6 @@ def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult) -> bool
                 ]
             )
 
-            from ..workflows import process_episode
-
-            DBOS.start_workflow(
-                process_episode, episode.pk, Episode.Status.TRANSCRIBING,
-            )
-
             logger.info(
                 "Scraping recovery succeeded for episode %s — audio_url=%s, "
                 "file already downloaded, resuming from transcribing",
@@ -98,10 +99,6 @@ def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult) -> bool
     # No downloaded file — resume from downloading (wget will fetch the URL).
     episode.status = Episode.Status.DOWNLOADING
     episode.save(update_fields=["audio_url", "status", "error_message", "updated_at"])
-
-    from ..workflows import process_episode
-
-    DBOS.start_workflow(process_episode, episode.pk, Episode.Status.DOWNLOADING)
 
     logger.info(
         "Scraping recovery succeeded for episode %s — audio_url=%s, resuming from downloading",
@@ -129,12 +126,6 @@ def _resume_from_downloading(episode: Episode, result: RecoveryAgentResult) -> b
         episode.status = Episode.Status.TRANSCRIBING
         episode.save(
             update_fields=["audio_file", "duration", "status", "error_message", "updated_at"]
-        )
-
-        from ..workflows import process_episode
-
-        DBOS.start_workflow(
-            process_episode, episode.pk, Episode.Status.TRANSCRIBING,
         )
 
         logger.info(

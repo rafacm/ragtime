@@ -41,12 +41,22 @@ def process_episode(episode_id: int, from_step: str = "") -> None:
 
         execute_pipeline_step(episode_id, step_name)
 
-        if not is_run_still_active(run_id):
+        if is_run_still_active(run_id) and did_step_complete(run_id, step_name):
+            continue
+
+        # Step did not complete — either fail_step ran or the step silently
+        # returned. If the recovery chain (running synchronously inside the
+        # step) set episode.status to a later pipeline step, dispatch a new
+        # workflow from here (workflow context, where start_workflow is
+        # allowed — it is forbidden from inside a step).
+        resume_step = get_pending_resume_step(episode_id, step_name)
+        if resume_step:
+            DBOS.start_workflow(process_episode, episode_id, resume_step)
             return
 
-        if not did_step_complete(run_id, step_name):
+        if is_run_still_active(run_id):
             mark_run_failed(run_id, step_name)
-            return
+        return
 
 
 @DBOS.step()
@@ -79,6 +89,29 @@ def did_step_complete(run_id: int, step_name: str) -> bool:
 
 
 @DBOS.step()
+def get_pending_resume_step(episode_id: int, failed_step: str) -> str:
+    """Return the pipeline step recovery wants to resume from, or empty string.
+
+    Recovery (``resume_pipeline``) signals success by updating
+    ``episode.status`` to a later pipeline step. If that status is strictly
+    after the failed step, return it so the workflow can dispatch a new
+    workflow from that step.
+    """
+    episode = Episode.objects.get(pk=episode_id)
+    status = episode.status
+    if status not in PIPELINE_STEPS:
+        return ""
+    try:
+        failed_idx = PIPELINE_STEPS.index(failed_step)
+        status_idx = PIPELINE_STEPS.index(status)
+    except ValueError:
+        return ""
+    if status_idx <= failed_idx:
+        return ""
+    return status
+
+
+@DBOS.step()
 def mark_run_failed(run_id: int, step_name: str) -> None:
     from django.utils import timezone
 
@@ -96,7 +129,17 @@ def mark_run_failed(run_id: int, step_name: str) -> None:
 @DBOS.workflow()
 def run_agent_recovery(episode_id: int, pipeline_event_id: int) -> None:
     """Durable workflow for admin-triggered agent recovery retries."""
+    failed_step = get_pipeline_event_step(pipeline_event_id)
     execute_agent_recovery(episode_id, pipeline_event_id)
+    resume_step = get_pending_resume_step(episode_id, failed_step)
+    if resume_step:
+        DBOS.start_workflow(process_episode, episode_id, resume_step)
+
+
+@DBOS.step()
+def get_pipeline_event_step(pipeline_event_id: int) -> str:
+    from .models import PipelineEvent
+    return PipelineEvent.objects.get(pk=pipeline_event_id).step_name
 
 
 @DBOS.step()

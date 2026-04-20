@@ -14,6 +14,8 @@ The signal-driven dispatch chain (status change → `async_task`) was removed. T
 
 The custom orchestration layer (`ProcessingRun`/`ProcessingStep`/`PipelineEvent` models, recovery chain) is preserved as the audit trail.
 
+The recovery chain (triggered by the `step_failed` signal inside `fail_step`) runs synchronously inside the `execute_pipeline_step` DBOS step. Because DBOS forbids starting new workflows from inside a step, `resume_pipeline` only updates persistent state — setting `episode.status` to the pipeline step it recovered to. After the step returns, `process_episode` checks `get_pending_resume_step` and, if recovery signalled a resume, dispatches a new `process_episode` workflow from workflow context (where `DBOS.start_workflow` is allowed). The admin-triggered `run_agent_recovery` workflow uses the same pattern.
+
 ## Key Parameters
 
 | Parameter | Value | Rationale |
@@ -36,10 +38,10 @@ uv run python manage.py runserver --noreload  # Dev server with DBOS
 | File | Change |
 |------|--------|
 | `pyproject.toml` | Replace `django-q2>=1.7,<2` with `dbos>=2.18,<3` |
-| `episodes/workflows.py` | New: DBOS workflow (`process_episode`) + step functions + `run_agent_recovery` workflow + silent no-op detection (`did_step_complete`/`mark_run_failed`) |
+| `episodes/workflows.py` | New: DBOS workflow (`process_episode`) + step functions + `run_agent_recovery` workflow + silent no-op detection (`did_step_complete`/`mark_run_failed`) + recovery-dispatch from workflow context (`get_pending_resume_step`/`get_pipeline_event_step`) |
 | `episodes/signals.py` | Replace `async_task` dispatch chain with single `DBOS.start_workflow` on creation |
 | `episodes/admin.py` | Replace `async_task` calls with `DBOS.start_workflow`; remove `_run_agent_recovery_task` (moved to workflows); remove unused `create_run` import |
-| `episodes/agents/resume.py` | Replace `create_run()` + signal dispatch with `DBOS.start_workflow()` |
+| `episodes/agents/resume.py` | Replace `create_run()` + signal dispatch with persistent state update (no `DBOS.start_workflow` — the workflow detects the state change and dispatches from workflow context) |
 | `episodes/apps.py` | Add `_init_dbos()` — programmatic DBOS config from Django DATABASES, gated to server entrypoints only, URL-encodes credentials |
 | `ragtime/settings.py` | Remove `django_q` from INSTALLED_APPS; remove `Q_CLUSTER` config |
 | `episodes/transcriber.py` | Remove stale `Q_CLUSTER` comment on `FFMPEG_TIMEOUT` |
