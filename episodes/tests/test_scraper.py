@@ -189,9 +189,8 @@ class ScrapeEpisodeTests(TestCase):
 
     @patch("episodes.scraper.get_scraping_provider")
     @patch("episodes.scraper.fetch_html")
-    @patch("episodes.agents.resume.DBOS")
     def test_incomplete_metadata_does_not_overwrite_recovery_status(
-        self, _mock_dbos, mock_fetch, mock_provider_factory
+        self, mock_fetch, mock_provider_factory
     ):
         """When recovery changes the status during fail_step, the scraper must not overwrite it.
 

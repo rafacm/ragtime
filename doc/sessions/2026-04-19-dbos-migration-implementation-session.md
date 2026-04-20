@@ -102,3 +102,32 @@ Applied all three fixes:
 **Fix 3**: Added `did_step_complete()` and `mark_run_failed()` step functions in `episodes/workflows.py`. After `execute_pipeline_step()`, if the run is still active but the step's `ProcessingStep` record didn't transition to `COMPLETED`, the run is marked `FAILED` with a log message and the workflow returns.
 
 All 274 tests pass.
+
+### User
+
+I tested locally the ingestion of a podcast episode and I can see this error [stack trace showing `AssertionError` at `dbos/_context.py:183` from `DBOS.start_workflow` called via `resume.py:104` inside the step-failed signal chain].
+
+### Assistant
+
+Diagnosed the root cause: the `step_failed` Django signal fires synchronously inside `fail_step`, which runs inside the `execute_pipeline_step` DBOS step. The recovery chain (`handle_step_failure` → `AgentStrategy.attempt` → `resume_pipeline`) therefore executes in a DBOS step context, where `DBOS.start_workflow` is forbidden (the assertion `cur_ctx.is_workflow() # Not in a step` fires).
+
+Proposed two options:
+- **A**: Spawn a thread inside `resume_pipeline` that calls `start_workflow` outside the DBOS context — minimal patch but has a durability hole on crash.
+- **B**: Stop doing workflow dispatch inside the step. Have `resume_pipeline` only update persistent state (episode.status); have `process_episode` detect the recovery after the step returns and call `start_workflow` itself from workflow context (where it's allowed).
+
+### User
+
+Let's go for option B.
+
+### Assistant
+
+Implemented option B:
+
+- `episodes/agents/resume.py`: removed all `DBOS.start_workflow(...)` calls. The module now only updates `episode.status` (to `DOWNLOADING` or `TRANSCRIBING`) and the audio file/URL fields. Updated the module docstring to document the new contract.
+- `episodes/workflows.py`:
+  - Added `get_pending_resume_step(episode_id, failed_step)` DBOS step. Returns `episode.status` if it's a pipeline step strictly after the failed step (the recovery chain's signal), else empty string.
+  - Rewrote `process_episode` loop: after each step, if the run is active and the step completed, continue. Otherwise, check `get_pending_resume_step`; if it returns a step, `DBOS.start_workflow(process_episode, episode_id, resume_step)` from workflow context (allowed) and return. If no resume intent, mark run FAILED (if not already) and return.
+  - Added `get_pipeline_event_step` helper. Updated `run_agent_recovery` workflow (admin-triggered path) to use the same pattern: read the failed step, run the recovery step, then dispatch a new `process_episode` workflow if recovery succeeded.
+- Tests: removed `@patch("episodes.agents.resume.DBOS")` decorators and `mock_dbos.start_workflow.assert_called_once_with(...)` assertions from `test_agent_resume.py` (2 tests) and `test_scraper.py` (1 test). Renamed `test_sets_audio_url_and_starts_workflow` → `test_sets_audio_url_and_marks_episode_for_downloading` and `test_saves_file_and_starts_workflow` → `test_saves_file_and_marks_episode_for_transcribing`.
+
+All 274 tests pass.

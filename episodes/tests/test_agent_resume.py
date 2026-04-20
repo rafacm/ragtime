@@ -35,8 +35,7 @@ def _make_failure_event(**overrides):
 
 class ResumePipelineScrapingTests(TestCase):
     @patch("episodes.signals.DBOS")
-    @patch("episodes.agents.resume.DBOS")
-    def test_sets_audio_url_and_starts_workflow(self, mock_dbos, _):
+    def test_sets_audio_url_and_marks_episode_for_downloading(self, _):
         episode = Episode.objects.create(
             url="https://example.com/pod/1",
             status=Episode.Status.FAILED,
@@ -50,23 +49,16 @@ class ResumePipelineScrapingTests(TestCase):
             message="Found audio URL",
         )
 
-        resume_pipeline(event, result)
+        self.assertTrue(resume_pipeline(event, result))
 
         episode.refresh_from_db()
         self.assertEqual(episode.audio_url, "https://cdn.example.com/episode1.mp3")
         self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
         self.assertEqual(episode.error_message, "")
 
-        from episodes.workflows import process_episode
-
-        mock_dbos.start_workflow.assert_called_once_with(
-            process_episode, episode.pk, Episode.Status.DOWNLOADING,
-        )
-
     @patch("episodes.signals.DBOS")
-    @patch("episodes.agents.resume.DBOS")
     @patch("episodes.agents.resume.MP3")
-    def test_skips_download_when_file_already_downloaded(self, mock_mp3, mock_dbos, _):
+    def test_skips_download_when_file_already_downloaded(self, mock_mp3, _):
         """When scraping recovery also downloaded the file, skip to transcribing."""
         episode = Episode.objects.create(
             url="https://example.com/pod/skip-dl",
@@ -91,7 +83,7 @@ class ResumePipelineScrapingTests(TestCase):
                 message="Found audio URL and downloaded file",
             )
 
-            resume_pipeline(event, result)
+            self.assertTrue(resume_pipeline(event, result))
 
             episode.refresh_from_db()
             self.assertEqual(episode.audio_url, "https://cdn.example.com/episode-skip.mp3")
@@ -102,12 +94,6 @@ class ResumePipelineScrapingTests(TestCase):
 
             # Temp file should be cleaned up
             self.assertFalse(os.path.exists(tmp.name))
-
-            from episodes.workflows import process_episode
-
-            mock_dbos.start_workflow.assert_called_once_with(
-                process_episode, episode.pk, Episode.Status.TRANSCRIBING,
-            )
         finally:
             if episode.audio_file:
                 try:
@@ -118,9 +104,8 @@ class ResumePipelineScrapingTests(TestCase):
 
 class ResumePipelineDownloadingTests(TestCase):
     @patch("episodes.signals.DBOS")
-    @patch("episodes.agents.resume.DBOS")
     @patch("episodes.agents.resume.MP3")
-    def test_saves_file_and_starts_workflow(self, mock_mp3, mock_dbos, _):
+    def test_saves_file_and_marks_episode_for_transcribing(self, mock_mp3, _):
         episode = Episode.objects.create(
             url="https://example.com/pod/2",
             audio_url="https://cdn.example.com/ep2.mp3",
@@ -146,7 +131,7 @@ class ResumePipelineDownloadingTests(TestCase):
                 message="Downloaded via browser",
             )
 
-            resume_pipeline(event, result)
+            self.assertTrue(resume_pipeline(event, result))
 
             episode.refresh_from_db()
             self.assertEqual(episode.status, Episode.Status.TRANSCRIBING)
@@ -156,12 +141,6 @@ class ResumePipelineDownloadingTests(TestCase):
 
             # Temp file should be cleaned up by resume_pipeline
             self.assertFalse(os.path.exists(tmp.name))
-
-            from episodes.workflows import process_episode
-
-            mock_dbos.start_workflow.assert_called_once_with(
-                process_episode, episode.pk, Episode.Status.TRANSCRIBING,
-            )
         finally:
             # Clean up saved audio file
             if episode.audio_file:
