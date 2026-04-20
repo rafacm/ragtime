@@ -1,13 +1,75 @@
 @import "tailwindcss";
-@import "@assistant-ui/react/styles/index.css";
-@import "@assistant-ui/react/styles/modal.css";
+
+/* assistant-ui ships no prebuilt stylesheet — components use Tailwind
+   utility classes directly, so Tailwind v4 has to scan the package
+   source in node_modules or class names go unemitted. */
+@source "../node_modules/@assistant-ui/react/dist/**/*.{js,mjs,cjs}";
+@source "../node_modules/@assistant-ui/react-ag-ui/dist/**/*.{js,mjs,cjs}";
+
+/* shadcn-style theme (dark). HSL triplets so utilities like
+   `bg-[hsl(var(--primary)/0.5)]` work if we need alpha overrides. */
+:root {
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --card: 222 47% 15%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222 47% 11%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 243 75% 59%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 217 33% 18%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217 33% 18%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 217 33% 18%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 63% 51%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217 33% 22%;
+  --input: 217 33% 22%;
+  --ring: 243 75% 59%;
+  --radius: 0.5rem;
+}
+
+/* Tailwind v4 — map CSS vars into theme tokens so `bg-background`,
+   `text-foreground`, `border-border`, `text-muted-foreground`, etc.
+   resolve to the shadcn palette above. */
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --radius-md: var(--radius);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-lg: calc(var(--radius) + 2px);
+}
 
 html,
 body,
 #scott-root {
   height: 100%;
   margin: 0;
-  background: #0f172a;
-  color: #e2e8f0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
   font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+/* Render Tailwind's default border color as `border-border` unless set. */
+* {
+  border-color: hsl(var(--border));
 }

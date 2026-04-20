@@ -127,4 +127,30 @@ Ran the full suite — 284 tests green (the new state-isolation test brings the 
 
 ### Assistant — Reply on PR
 
-(To be appended after the reply commits.)
+Replied to each of the three review comments via `gh api repos/.../pulls/95/comments` with `in_reply_to`, each pointing at commit `85e737c` with a concise summary of the fix. All three threads now have a linked resolution.
+
+### Assistant — End-to-end debugging pass
+
+After the review fixes landed, brought the UI up end-to-end for the first time. Several plumbing issues surfaced that only show up when you actually run the stack; each one was solved in turn:
+
+1. **npm registry date cutoff.** User's npm had a `before=2026-04-13` config that blocked `@assistant-ui/react-ag-ui@0.0.26`. Documented the override (`npm install --before=2026-04-21`); no code change needed.
+2. **Vite base path.** The dev server was serving at `/` but `django-vite` was asking for `/static/frontend/...`. Added `base: "/static/frontend/"` to `vite.config.ts` so Vite's own paths match django-vite's expectations.
+3. **Missing Tailwind CSS entry points.** `@assistant-ui/react@0.12` ships primitives only, no prebuilt stylesheet. Dropped the broken `@import "@assistant-ui/react/styles/..."` lines; added `@source` directives so Tailwind v4 scans the package dist. Wired a full shadcn-style dark theme (`--background`, `--foreground`, `--primary`, etc.) in `frontend/src/styles.css` using `@theme inline` for Tailwind v4 token mapping.
+4. **`<Thread>` and `<ThreadList>` don't exist in this version.** `@assistant-ui/react@0.12` is primitive-only — the prebuilt styled components are scaffolded via a shadcn-compatible CLI at `https://r.assistant-ui.com/{name}.json`. Rather than run the scaffolder (which adds a `components.json` + radix/lucide/etc. deps), hand-rolled minimal `Thread`, `ThreadList`, `UserMessage`, `AssistantMessage`, and `ThreadListItem` using `ThreadPrimitive`, `ComposerPrimitive`, `MessagePrimitive`, and `ThreadListItemPrimitive`. Imported `AssistantRuntimeProvider` from `@assistant-ui/core/react` (not top-level `@assistant-ui/react`).
+5. **`@vitejs/plugin-react` can't detect preamble.** Django serves the HTML, not Vite, so the React Refresh preamble wasn't being injected. Added `{% vite_react_refresh %}` to `chat/templates/chat/index.html` between `{% vite_hmr_client %}` and `{% vite_asset %}`. Required a Django server restart since `--noreload` blocks Python reloads.
+6. **`ComposerPrimitive.Input` must be inside `ThreadPrimitive.Viewport`.** Composer input reads the viewport context for scroll-integration features. Restructured the Thread component so the composer lives inside `ThreadPrimitive.ViewportFooter` (a non-scrolling slot inside the viewport).
+7. **POST `/chat/agent/` returned 404.** `manage.py runserver` uses WSGI by default, which doesn't load `ragtime/asgi.py` at all — my dispatcher was never on the request path. Switched to `uv run uvicorn ragtime.asgi:application --host 127.0.0.1 --port 8000`; uvicorn was already a transitive dep from `pydantic-ai[ag-ui]`.
+8. **ASGI sub-mount path mismatch.** The Starlette sub-app's `Route("/", ...)` didn't match after the dispatcher forwarded `/chat/agent/`. Added `_substitute_prefix(scope, AGUI_PREFIX)` in `ragtime/asgi.py` to strip the prefix before delegating — standard ASGI sub-mount pattern.
+9. **`RAGTIME_SCOTT_API_KEY` not set.** Walked the user through `manage.py configure` to fill it in.
+10. **No source cards, no references.** Built a `SearchChunksDisplay` tool-call renderer + a `ToolCallFallback` catch-all and wired them via `MessagePrimitive.Parts components={{ tools: { by_name, Fallback } }}`. After that the issue became visible: the tool was never being invoked.
+11. **Tool-name mismatch.** System prompt said `search_chunks`; the decorated Python function was `search_chunks_tool` (function name → tool name in pydantic-ai). Renamed the tool to `search_chunks` and aliased the helper import as `_search_chunks_helper` to avoid a collision. Updated tests to match (`tool_name="search_chunks"`, patch target `chat.agent._search_chunks_helper`). All 287 tests green.
+12. **System prompt never reached the LLM.** Jaeger showed `gen_ai.input.messages` contained only the user turn — no system role — so Scott was answering from general knowledge ("Django Reinhardt was born on January 23, 1910" with no citations). Root cause: `OpenAIResponsesModel` routes `system_prompt=` differently than the classical Chat Completions API. Switched `Agent(..., system_prompt=...)` to `Agent(..., instructions=...)`, which is the modern canonical parameter and combines cleanly with the dynamic `@agent.instructions` registry. After the restart the LLM called `search_chunks` and the green source cards appeared inline.
+13. **Conversations not persisted across refresh.** `threadState.threadId` was reset to `null` on each mount, and `history.append` silently no-op'd when no thread id was set (so a user who never clicked "+ New conversation" got nothing persisted). Fixed by (a) auto-creating a Django conversation on first `append` and (b) persisting the active thread id to `localStorage` via an `initialThreadState()` helper so a refresh restores the same conversation and `history.load()` replays its messages.
+
+After fix 13, end-to-end flow works: ask a question → Scott calls `search_chunks` → green source cards render → answer streams with `[N]` citations → refresh → conversation replays from Postgres.
+
+**Deferred to follow-up PR (explicitly called out to the user):** proper `useRemoteThreadListRuntime` integration so the sidebar lists *persisted* Django conversations rather than assistant-ui's in-memory threads; thread rename/delete UX; `[N]` chip highlighting the corresponding row in the source panel; episode deep-links; audio-clip autoplay on citation click; rate limiting; per-user token budget; offline evaluation harness; markdown + syntax highlighting on assistant text; voice dictation; scaffolding the richer shadcn components via `npx assistant-ui add`.
+
+### Assistant — Second PR review round
+
+Pushed commit with the end-to-end fixes (instructions switch, tool rename, Starlette sub-mount, shadcn theme, preamble, viewport-footer composer, `history.append` auto-create + localStorage). Full suite still 287 green. Summarized deferred items for the follow-up PR.

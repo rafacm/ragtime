@@ -132,7 +132,7 @@ class ScottAgentBehaviorTests(TestCase):
             ModelResponse(
                 parts=[
                     ToolCallPart(
-                        tool_name="search_chunks_tool",
+                        tool_name="search_chunks",
                         args={"query": "mystery artist"},
                     )
                 ]
@@ -150,7 +150,7 @@ class ScottAgentBehaviorTests(TestCase):
         ]
 
         with patch(
-            "chat.agent.search_chunks",
+            "chat.agent._search_chunks_helper",
             side_effect=self._fake_search([]),
         ):
             override, calls = self._install_model(script)
@@ -169,7 +169,7 @@ class ScottAgentBehaviorTests(TestCase):
             ModelResponse(
                 parts=[
                     ToolCallPart(
-                        tool_name="search_chunks_tool",
+                        tool_name="search_chunks",
                         args={"query": "kind of blue"},
                     )
                 ]
@@ -187,7 +187,7 @@ class ScottAgentBehaviorTests(TestCase):
         ]
 
         with patch(
-            "chat.agent.search_chunks",
+            "chat.agent._search_chunks_helper",
             side_effect=self._fake_search(chunks),
         ):
             override, _ = self._install_model(script)
@@ -412,7 +412,7 @@ class ScottStateIsolationTests(TestCase):
             ModelResponse(
                 parts=[
                     ToolCallPart(
-                        tool_name="search_chunks_tool",
+                        tool_name="search_chunks",
                         args={"query": "kind of blue"},
                     )
                 ]
@@ -427,7 +427,7 @@ class ScottStateIsolationTests(TestCase):
             return script[idx]
 
         with patch(
-            "chat.agent.search_chunks",
+            "chat.agent._search_chunks_helper",
             side_effect=lambda **_: chunks,
         ):
             with get_scott_agent().override(model=FunctionModel(responder)):
