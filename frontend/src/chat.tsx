@@ -7,10 +7,23 @@ import {
   ThreadList,
 } from "@assistant-ui/react";
 import { useAgUiRuntime } from "@assistant-ui/react-ag-ui";
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 
-import { buildThreadListAdapter, getCsrfToken } from "./threadAdapter";
+import {
+  buildHistoryAdapter,
+  buildThreadListAdapter,
+  getCsrfToken,
+} from "./threadAdapter";
+
+async function signOut() {
+  await fetch("/accounts/logout/", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "X-CSRFToken": getCsrfToken() ?? "" },
+  });
+  window.location.assign("/accounts/login/");
+}
 
 function App() {
   const agent = useMemo(
@@ -25,13 +38,25 @@ function App() {
     [],
   );
 
-  const threadList = useMemo(() => buildThreadListAdapter(), []);
+  const threadState = useMemo(() => ({ threadId: null as string | null }), []);
+  const threadList = useMemo(
+    () => buildThreadListAdapter(threadState),
+    [threadState],
+  );
+  const history = useMemo(
+    () => buildHistoryAdapter(threadState),
+    [threadState],
+  );
 
   const runtime = useAgUiRuntime({
     agent,
-    adapters: { threadList },
+    adapters: { threadList, history },
     showThinking: true,
   });
+
+  const onSignOut = useCallback(() => {
+    signOut();
+  }, []);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -42,9 +67,13 @@ function App() {
           </header>
           <ThreadList />
           <footer className="mt-auto px-2 py-3 text-xs text-slate-500">
-            <a href="/accounts/logout/" className="hover:text-slate-300">
+            <button
+              type="button"
+              onClick={onSignOut}
+              className="text-left hover:text-slate-300"
+            >
               Sign out
-            </a>
+            </button>
           </footer>
         </aside>
         <main className="flex-1 flex flex-col min-w-0">

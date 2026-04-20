@@ -1,9 +1,14 @@
 """Views for Scott's chat UI.
 
-``chat_page`` renders the shell template hosting the React island. The
-``api_*`` views back assistant-ui's ``threadList`` and ``history`` adapters.
-They pass opaque JSON payloads through to and from :class:`chat.models.Message`
-so the Django side stays decoupled from the assistant-ui wire shape.
+``chat_page`` renders the shell template hosting the React island.
+The ``api_*`` views back assistant-ui's ``threadList`` and ``history``
+adapters:
+
+- ``api_conversations`` / ``api_conversation_detail`` — list, create,
+  rename, delete conversations.
+- ``api_conversation_history`` — GET returns the full
+  ``ExportedMessageRepository`` for a conversation; POST appends one
+  ``ExportedMessageRepositoryItem``.
 """
 
 from __future__ import annotations
@@ -11,11 +16,8 @@ from __future__ import annotations
 import json
 
 from django.contrib.auth.decorators import login_required
-from django.http import (
-    HttpRequest,
-    HttpResponse,
-    JsonResponse,
-)
+from django.db import transaction
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_http_methods
 
@@ -31,14 +33,15 @@ def _serialize_conversation(conversation: Conversation) -> dict:
     }
 
 
-def _serialize_message(message: Message) -> dict:
-    return {
-        "id": message.pk,
-        "role": message.role,
-        "content": message.content_json,
-        "tool_calls": message.tool_calls_json,
-        "created_at": message.created_at.isoformat(),
+def _message_to_repository_item(message: Message) -> dict:
+    """Render a :class:`Message` as an assistant-ui ``ExportedMessageRepositoryItem``."""
+    item: dict = {
+        "parentId": message.parent_external_id or None,
+        "message": message.payload_json,
     }
+    if message.run_config_json is not None:
+        item["runConfig"] = message.run_config_json
+    return item
 
 
 @login_required
@@ -58,7 +61,6 @@ def api_conversations(request: HttpRequest) -> JsonResponse:
     payload = _parse_json(request)
     if payload is None:
         return JsonResponse({"error": "invalid JSON body"}, status=400)
-
     conversation = Conversation.objects.create(
         user=request.user,
         title=payload.get("title", ""),
@@ -76,10 +78,7 @@ def api_conversation_detail(
     )
 
     if request.method == "GET":
-        messages = [_serialize_message(m) for m in conversation.messages.all()]
-        return JsonResponse(
-            {**_serialize_conversation(conversation), "messages": messages}
-        )
+        return JsonResponse(_serialize_conversation(conversation))
 
     if request.method == "PATCH":
         payload = _parse_json(request)
@@ -95,29 +94,53 @@ def api_conversation_detail(
 
 
 @login_required
-@require_http_methods(["POST"])
-def api_conversation_messages(
+@require_http_methods(["GET", "POST"])
+def api_conversation_history(
     request: HttpRequest, conversation_id: int
 ) -> JsonResponse:
     conversation = get_object_or_404(
         Conversation, pk=conversation_id, user=request.user
     )
+
+    if request.method == "GET":
+        messages = [
+            _message_to_repository_item(m) for m in conversation.messages.all()
+        ]
+        return JsonResponse({"messages": messages})
+
     payload = _parse_json(request)
     if payload is None:
         return JsonResponse({"error": "invalid JSON body"}, status=400)
 
-    role = payload.get("role")
-    if role not in Message.Role.values:
-        return JsonResponse({"error": f"invalid role: {role!r}"}, status=400)
+    message_payload = payload.get("message")
+    if not isinstance(message_payload, dict):
+        return JsonResponse({"error": "'message' must be an object"}, status=400)
 
-    message = Message.objects.create(
-        conversation=conversation,
-        role=role,
-        content_json=payload.get("content", []),
-        tool_calls_json=payload.get("tool_calls", []),
-    )
-    conversation.save(update_fields=["updated_at"])
-    return JsonResponse(_serialize_message(message), status=201)
+    external_id = message_payload.get("id")
+    if not isinstance(external_id, str) or not external_id:
+        return JsonResponse(
+            {"error": "'message.id' is required and must be a non-empty string"},
+            status=400,
+        )
+
+    parent_id = payload.get("parentId") or ""
+    run_config = payload.get("runConfig")
+
+    with transaction.atomic():
+        # Upsert on (conversation, external_id). Duplicate appends can happen
+        # when the assistant-ui client retries after a transient network error.
+        message, _ = Message.objects.update_or_create(
+            conversation=conversation,
+            external_id=external_id,
+            defaults={
+                "parent_external_id": parent_id,
+                "payload_json": message_payload,
+                "run_config_json": run_config,
+            },
+        )
+        conversation.save(update_fields=["updated_at"])
+
+    return JsonResponse(_message_to_repository_item(message), status=201)
 
 
 def _parse_json(request: HttpRequest) -> dict | None:

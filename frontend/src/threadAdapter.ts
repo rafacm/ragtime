@@ -1,13 +1,20 @@
 /**
- * Thread list adapter bridging assistant-ui's thread switcher to the
- * Django persistence endpoints in ``chat/views.py``.
+ * Thread list + history adapters bridging assistant-ui to the Django
+ * persistence endpoints in ``chat/views.py``.
  *
- * v1 scope:
- *   - list / create / delete conversations
- *   - switch to an empty fresh thread for an existing conversation
- *     (full message restoration across page refreshes is a v2 polish;
- *     the backend persists messages, the frontend does not yet replay them)
+ * - `threadList` adapter: lists + creates conversations; on switch, loads
+ *   their messages from Postgres so refreshing the page restores the
+ *   conversation.
+ * - `history` adapter: persists every new message via `append(item)`; the
+ *   `load()` fallback also lets assistant-ui reload on mount if a thread
+ *   is already active.
  */
+
+import type {
+  ExportedMessageRepository,
+  ExportedMessageRepositoryItem,
+  ThreadMessage,
+} from "@assistant-ui/react";
 
 export function getCsrfToken(): string | null {
   const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
@@ -40,19 +47,55 @@ type ConversationDto = {
   updated_at: string;
 };
 
-export function buildThreadListAdapter() {
+type HistoryDto = {
+  messages: ExportedMessageRepositoryItem[];
+};
+
+type ThreadListState = {
+  threadId: string | null;
+};
+
+export function buildThreadListAdapter(state: ThreadListState) {
   return {
-    threadId: null as string | null,
+    get threadId() {
+      return state.threadId;
+    },
     async onSwitchToNewThread() {
       const created = await jsonFetch<ConversationDto>(
         "/chat/api/conversations/",
         { method: "POST", body: JSON.stringify({}) },
       );
-      this.threadId = String(created.id);
+      state.threadId = String(created.id);
     },
-    async onSwitchToThread(threadId: string) {
-      this.threadId = threadId;
-      return { messages: [] as const };
+    async onSwitchToThread(
+      threadId: string,
+    ): Promise<{ messages: readonly ThreadMessage[] }> {
+      state.threadId = threadId;
+      const history = await jsonFetch<HistoryDto>(
+        `/chat/api/conversations/${encodeURIComponent(threadId)}/history/`,
+      );
+      return { messages: history.messages.map((item) => item.message) };
+    },
+  };
+}
+
+export function buildHistoryAdapter(state: ThreadListState) {
+  return {
+    async load(): Promise<ExportedMessageRepository> {
+      const threadId = state.threadId;
+      if (!threadId) return { messages: [] };
+      const history = await jsonFetch<HistoryDto>(
+        `/chat/api/conversations/${encodeURIComponent(threadId)}/history/`,
+      );
+      return { messages: history.messages };
+    },
+    async append(item: ExportedMessageRepositoryItem): Promise<void> {
+      const threadId = state.threadId;
+      if (!threadId) return;
+      await jsonFetch(
+        `/chat/api/conversations/${encodeURIComponent(threadId)}/history/`,
+        { method: "POST", body: JSON.stringify(item) },
+      );
     },
   };
 }

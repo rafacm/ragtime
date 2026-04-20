@@ -27,13 +27,20 @@ The project needed its first working version of **Scott**, the strict-RAG jazz p
 
 - New `frontend/` Vite workspace (React 19, TypeScript, Tailwind 4 via `@tailwindcss/vite`). npm deps: `@ag-ui/client`, `@assistant-ui/react`, `@assistant-ui/react-ag-ui`, `react`, `react-dom`.
 - `frontend/src/chat.tsx` instantiates `HttpAgent({ url: "/chat/agent/" })`, feeds it to `useAgUiRuntime`, and renders assistant-ui's `<Thread>` + `<ThreadList>` inside an `<AssistantRuntimeProvider>`. CSRF token is threaded from the cookie into both fetch requests and the AG-UI HttpAgent headers.
-- `frontend/src/threadAdapter.ts` wires assistant-ui's `threadList` adapter to the Django persistence endpoints (list / create / switch). **v1 limitation:** switching to an existing thread does not yet restore messages from Postgres — the backend stores them, the frontend adapter returns an empty message list on switch. Full history replay is a v2 polish item.
+- `frontend/src/threadAdapter.ts` wires both assistant-ui adapters end-to-end:
+  - `threadList` — lists conversations, creates new ones, and on switch loads the target thread's history and returns it as `{ messages: ThreadMessage[] }`, which assistant-ui applies to the current thread.
+  - `history` — `append(item)` POSTs each turn's `ExportedMessageRepositoryItem` to `/chat/api/conversations/<id>/history/` (assistant-ui drives this automatically after each message), and `load()` returns the stored repository so mounting with an already-active thread restores it.
+- Django-side shape: `Message.external_id`, `Message.parent_external_id`, and `Message.payload_json` preserve assistant-ui's message-tree identifiers so the repository round-trips cleanly. The history POST endpoint upserts on `(conversation, external_id)` — safe against duplicate appends caused by transient client retries.
 - `chat/templates/chat/index.html` is the Django shell template that mounts `#scott-root` and loads the Vite bundle via `django-vite` tags.
 - `chat/templates/registration/login.html` is a minimal `LoginView` template (no self-signup; admin-provisioned users only).
 
 ### Persistence endpoints
 
-- `chat/views.py` exposes `chat_page` (`@login_required`) plus JSON endpoints `api_conversations` (GET list / POST create), `api_conversation_detail` (GET / PATCH title / DELETE), and `api_conversation_messages` (POST append). All are `@login_required`, scoped to `request.user`, and pass opaque JSON payloads through so the backend stays decoupled from assistant-ui's evolving `ThreadMessage` shape.
+- `chat/views.py` exposes `chat_page` (`@login_required`) plus JSON endpoints:
+  - `api_conversations` — GET list / POST create
+  - `api_conversation_detail` — GET / PATCH title / DELETE
+  - `api_conversation_history` — GET returns the full `ExportedMessageRepository`; POST appends one `ExportedMessageRepositoryItem`, upserting on `(conversation, external_id)` to tolerate client-side retries.
+- All endpoints are `@login_required` and scoped to `request.user`; message payloads are stored verbatim in `payload_json` so the backend stays decoupled from assistant-ui's internal `ThreadMessage` shape.
 
 ### Settings & docs
 
@@ -43,7 +50,7 @@ The project needed its first working version of **Scott**, the strict-RAG jazz p
 
 ### Tests
 
-- `chat/tests.py` covers: `search_chunks` flag/threshold passthrough with faked embedder + store; agent refusal on empty retrieval (scripted via `FunctionModel`); citation integrity (every `[N]` in the assistant message maps to `ScottState.retrieved_chunks`); auth gating on `/chat/` and the ASGI `/chat/agent/` mount; full conversation CRUD scoped to the owning user; invalid-role rejection.
+- `chat/tests.py` covers: `search_chunks` flag/threshold passthrough with faked embedder + store; agent refusal on empty retrieval (scripted via `FunctionModel`); citation integrity (every `[N]` in the assistant message maps to `ScottState.retrieved_chunks`); **cross-request `ScottState` isolation** (regression test guarding against a regressed singleton deps); auth gating on `/chat/` and the ASGI `/chat/agent/` mount; conversation lifecycle (create / list / history append / history replay / delete); history round-trip preserving the parent-id chain; idempotent duplicate append; `message.id` required; history endpoints scoped to the owning user.
 - Existing `core.tests.test_configure` wizard tests updated with the new Scott subsystem prompts.
 
 ## Key parameters

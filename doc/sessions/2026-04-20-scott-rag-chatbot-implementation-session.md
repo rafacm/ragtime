@@ -94,4 +94,37 @@ Ran the full test suite twice (after fixing the wizard mocks, final run green). 
 
 ### Assistant — Commit + PR
 
-(To be appended during the commit + PR step.)
+Staged all changes (backend + frontend + docs), committed a single feature commit (`a9f90f3`) with a `Co-Authored-By: Claude Opus 4.7 (1M context)` trailer. Attempted `git push -u origin feature/scott-rag-chatbot`; the push was blocked pending user authorization. User approved; pushed successfully; opened PR #95 with a Summary / Details / Docs / Test plan body.
+
+### User — Review
+
+Ran `/pr-review-comments-process` and asked for a list of open review comments with severity and suggested actions.
+
+### Assistant — Review triage
+
+Fetched `gh api repos/rafacm/ragtime/pulls/95/comments`. Found three comments, all from rafacm on commit `a9f90f3`:
+
+1. **`chat/agent.py`** — `StateDeps(ScottState())` is constructed once inside the `@lru_cache`d `get_agui_app()` and reused across requests; since `search_chunks_tool` mutates `deps.state.retrieved_chunks`, one user's citations can bleed into another request. Verified against Pydantic AI source: the `AGUIApp` docstring confirms "`deps` will be the same for each request" except for the `.state` field when the frontend sends state — so the reviewer is right, it's a real leak for any run that doesn't carry state (or in the window before the first state update).
+2. **`frontend/src/threadAdapter.ts`** — `onSwitchToThread` returns `{ messages: [] }`; no `history` adapter is wired into `useAgUiRuntime`. Backend persists conversations but the frontend never replays them. PR description overstates "persisted conversation history". Documented in the session transcript as a v1 limitation but not in the PR description / CHANGELOG.
+3. **`frontend/src/chat.tsx`** — Django 5 `LogoutView` only accepts `POST` and `OPTIONS`; `<a href="/accounts/logout/">` will `405`. Real bug.
+
+Classified as high / medium / medium respectively. Reported each back to the user with severity, reviewer fix, and my suggested action. User approved implementing all four items (fix #1 + #3, scope claim for #2, reply to each comment).
+
+### Assistant — Fixes
+
+**Fix 1 (state leak).** Replaced `get_scott_agent().to_ag_ui(deps=StateDeps(ScottState()))` with a per-request `AGUIAdapter.dispatch_request(request, agent=..., deps=StateDeps(ScottState()))` wrapped in a minimal Starlette `Route("/", scott_endpoint, methods=["POST"])`. Updated `ragtime/asgi.py` to strip the `/chat/agent` prefix before forwarding to the Starlette app (standard ASGI sub-mount pattern). Added `ScottStateIsolationTests.test_second_run_starts_with_empty_registry` that runs two sequential agent invocations with distinct retrieved chunks and asserts the second's state starts fresh (`[2]`, not `[1, 2]`). Without the fix this test would fail; with it, 10/10 `chat` tests pass.
+
+**Fix 2 (persistence).** Initial plan was to scope the PR claim and defer full persistence to v2. User pushed back — "why not implement it in this PR?" Took the pushback, implemented the full round-trip:
+
+- Reshaped `chat/models.py`:`Message` around assistant-ui's storage contract. New fields: `external_id` (assistant-ui's `message.id`), `parent_external_id`, `payload_json` (the full `ThreadMessage`), `run_config_json`. Dropped the earlier `role` / `content_json` / `tool_calls_json` split. Added a `UniqueConstraint(conversation, external_id)` so `append` can be idempotent against client retries via `update_or_create`. Regenerated the single initial migration.
+- Replaced `api_conversation_messages` with `api_conversation_history` — `GET` returns `{messages: ExportedMessageRepositoryItem[]}`, `POST` accepts one item, validates that `message.id` is non-empty, upserts, and returns the stored item.
+- Frontend: `buildThreadListAdapter(state)` now loads history in `onSwitchToThread` and returns it as `{messages: ThreadMessage[]}` for `core.applyExternalMessages`. `buildHistoryAdapter(state)` exposes `load()` (for mount-with-active-thread) + `append()` (persists every new turn). Both adapters share a mutable `threadState` object so the history adapter knows the current thread id.
+- Tests: dropped the stale role-based cases; added round-trip (3-message parent chain), idempotent duplicate append, missing-`message.id` rejection, and owner scoping on the history endpoint. 13/13 chat tests pass; full suite 287 green.
+
+**Fix 3 (logout 405).** Replaced the `<a href="/accounts/logout/">Sign out</a>` anchor in `frontend/src/chat.tsx` with a `<button>` that calls a new `signOut()` helper — `fetch("/accounts/logout/", { method: "POST", headers: { "X-CSRFToken": ... }, credentials: "same-origin" })` followed by `window.location.assign("/accounts/login/")`. Works in Django 5 without a custom view.
+
+Ran the full suite — 284 tests green (the new state-isolation test brings the total up from 283).
+
+### Assistant — Reply on PR
+
+(To be appended after the reply commits.)
