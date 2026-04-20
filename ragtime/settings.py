@@ -42,8 +42,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_vite',
     'core',
     'episodes',
+    'chat',
 ]
 
 MIDDLEWARE = [
@@ -128,10 +130,31 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Media files (uploaded/downloaded content)
 MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = '/media/'
+
+# Authentication redirects (Scott chat requires login)
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/chat/'
+LOGOUT_REDIRECT_URL = '/accounts/login/'
+
+# django-vite — React island for the chat UI. Only register the dist
+# directory in STATICFILES_DIRS once Vite has built it; otherwise Django
+# emits staticfiles.W004 on every `manage.py check`.
+DJANGO_VITE = {
+    'default': {
+        'dev_mode': DEBUG,
+        'dev_server_port': 5173,
+        'manifest_path': BASE_DIR / 'frontend' / 'dist' / '.vite' / 'manifest.json',
+        'static_url_prefix': 'frontend',
+    }
+}
+STATICFILES_DIRS = [
+    p for p in [BASE_DIR / 'frontend' / 'dist'] if p.is_dir()
+]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -176,6 +199,13 @@ RAGTIME_TRANSLATION_MODEL = os.getenv('RAGTIME_TRANSLATION_MODEL', 'gpt-4.1-mini
 RAGTIME_EMBEDDING_PROVIDER = os.getenv('RAGTIME_EMBEDDING_PROVIDER', 'openai')
 RAGTIME_EMBEDDING_API_KEY = os.getenv('RAGTIME_EMBEDDING_API_KEY', '')
 RAGTIME_EMBEDDING_MODEL = os.getenv('RAGTIME_EMBEDDING_MODEL', 'text-embedding-3-small')
+
+# Scott — RAG chatbot
+RAGTIME_SCOTT_PROVIDER = os.getenv('RAGTIME_SCOTT_PROVIDER', 'openai')
+RAGTIME_SCOTT_API_KEY = os.getenv('RAGTIME_SCOTT_API_KEY', '')
+RAGTIME_SCOTT_MODEL = os.getenv('RAGTIME_SCOTT_MODEL', 'gpt-4.1-mini')
+RAGTIME_SCOTT_TOP_K = int(os.getenv('RAGTIME_SCOTT_TOP_K', '5'))
+RAGTIME_SCOTT_SCORE_THRESHOLD = float(os.getenv('RAGTIME_SCOTT_SCORE_THRESHOLD', '0.3'))
 
 # Qdrant vector store — docker-compose.yml reads RAGTIME_QDRANT_PORT
 RAGTIME_QDRANT_HOST = os.getenv('RAGTIME_QDRANT_HOST', 'localhost')

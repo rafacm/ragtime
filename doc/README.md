@@ -181,16 +181,41 @@ The chain order is configured in [`settings.py`](../ragtime/settings.py), and th
 
 ## How Scott Works
 
-Scott is a strict RAG (Retrieval-Augmented Generation) agent:
+Scott is a strict RAG (Retrieval-Augmented Generation) agent implemented with Pydantic AI and exposed to the frontend over the AG-UI (HTTP+SSE) protocol.
 
-1. User asks a question in any language
-2. The question is embedded using the configured multilingual embedding model
-3. Relevant transcript chunks are retrieved from Qdrant
-4. The LLM generates an answer strictly from the retrieved content
-5. The response includes references to specific episodes and timestamps
-6. If no relevant content exists, Scott says so — no hallucinated answers
+**Agent loop:**
 
-Scott responds in the user's language, regardless of the source episode's language. Cross-language retrieval is handled by multilingual embeddings.
+1. User asks a question in any language.
+2. Scott's system prompt mandates calling the `search_chunks` tool before any factual answer.
+3. Each `search_chunks(query, episode_id?, top_k?)` call embeds the query with the configured multilingual embedding model and retrieves the top-k matching chunks from Qdrant (with an optional episode filter and a score floor). Results are appended to the agent's `retrieved_chunks` state with stable 1-indexed `[N]` labels.
+4. Scott may call `search_chunks` again with a refined or widened query to support follow-ups and multi-hop questions.
+5. The LLM answers using only the retrieved chunks and cites each fact with a `[N]` marker. If no relevant chunks are found, Scott says so and stops — no general-knowledge fallback.
+6. The response streams token-by-token over SSE; state snapshots drive any live UI (e.g. a source panel).
+
+**Configuration:**
+
+| Setting | Default | Description |
+|---|---|---|
+| `RAGTIME_SCOTT_PROVIDER` | `openai` | LLM provider (currently only `openai`) |
+| `RAGTIME_SCOTT_MODEL` | `gpt-4.1-mini` | Model name |
+| `RAGTIME_SCOTT_API_KEY` | — | Provider API key |
+| `RAGTIME_SCOTT_TOP_K` | `5` | Chunks returned per `search_chunks` call |
+| `RAGTIME_SCOTT_SCORE_THRESHOLD` | `0.3` | Minimum cosine similarity for a chunk to be kept |
+
+**Topology:**
+
+```
+Browser (React island: assistant-ui + @assistant-ui/react-ag-ui)
+   │   HTTP+SSE (AG-UI protocol)
+   ▼
+Django ASGI app (ragtime/asgi.py)
+   ├── /chat/agent/  → authenticated AG-UI mount → Pydantic AI Agent
+   │                    └── @agent.tool search_chunks → episodes/vector_store.py
+   │                         └── EmbeddingProvider.embed + Qdrant query_points
+   └── everything else → standard Django (pages, auth, admin, episodes API)
+```
+
+Scott answers in the user's language regardless of the source episode's language — cross-language retrieval is handled by the multilingual embedding model.
 
 ## Wikidata Cache
 

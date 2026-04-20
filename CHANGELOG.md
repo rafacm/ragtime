@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-04-20
+
+### Added
+
+- Scott — RAG chatbot. First working version of the strict-RAG jazz podcast chat agent. Adds a new `chat` Django app with `Conversation` / `Message` models backing assistant-ui's threadList; a Pydantic AI `Agent` (`chat/agent.py`) with a `search_chunks` tool that retrieves from Qdrant and a strict-RAG system prompt forbidding general-knowledge fallbacks; `ChunkSearchResult` + `search_chunks()` in `episodes/vector_store.py` (embed query → `query_points` with optional episode filter and score threshold). The agent is exposed as an ASGI app via `agent.to_ag_ui(...)` (AG-UI HTTP+SSE protocol) and mounted inside Django's ASGI stack at `/chat/agent/` behind session-cookie auth middleware. Frontend is a React island under `frontend/` built with Vite + `django-vite` + Tailwind 4 + assistant-ui + `@assistant-ui/react-ag-ui` (`useAgUiRuntime` connects directly to AG-UI — no CopilotKit runtime bridge, no Next.js). Added `RAGTIME_SCOTT_PROVIDER`, `RAGTIME_SCOTT_MODEL`, `RAGTIME_SCOTT_API_KEY`, `RAGTIME_SCOTT_TOP_K`, `RAGTIME_SCOTT_SCORE_THRESHOLD`, `LOGIN_URL`, `LOGIN_REDIRECT_URL`, plus Django auth routes at `/accounts/login|logout/` (admin-provisioned users only). Test suite covers retrieval passthrough, agent refusal on empty retrieval, citation integrity (every `[N]` maps to `ScottState.retrieved_chunks`), auth gating via direct ASGI invocation, and conversation CRUD scoped to the owning user — [plan](doc/plans/2026-04-20-scott-rag-chatbot.md), [feature](doc/features/2026-04-20-scott-rag-chatbot.md), [planning session](doc/sessions/2026-04-20-scott-rag-chatbot-planning-session.md), [implementation session](doc/sessions/2026-04-20-scott-rag-chatbot-implementation-session.md)
+
 ## 2026-04-19
 
 ### Changed

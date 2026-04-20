@@ -1,0 +1,13 @@
+@import "tailwindcss";
+@import "@assistant-ui/react/styles/index.css";
+@import "@assistant-ui/react/styles/modal.css";
+
+html,
+body,
+#scott-root {
+  height: 100%;
+  margin: 0;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}

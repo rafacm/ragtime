@@ -3,7 +3,7 @@ revision = 3
 requires-python = "==3.13.*"
 
 [options]
-exclude-newer = "2026-04-12T18:42:36.895669Z"
+exclude-newer = "2026-04-13T12:53:51.748194Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -443,6 +443,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/bd/55/b9445fc0695b03746f355c05b2eecc54c34e05198c686f4fc4406b722b52/django-5.2.12.tar.gz", hash = "sha256:6b809af7165c73eff5ce1c87fdae75d4da6520d6667f86401ecf55b681eb1eeb", size = 10860574, upload-time = "2026-03-03T13:56:05.509Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4e/32/4b144e125678efccf5d5b61581de1c4088d6b0286e46096e3b8de0d556c8/django-5.2.12-py3-none-any.whl", hash = "sha256:4853482f395c3a151937f6991272540fcbf531464f254a347bf7c89f53c8cff7", size = 8310245, upload-time = "2026-03-03T13:56:01.174Z" },
+]
+
+[[package]]
+name = "django-vite"
+version = "3.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/23/fe/4be07f538bbf9bf8bf73b045552ec2a1b4fba67e3176abb30490b643368e/django_vite-3.1.0.tar.gz", hash = "sha256:8b4ffe4a9fa81ff568bfb195e74dde8694aaf13fd4b656ae60bf59cce08b85e8", size = 25434, upload-time = "2025-02-23T15:32:07.914Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/30/59/7df4b1077fa41b43b4e542696d75138dbb86a65f44248c607b3e0f1014ce/django_vite-3.1.0-py3-none-any.whl", hash = "sha256:4e46572bd6b1ce70784be129205dc2ffcbc7a3c19fea50bebfb72b327bbde5fc", size = 23579, upload-time = "2025-02-23T15:32:06.603Z" },
 ]
 
 [[package]]
@@ -2005,6 +2017,7 @@ dependencies = [
     { name = "beautifulsoup4" },
     { name = "dbos" },
     { name = "django" },
+    { name = "django-vite" },
     { name = "httpx" },
     { name = "mutagen" },
     { name = "openai" },
@@ -2030,6 +2043,7 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12,<5" },
     { name = "dbos", specifier = ">=2.18,<3" },
     { name = "django", specifier = ">=5.2,<5.3" },
+    { name = "django-vite", specifier = ">=3.0,<4" },
     { name = "httpx", specifier = ">=0.27,<1" },
     { name = "langfuse", marker = "extra == 'langfuse'", specifier = ">=4,<5" },
     { name = "mutagen", specifier = ">=1.47,<2" },
@@ -2040,7 +2054,7 @@ requires-dist = [
     { name = "opentelemetry-sdk", specifier = ">=1.29,<2" },
     { name = "playwright", specifier = ">=1.40,<2" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
-    { name = "pydantic-ai", specifier = ">=1.30,<2" },
+    { name = "pydantic-ai", extras = ["ag-ui"], specifier = ">=1.30,<2" },
     { name = "python-dotenv", specifier = ">=1.0,<2" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "qdrant-client", specifier = ">=1.12,<2" },
