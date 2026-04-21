@@ -6,28 +6,28 @@
 @source "../node_modules/@assistant-ui/react/dist/**/*.{js,mjs,cjs}";
 @source "../node_modules/@assistant-ui/react-ag-ui/dist/**/*.{js,mjs,cjs}";
 
-/* shadcn-style theme (dark). HSL triplets so utilities like
+/* shadcn-style theme (light). HSL triplets so utilities like
    `bg-[hsl(var(--primary)/0.5)]` work if we need alpha overrides. */
 :root {
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
-  --card: 222 47% 15%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222 47% 11%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 243 75% 59%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 217 33% 18%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217 33% 18%;
-  --muted-foreground: 215 20% 65%;
-  --accent: 217 33% 18%;
-  --accent-foreground: 210 40% 98%;
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 97%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 25 60% 45%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 30 15% 93%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 30 15% 93%;
+  --muted-foreground: 220 9% 46%;
+  --accent: 30 15% 93%;
+  --accent-foreground: 222 47% 11%;
   --destructive: 0 63% 51%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217 33% 22%;
-  --input: 217 33% 22%;
-  --ring: 243 75% 59%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 13% 87%;
+  --input: 220 13% 87%;
+  --ring: 25 60% 45%;
   --radius: 0.5rem;
 }
 
