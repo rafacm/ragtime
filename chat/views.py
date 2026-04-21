@@ -14,6 +14,7 @@ adapters:
 from __future__ import annotations
 
 import json
+import logging
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -22,6 +23,8 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_http_methods
 
 from .models import Conversation, Message
+
+logger = logging.getLogger(__name__)
 
 
 def _serialize_conversation(conversation: Conversation) -> dict:
@@ -181,10 +184,14 @@ async def api_generate_title(
             "Return ONLY the title text, nothing else. No quotes."
         ),
     )
-    result = await agent.run(
-        "\n".join(snippets),
-    )
-    title = result.output.strip().strip('"').strip("'")[:80]
+    try:
+        result = await agent.run(
+            "\n".join(snippets),
+        )
+        title = result.output.strip().strip('"').strip("'")[:80]
+    except Exception:
+        logger.exception("Title generation failed for conversation %d", conversation_id)
+        return JsonResponse({"title": conversation.title or ""})
     conversation.title = title
     await sync_to_async(conversation.save)(update_fields=["title", "updated_at"])
     return JsonResponse({"title": title})
