@@ -20,6 +20,11 @@ from django.core.asgi import get_asgi_application  # noqa: E402
 
 _django_app = get_asgi_application()
 
+if settings.DEBUG:
+    from django.contrib.staticfiles.handlers import ASGIStaticFilesHandler
+
+    _django_app = ASGIStaticFilesHandler(_django_app)
+
 
 async def _send_unauthorized(send) -> None:
     await send(
