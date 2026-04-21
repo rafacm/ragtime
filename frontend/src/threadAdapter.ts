@@ -1,25 +1,16 @@
-/**
- * Thread list + history adapters bridging assistant-ui to the Django
- * persistence endpoints in ``chat/views.py``.
- *
- * - `threadList` adapter: lists + creates conversations; on switch, loads
- *   their messages from Postgres.
- * - `history` adapter: persists every new message via `append(item)`;
- *   auto-creates a Django conversation on first append if none exists.
- *   `load()` restores messages on mount when the URL hash remembers the
- *   previously active thread id.
- *
- * We persist the active threadId to `localStorage` so a page refresh
- * can pick the conversation back up and replay its history.
- */
-
 import type {
   ExportedMessageRepository,
   ExportedMessageRepositoryItem,
   ThreadMessage,
 } from "@assistant-ui/react";
-
-const ACTIVE_THREAD_STORAGE_KEY = "ragtime.scott.activeThreadId";
+import type {
+  RemoteThreadListAdapter,
+  RemoteThreadListResponse,
+  RemoteThreadMetadata,
+  RemoteThreadInitializeResponse,
+} from "@assistant-ui/core";
+import { createAssistantStream } from "assistant-stream";
+import type { AssistantStream } from "assistant-stream";
 
 export function getCsrfToken(): string | null {
   const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
@@ -56,92 +47,109 @@ type HistoryDto = {
   messages: ExportedMessageRepositoryItem[];
 };
 
-export type ThreadState = {
-  threadId: string | null;
-};
-
-function rememberThreadId(id: string | null) {
-  try {
-    if (id) localStorage.setItem(ACTIVE_THREAD_STORAGE_KEY, id);
-    else localStorage.removeItem(ACTIVE_THREAD_STORAGE_KEY);
-  } catch {
-    // localStorage may be unavailable (private browsing, disabled storage);
-    // persistence within a single session still works via `state.threadId`.
-  }
+function conversationUrl(id: string): string {
+  return `/chat/api/conversations/${encodeURIComponent(id)}/`;
 }
 
-export function initialThreadState(): ThreadState {
-  let stored: string | null = null;
-  try {
-    stored = localStorage.getItem(ACTIVE_THREAD_STORAGE_KEY);
-  } catch {
-    stored = null;
-  }
-  return { threadId: stored };
-}
-
-async function createConversation(): Promise<number> {
-  const created = await jsonFetch<ConversationDto>(
-    "/chat/api/conversations/",
-    { method: "POST", body: JSON.stringify({}) },
-  );
-  return created.id;
-}
-
-export function buildThreadListAdapter(state: ThreadState) {
+export function createDjangoThreadListAdapter(): RemoteThreadListAdapter {
   return {
-    get threadId() {
-      return state.threadId;
-    },
-    async onSwitchToNewThread() {
-      const id = await createConversation();
-      state.threadId = String(id);
-      rememberThreadId(state.threadId);
-    },
-    async onSwitchToThread(
-      threadId: string,
-    ): Promise<{ messages: readonly ThreadMessage[] }> {
-      state.threadId = threadId;
-      rememberThreadId(state.threadId);
-      const history = await jsonFetch<HistoryDto>(
-        `/chat/api/conversations/${encodeURIComponent(threadId)}/history/`,
+    async list(): Promise<RemoteThreadListResponse> {
+      const data = await jsonFetch<{ conversations: ConversationDto[] }>(
+        "/chat/api/conversations/",
       );
-      return { messages: history.messages.map((item) => item.message) };
+      return {
+        threads: data.conversations.map((c) => ({
+          remoteId: String(c.id),
+          status: "regular" as const,
+          title: c.title || undefined,
+        })),
+      };
+    },
+
+    async initialize(): Promise<RemoteThreadInitializeResponse> {
+      const created = await jsonFetch<ConversationDto>(
+        "/chat/api/conversations/",
+        { method: "POST", body: JSON.stringify({}) },
+      );
+      return { remoteId: String(created.id), externalId: undefined };
+    },
+
+    async rename(remoteId: string, newTitle: string): Promise<void> {
+      await jsonFetch(conversationUrl(remoteId), {
+        method: "PATCH",
+        body: JSON.stringify({ title: newTitle }),
+      });
+    },
+
+    async archive(): Promise<void> {},
+
+    async unarchive(): Promise<void> {},
+
+    async delete(remoteId: string): Promise<void> {
+      await jsonFetch(conversationUrl(remoteId), { method: "DELETE" });
+    },
+
+    async fetch(threadId: string): Promise<RemoteThreadMetadata> {
+      const c = await jsonFetch<ConversationDto>(conversationUrl(threadId));
+      return {
+        remoteId: String(c.id),
+        status: "regular" as const,
+        title: c.title || undefined,
+      };
+    },
+
+    async generateTitle(
+      remoteId: string,
+      messages: readonly ThreadMessage[],
+    ): Promise<AssistantStream> {
+      const data = await jsonFetch<{ title: string }>(
+        `${conversationUrl(remoteId)}generate-title/`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            messages: messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+          }),
+        },
+      );
+
+      return createAssistantStream((controller) => {
+        controller.appendText(data.title);
+        controller.close();
+      });
     },
   };
 }
 
-export function buildHistoryAdapter(state: ThreadState) {
+export function buildHistoryAdapter(
+  getRemoteId: () => string | undefined,
+  waitForRemoteId: () => Promise<string>,
+) {
   return {
     async load(): Promise<ExportedMessageRepository> {
-      const threadId = state.threadId;
-      if (!threadId) return { messages: [] };
+      const remoteId = getRemoteId();
+      if (!remoteId) return { messages: [] };
       try {
-        const history = await jsonFetch<HistoryDto>(
-          `/chat/api/conversations/${encodeURIComponent(threadId)}/history/`,
+        const data = await jsonFetch<HistoryDto>(
+          `${conversationUrl(remoteId)}history/`,
         );
-        return { messages: history.messages };
+        return { messages: data.messages };
       } catch {
-        // Thread may have been deleted server-side or belongs to another
-        // user; forget it and start fresh instead of throwing.
-        state.threadId = null;
-        rememberThreadId(null);
         return { messages: [] };
       }
     },
+
     async append(item: ExportedMessageRepositoryItem): Promise<void> {
-      if (!state.threadId) {
-        // Auto-create a conversation on first append so a user who just
-        // types a message (without clicking "new conversation") still
-        // gets their turns persisted.
-        const id = await createConversation();
-        state.threadId = String(id);
-        rememberThreadId(state.threadId);
+      let remoteId = getRemoteId();
+      if (!remoteId) {
+        remoteId = await waitForRemoteId();
       }
-      await jsonFetch(
-        `/chat/api/conversations/${encodeURIComponent(state.threadId)}/history/`,
-        { method: "POST", body: JSON.stringify(item) },
-      );
+      await jsonFetch(`${conversationUrl(remoteId)}history/`, {
+        method: "POST",
+        body: JSON.stringify(item),
+      });
     },
   };
 }

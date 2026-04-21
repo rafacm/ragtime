@@ -44,8 +44,9 @@ SCOTT_SYSTEM_PROMPT = dedent(
     4. When you state a fact that comes from a chunk, cite it with a `[N]`
        marker where `N` matches the index shown in the tool results (these
        are 1-indexed and stable across tool calls within the same turn).
-    5. Reply in the user's language, regardless of the source episode's
-       language. Cross-language retrieval is handled by the embedding model.
+    5. Always reply in the language of the user's question, even when the
+       retrieved chunks are in a different language. Translate or paraphrase
+       the chunk content as needed — never switch to the chunk's language.
     6. Be concise. Prefer two tight paragraphs with citations over a long
        essay. You are not a music critic — you report what the podcasts say.
     """
@@ -59,10 +60,10 @@ class ScottState(BaseModel):
     conversation_id: int | None = None
 
 
-def _build_model():
+def build_model():
     """Build a Pydantic AI model with the API key wired from settings.
 
-    Mirrors the pattern used by ``episodes.agents.agent._build_model`` so
+    Mirrors the pattern used by ``episodes.agents.agent.build_model`` so
     credentials come from Django settings rather than ambient env vars.
     Built lazily so Django can boot even without Scott credentials present.
     """
@@ -91,7 +92,7 @@ def get_scott_agent() -> Agent[StateDeps[ScottState]]:
     # OpenAIResponsesModel and was not reaching the LLM, causing Scott
     # to answer from general knowledge instead of calling search_chunks.
     agent: Agent[StateDeps[ScottState]] = Agent(
-        model=_build_model(),
+        model=build_model(),
         deps_type=StateDeps[ScottState],
         instructions=SCOTT_SYSTEM_PROMPT,
     )
