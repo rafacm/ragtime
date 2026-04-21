@@ -1,7 +1,6 @@
 """Drop and recreate the PostgreSQL database."""
 
 from django.conf import settings
-from django.core.management import call_command
 from django.core.management.base import BaseCommand
 
 
@@ -63,14 +62,6 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f"Database '{db_name}' recreated."))
 
-        self.stdout.write("Running migrations...")
-        call_command("migrate", verbosity=0)
-        self.stdout.write(self.style.SUCCESS("Migrations applied."))
-
-        self.stdout.write("Seeding entity types...")
-        call_command("load_entity_types", verbosity=0)
-        self.stdout.write(self.style.SUCCESS("Entity types loaded."))
-
         self.stdout.write("Clearing Qdrant collection...")
         try:
             from episodes.vector_store import get_vector_store
@@ -95,5 +86,8 @@ class Command(BaseCommand):
             )
 
         self.stdout.write(
-            "\nDone. Run 'uv run python manage.py createsuperuser' to create an admin account."
+            "\nDone. Next steps:\n"
+            "  uv run python manage.py migrate\n"
+            "  uv run python manage.py load_entity_types\n"
+            "  uv run python manage.py createsuperuser"
         )
