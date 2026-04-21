@@ -143,6 +143,53 @@ def api_conversation_history(
     return JsonResponse(_message_to_repository_item(message), status=201)
 
 
+@login_required
+@require_http_methods(["POST"])
+async def api_generate_title(
+    request: HttpRequest, conversation_id: int
+) -> JsonResponse:
+    from asgiref.sync import sync_to_async
+    from pydantic_ai import Agent
+
+    from .agent import build_model
+
+    conversation = await sync_to_async(get_object_or_404)(
+        Conversation, pk=conversation_id, user=request.user
+    )
+
+    payload = _parse_json(request)
+    if payload is None:
+        return JsonResponse({"error": "invalid JSON body"}, status=400)
+
+    messages = payload.get("messages", [])
+    snippets: list[str] = []
+    for msg in messages[:4]:
+        role = msg.get("role", "")
+        parts = msg.get("content", [])
+        text_parts = [p.get("text", "") for p in parts if p.get("type") == "text"]
+        text = " ".join(text_parts).strip()
+        if text:
+            snippets.append(f"{role}: {text[:200]}")
+
+    if not snippets:
+        return JsonResponse({"title": ""})
+
+    agent: Agent[None, str] = Agent(
+        model=build_model(),
+        instructions=(
+            "Generate a concise conversation title (max 6 words). "
+            "Return ONLY the title text, nothing else. No quotes."
+        ),
+    )
+    result = await agent.run(
+        "\n".join(snippets),
+    )
+    title = result.output.strip().strip('"').strip("'")[:80]
+    conversation.title = title
+    await sync_to_async(conversation.save)(update_fields=["title", "updated_at"])
+    return JsonResponse({"title": title})
+
+
 def _parse_json(request: HttpRequest) -> dict | None:
     if not request.body:
         return {}

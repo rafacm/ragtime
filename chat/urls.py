@@ -17,4 +17,9 @@ urlpatterns = [
         views.api_conversation_history,
         name="conversation_history",
     ),
+    path(
+        "api/conversations/<int:conversation_id>/generate-title/",
+        views.api_generate_title,
+        name="generate_title",
+    ),
 ]
