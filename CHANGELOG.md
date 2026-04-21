@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-04-21
+
+### Changed
+
+- Conversation history UX — replace localStorage-based thread adapter with `RemoteThreadListAdapter` backed by Django API endpoints. All persisted conversations are now discoverable in the sidebar across browser sessions, with rename, delete, and LLM-powered auto-title generation via a new `POST /chat/api/conversations/<id>/generate-title/` endpoint. Switch chat theme from dark to light with warm brown primary matching the RAGtime branding; add RAGtime SVG banner to sidebar. Serve Django static files under ASGI via `ASGIStaticFilesHandler` in DEBUG mode. Clarify Scott's system prompt to explicitly translate/paraphrase chunk content when it's in a different language than the user's question. Make `dbreset` only clear data and print explicit next steps instead of auto-running migrate. Add telemetry subsection to README — [plan](doc/plans/2026-04-21-conversation-history-ux.md), [feature](doc/features/2026-04-21-conversation-history-ux.md), [planning session](doc/sessions/2026-04-21-conversation-history-ux-planning-session.md), [implementation session](doc/sessions/2026-04-21-conversation-history-ux-implementation-session.md)
+
 ## 2026-04-20
 
 ### Added
