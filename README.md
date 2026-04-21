@@ -155,13 +155,25 @@ The Scott chat UI is a React application ([assistant-ui](https://www.assistant-u
 
 The frontend communicates with the ASGI server over HTTP+SSE (AG-UI protocol), so both the Uvicorn server and the Vite dev server must be running to develop the chat UI.
 
+#### Telemetry (optional)
+
+RAGtime uses OpenTelemetry to trace pipeline steps and LLM calls. The quickest local setup is [Jaeger](https://www.jaegertracing.io/):
+
+```bash
+docker run -d --name jaeger -p 4318:4318 -p 16686:16686 jaegertracing/all-in-one:latest
+```
+
+Then set `RAGTIME_OTEL_COLLECTORS=jaeger` in `.env`. Traces are viewable at `http://localhost:16686`. See [Telemetry (OpenTelemetry)](doc/README.md#telemetry-opentelemetry) for all collector options (console, Jaeger, Langfuse).
+
 #### Resetting the database
 
 To drop all data and start fresh:
 
 ```bash
-uv run python manage.py dbreset
-uv run python manage.py createsuperuser   # Recreate the admin account
+uv run python manage.py dbreset            # Drop PostgreSQL DB + Qdrant collection
+uv run python manage.py migrate            # Recreate tables
+uv run python manage.py load_entity_types  # Seed entity types
+uv run python manage.py createsuperuser    # Recreate the admin account
 ```
 
 ## Tech Stack

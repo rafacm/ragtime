@@ -267,9 +267,7 @@ RAGTIME_OTEL_COLLECTORS=console
 
 1. Start Jaeger:
    ```bash
-   docker run -d --name jaeger \
-     -p 4318:4318 -p 16686:16686 \
-     jaegertracing/all-in-one:latest
+   docker run -d --name jaeger -p 4318:4318 -p 16686:16686 jaegertracing/all-in-one:latest
    ```
 
 2. Set these variables in `.env`:
