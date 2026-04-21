@@ -291,7 +291,7 @@ function App() {
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <div className="flex h-full w-full bg-background text-foreground">
-        <aside className="hidden sm:flex w-64 shrink-0 flex-col border-r border-border p-2">
+        <aside className="hidden sm:flex w-80 shrink-0 flex-col border-r border-border p-2">
           <header className="px-2 py-3">
             <img src="/static/chat/ragtime.svg" alt="RAGtime" className="w-full" />
           </header>
