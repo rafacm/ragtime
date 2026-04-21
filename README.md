@@ -171,10 +171,16 @@ Then set `RAGTIME_OTEL_COLLECTORS=jaeger` in `.env`. Traces are viewable at `htt
 To drop all data and start fresh:
 
 ```bash
-uv run python manage.py dbreset            # Drop PostgreSQL DB + Qdrant collection
+uv run python manage.py dbreset            # Drop PostgreSQL DB (incl. DBOS tables) + Qdrant collection
 uv run python manage.py migrate            # Recreate tables
 uv run python manage.py load_entity_types  # Seed entity types
-uv run python manage.py createsuperuser    # Recreate the admin account
+uv run python manage.py createsuperuser    # Recreate the admin account (interactive)
+```
+
+Or non-interactively:
+
+```bash
+DJANGO_SUPERUSER_PASSWORD=admin uv run python manage.py createsuperuser --username admin --email admin@example.com --noinput
 ```
 
 ## Tech Stack
