@@ -21,6 +21,10 @@
 
 RAGtime is a Django application for ingesting jazz-related podcast episodes. It extracts metadata, transcribes audio, identifies jazz entities, and powers **Scott** — a jazz-focused AI agent that answers questions strictly from ingested episode content, with references to specific episodes and timestamps.
 
+<div align="center">
+  <img src="doc/ragtime-scott-chat.png" alt="Scott answering questions about Django Reinhardt" width="700">
+</div>
+
 ## Features
 
 - 🎙️ **Episode Ingestion** — Add podcast episodes by URL. RAGtime scrapes metadata (title, description, date, image), downloads audio, and processes it through the pipeline.
