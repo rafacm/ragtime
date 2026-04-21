@@ -7,17 +7,18 @@ import {
   ThreadPrimitive,
   ThreadListItemPrimitive,
   ThreadListPrimitive,
+  useRemoteThreadListRuntime,
 } from "@assistant-ui/react";
 import { AssistantRuntimeProvider } from "@assistant-ui/core/react";
 import { useAgUiRuntime } from "@assistant-ui/react-ag-ui";
+import { useAui } from "@assistant-ui/store";
 import { useCallback, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 
 import {
   buildHistoryAdapter,
-  buildThreadListAdapter,
+  createDjangoThreadListAdapter,
   getCsrfToken,
-  initialThreadState,
 } from "./threadAdapter";
 
 async function signOut() {
@@ -76,7 +77,7 @@ function SearchChunksDisplay(props: {
     >
       <summary className="cursor-pointer select-none">
         🔎 Searched ingested episodes for{" "}
-        <span className="font-mono text-foreground">“{args.query ?? ""}”</span>
+        <span className="font-mono text-foreground">"{args.query ?? ""}"</span>
         {" — "}
         {chunks.length > 0
           ? `${chunks.length} chunk${chunks.length === 1 ? "" : "s"}`
@@ -192,6 +193,23 @@ function ThreadListItem() {
       <ThreadListItemPrimitive.Trigger className="flex-1 truncate text-left text-sm text-foreground">
         <ThreadListItemPrimitive.Title fallback="New chat" />
       </ThreadListItemPrimitive.Trigger>
+      <ThreadListItemPrimitive.Delete className="hidden group-hover:inline-flex shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M3 6h18" />
+          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+        </svg>
+      </ThreadListItemPrimitive.Delete>
     </ThreadListItemPrimitive.Root>
   );
 }
@@ -207,7 +225,38 @@ function ThreadList() {
   );
 }
 
-function App() {
+function useScottRuntime() {
+  const aui = useAui();
+
+  const getRemoteId = useCallback(
+    () => aui.threadListItem().getState().remoteId,
+    [aui],
+  );
+
+  const waitForRemoteId = useCallback(
+    () =>
+      new Promise<string>((resolve) => {
+        const id = getRemoteId();
+        if (id) {
+          resolve(id);
+          return;
+        }
+        const unsub = aui.subscribe(() => {
+          const newId = aui.threadListItem().getState().remoteId;
+          if (newId) {
+            unsub();
+            resolve(newId);
+          }
+        });
+      }),
+    [aui, getRemoteId],
+  );
+
+  const history = useMemo(
+    () => buildHistoryAdapter(getRemoteId, waitForRemoteId),
+    [getRemoteId, waitForRemoteId],
+  );
+
   const agent = useMemo(
     () =>
       new HttpAgent({
@@ -220,20 +269,19 @@ function App() {
     [],
   );
 
-  const threadState = useMemo(() => initialThreadState(), []);
-  const threadList = useMemo(
-    () => buildThreadListAdapter(threadState),
-    [threadState],
-  );
-  const history = useMemo(
-    () => buildHistoryAdapter(threadState),
-    [threadState],
-  );
-
-  const runtime = useAgUiRuntime({
+  return useAgUiRuntime({
     agent,
-    adapters: { threadList, history },
+    adapters: { history },
     showThinking: true,
+  });
+}
+
+const djangoAdapter = createDjangoThreadListAdapter();
+
+function App() {
+  const runtime = useRemoteThreadListRuntime({
+    runtimeHook: useScottRuntime,
+    adapter: djangoAdapter,
   });
 
   const onSignOut = useCallback(() => {
@@ -244,8 +292,8 @@ function App() {
     <AssistantRuntimeProvider runtime={runtime}>
       <div className="flex h-full w-full bg-background text-foreground">
         <aside className="hidden sm:flex w-64 shrink-0 flex-col border-r border-border p-2">
-          <header className="px-2 py-3 text-sm font-semibold text-muted-foreground">
-            Scott
+          <header className="px-2 py-3">
+            <img src="/static/chat/ragtime.svg" alt="RAGtime" className="w-full" />
           </header>
           <ThreadList />
           <footer className="mt-auto px-2 py-3 text-xs text-muted-foreground">
