@@ -347,10 +347,26 @@ When no collectors are configured (the default), OTel provides a no-op tracer wi
 ### Starting services
 
 ```bash
-docker compose up -d    # Start PostgreSQL on localhost:5432
+docker compose up -d    # Start PostgreSQL and Qdrant
 ```
 
-The `ragtime` database is created automatically on first start. The port is bound to `127.0.0.1` (localhost only, not exposed to the network).
+The `ragtime` database is created automatically on first start. Both ports are bound to `127.0.0.1` (localhost only, not exposed to the network).
+
+#### Application server
+
+```bash
+uv run uvicorn ragtime.asgi:application --host 127.0.0.1 --port 8000
+```
+
+Uvicorn (ASGI) is required for Scott's streaming chat endpoint. See [Running the services](../README.md#running-the-services) in the root README for full details.
+
+#### Frontend dev server
+
+```bash
+cd frontend && npm run dev
+```
+
+Vite serves the React chat UI with HMR on port 5173. Both the ASGI server and Vite must be running to develop the chat UI.
 
 ### Running tests
 

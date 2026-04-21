@@ -46,14 +46,13 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixe
 
 ### What's coming
 
-- **Scott — the RAG chatbot** (chat app): conversational agent that answers questions strictly from ingested content, with episode/timestamp references, multilingual support, and streaming responses.
 - **AI evaluation**: measure pipeline and Scott quality using [RAGAS](https://docs.ragas.io/) (faithfulness, answer relevancy, context precision/recall) with scores tracked in [Langfuse](https://langfuse.com/docs/scores/model-based-evals/ragas). Enables regression testing across prompt and model changes.
 
 ## Processing Pipeline
 
 [![Processing Pipeline](doc/architecture/ragtime-processing-pipeline.svg)](https://app.excalidraw.com/s/3Cob4pHK6Ge/3zFsvWxbOWQ)
 
-Each step updates the episode's `status` field. A `post_save` signal dispatches the next step as an async Django Q2 task. Failures with exceptions trigger the [recovery layer](doc/README.md#recovery).
+Each step updates the episode's `status` field. A `post_save` signal starts a [DBOS](https://docs.dbos.dev/) durable workflow that sequences all steps with PostgreSQL-backed checkpointing — on crash or restart, the workflow resumes from the last completed step. Failures trigger the [recovery layer](doc/README.md#recovery).
 
 | # | Step | Status | Description |
 |---|------|--------|-------------|
@@ -88,6 +87,7 @@ Detailed documentation lives in the [`doc/`](doc/) directory:
 
 - [Python 3.13+](https://www.python.org/downloads/)
 - [uv](https://docs.astral.sh/uv/)
+- [Node.js](https://nodejs.org/) (for the frontend dev server and build)
 - [Docker](https://docs.docker.com/get-docker/) (for PostgreSQL and Qdrant)
 - [ffmpeg](https://ffmpeg.org/) (for audio downsampling)
 - [wget](https://www.gnu.org/software/wget/) (for audio downloading)
@@ -125,17 +125,39 @@ Defaults are used if the variables are unset, so a fresh clone runs with zero co
 
 ### Running the services
 
-Start PostgreSQL and Qdrant, apply migrations, create an admin account, and start the web server and task worker:
+Start PostgreSQL and Qdrant, apply migrations, create an admin account, and start the application:
 
 ```bash
 docker compose up -d                      # Start PostgreSQL and Qdrant (both read ports/creds from .env)
 uv run python manage.py migrate
 uv run python manage.py createsuperuser   # Create an admin user for the Django admin UI
 uv run python manage.py load_entity_types # Seed initial entity types
-uv run python manage.py runserver --noreload  # Start the web server (--noreload required by DBOS)
 ```
 
-To reset the database (drops all data and recreates):
+#### Application server (ASGI)
+
+```bash
+uv run uvicorn ragtime.asgi:application --host 127.0.0.1 --port 8000
+```
+
+The application runs under ASGI via Uvicorn. This is required because Scott's chat endpoint (`/chat/agent/`) uses HTTP+SSE streaming through an ASGI sub-app mounted in `ragtime/asgi.py`. All other routes (admin, episodes, pages) are served by the same process through Django's standard ASGI handler.
+
+> **Note:** `manage.py runserver` still works for non-Scott development (admin, episodes, ingestion pipeline) but does not load the ASGI dispatcher, so the chat endpoint will not function.
+
+#### Frontend dev server (Vite)
+
+```bash
+cd frontend && npm install   # First time only
+cd frontend && npm run dev   # Vite dev server with HMR on port 5173
+```
+
+The Scott chat UI is a React application ([assistant-ui](https://www.assistant-ui.com/) + [AG-UI](https://github.com/ag-ui-protocol/ag-ui)) built with [Vite](https://vite.dev/). During development, Vite serves the frontend with hot module replacement. In production, run `npm run build` and the compiled assets are served by Django via [django-vite](https://github.com/MrBin99/django-vite).
+
+The frontend communicates with the ASGI server over HTTP+SSE (AG-UI protocol), so both the Uvicorn server and the Vite dev server must be running to develop the chat UI.
+
+#### Resetting the database
+
+To drop all data and start fresh:
 
 ```bash
 uv run python manage.py dbreset
@@ -154,7 +176,7 @@ uv run python manage.py createsuperuser   # Recreate the admin account
 - **LLM**: Configurable — [Claude](https://www.anthropic.com/) (Anthropic), [GPT](https://openai.com/) (OpenAI), etc.
 - **Embeddings**: Configurable — must support multilingual models for cross-language retrieval
 - **AI Evaluation**: [RAGAS](https://docs.ragas.io/) + [Langfuse](https://langfuse.com/)
-- **Frontend**: [Django templates](https://docs.djangoproject.com/en/5.2/topics/templates/) + [HTMX](https://htmx.org/) + [Tailwind CSS](https://tailwindcss.com/)
+- **Frontend**: [React 19](https://react.dev/) + [assistant-ui](https://www.assistant-ui.com/) + [Tailwind CSS 4](https://tailwindcss.com/) via [Vite](https://vite.dev/) + [django-vite](https://github.com/MrBin99/django-vite) (Scott chat UI); [Django templates](https://docs.djangoproject.com/en/5.2/topics/templates/) + [HTMX](https://htmx.org/) (other pages)
 - **Package Manager**: [uv](https://docs.astral.sh/uv/)
 
 ## License
