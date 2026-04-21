@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):
-    help = "Drop and recreate the PostgreSQL database, run migrations, and seed entity types"
+    help = "Drop and recreate the PostgreSQL database (incl. DBOS tables) and Qdrant collection"
 
     def add_arguments(self, parser):
         parser.add_argument(

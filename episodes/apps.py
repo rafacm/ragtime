@@ -26,7 +26,8 @@ class EpisodesConfig(AppConfig):
         # Only initialize DBOS for server/worker entrypoints — other commands
         # (migrate, check, shell, …) don't need a live DBOS connection.
         _DBOS_COMMANDS = {"runserver"}
-        if not _DBOS_COMMANDS.intersection(sys.argv):
+        is_uvicorn = any("uvicorn" in arg for arg in sys.argv[:1])
+        if not is_uvicorn and not _DBOS_COMMANDS.intersection(sys.argv):
             return
 
         from dbos import DBOS, DBOSConfig
