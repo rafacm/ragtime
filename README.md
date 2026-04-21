@@ -41,6 +41,7 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 - **Configuration wizard**: interactive `manage.py configure` command for all `RAGTIME_*` env vars.
 - **Telemetry**: [OpenTelemetry](https://opentelemetry.io/)-based tracing for pipeline steps and LLM calls with optional collectors: console, [Jaeger](https://www.jaegertracing.io/), and [Langfuse](https://langfuse.com).
 - **Agent-based recovery**: [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation recovers from scraping and downloading failures automatically.
+- **Scott chatbot**: strict-RAG conversational agent that answers questions only from ingested episode content, with citations and real-time streaming via [AG-UI](https://github.com/ag-ui-protocol/ag-ui). React frontend built with [assistant-ui](https://www.assistant-ui.com/) and conversation history persisted in Django.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixes, implementation plans, feature documentation and session transcripts.
 
