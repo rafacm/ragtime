@@ -27,6 +27,7 @@ class ChunkSearchResult:
     episode_id: int
     episode_title: str
     episode_url: str
+    episode_audio_url: str
     episode_image_url: str
     start_time: float
     end_time: float
@@ -169,6 +170,7 @@ class QdrantVectorStore:
                 episode_id=int(hit.payload["episode_id"]),
                 episode_title=hit.payload.get("episode_title", ""),
                 episode_url=hit.payload.get("episode_url", ""),
+                episode_audio_url=hit.payload.get("episode_audio_url", ""),
                 episode_image_url=hit.payload.get("episode_image_url", ""),
                 start_time=float(hit.payload.get("start_time", 0.0)),
                 end_time=float(hit.payload.get("end_time", 0.0)),

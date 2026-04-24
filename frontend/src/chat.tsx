@@ -12,14 +12,18 @@ import {
 import { AssistantRuntimeProvider } from "@assistant-ui/core/react";
 import { useAgUiRuntime } from "@assistant-ui/react-ag-ui";
 import { useAui } from "@assistant-ui/store";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 
+import { AudioPlayerProvider, useAudioPlayer } from "./audioPlayer";
+import { AudioPlayerBar } from "./audioPlayerBar";
+import { EpisodesPanel } from "./episodesPanel";
 import {
   buildHistoryAdapter,
   createDjangoThreadListAdapter,
   getCsrfToken,
 } from "./threadAdapter";
+import { formatTime } from "./time";
 
 async function signOut() {
   await fetch("/accounts/logout/", {
@@ -42,7 +46,10 @@ function UserMessage() {
 
 type RetrievedChunk = {
   citation: string;
+  episode_id: number;
   episode_title: string;
+  episode_audio_url: string;
+  episode_image_url: string;
   start_time: number;
   end_time: number;
   language: string;
@@ -56,12 +63,6 @@ type SearchChunksArgs = {
   top_k?: number | null;
 };
 
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
 function SearchChunksDisplay(props: {
   args: SearchChunksArgs;
   result?: RetrievedChunk[];
@@ -69,6 +70,7 @@ function SearchChunksDisplay(props: {
 }) {
   const { args, result } = props;
   const chunks = Array.isArray(result) ? result : [];
+  const { play } = useAudioPlayer();
 
   return (
     <details
@@ -85,22 +87,59 @@ function SearchChunksDisplay(props: {
       </summary>
       {chunks.length > 0 && (
         <ol className="mt-2 space-y-1.5 pl-1">
-          {chunks.map((c, i) => (
-            <li key={`${c.citation}-${i}`} className="flex gap-2">
-              <span className="shrink-0 font-mono text-foreground">
-                {c.citation}
-              </span>
-              <span className="flex-1">
-                <span className="text-foreground">{c.episode_title}</span>
-                <span className="ml-1 text-muted-foreground">
-                  @ {formatTime(c.start_time)}–{formatTime(c.end_time)}
+          {chunks.map((c, i) => {
+            const playable = Boolean(c.episode_audio_url);
+            const onClick = () => {
+              if (!playable) return;
+              play(
+                {
+                  episodeId: c.episode_id,
+                  audioUrl: c.episode_audio_url,
+                  title: c.episode_title,
+                  imageUrl: c.episode_image_url,
+                },
+                c.start_time,
+              );
+            };
+            return (
+              <li
+                key={`${c.citation}-${i}`}
+                {...(playable
+                  ? {
+                      role: "button",
+                      tabIndex: 0,
+                      onClick,
+                      onKeyDown: (e: React.KeyboardEvent<HTMLLIElement>) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onClick();
+                        }
+                      },
+                      title: "Play from this moment",
+                    }
+                  : {})}
+                className={
+                  "flex gap-2 rounded px-1 -mx-1" +
+                  (playable
+                    ? " cursor-pointer hover:bg-muted/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                    : "")
+                }
+              >
+                <span className="shrink-0 font-mono text-foreground">
+                  {c.citation}
                 </span>
-                <span className="ml-2 text-muted-foreground">
-                  ({c.score.toFixed(2)})
+                <span className="flex-1">
+                  <span className="text-foreground">{c.episode_title}</span>
+                  <span className="ml-1 text-muted-foreground">
+                    @ {formatTime(c.start_time)}–{formatTime(c.end_time)}
+                  </span>
+                  <span className="ml-2 text-muted-foreground">
+                    ({c.score.toFixed(2)})
+                  </span>
                 </span>
-              </span>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ol>
       )}
     </details>
@@ -288,28 +327,71 @@ function App() {
     signOut();
   }, []);
 
+  const [episodesCollapsed, setEpisodesCollapsed] = useState(true);
+  const toggleEpisodes = useCallback(
+    () => setEpisodesCollapsed((v) => !v),
+    [],
+  );
+
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <div className="flex h-full w-full bg-background text-foreground">
-        <aside className="hidden sm:flex w-80 shrink-0 flex-col border-r border-border p-2">
-          <header className="px-2 py-3">
-            <img src="/static/chat/ragtime.svg" alt="RAGtime" className="w-full" />
-          </header>
-          <ThreadList />
-          <footer className="mt-auto px-2 py-3 text-xs text-muted-foreground">
-            <button
-              type="button"
-              onClick={onSignOut}
-              className="text-left hover:text-foreground"
-            >
-              Sign out
-            </button>
-          </footer>
-        </aside>
-        <main className="flex-1 flex flex-col min-w-0">
-          <Thread />
-        </main>
-      </div>
+      <AudioPlayerProvider>
+        <div className="flex h-full w-full bg-background text-foreground">
+          <aside className="hidden sm:flex w-80 shrink-0 flex-col border-r border-border p-2">
+            <header className="px-2 py-3">
+              <img src="/static/chat/ragtime.svg" alt="RAGtime" className="w-full" />
+            </header>
+            <ThreadList />
+            <footer className="mt-auto px-2 py-3 text-xs text-muted-foreground">
+              <button
+                type="button"
+                onClick={onSignOut}
+                className="text-left hover:text-foreground"
+              >
+                Sign out
+              </button>
+            </footer>
+          </aside>
+          <main className="flex-1 flex flex-col min-w-0">
+            <div className="flex items-center justify-end border-b border-border px-3 py-1.5">
+              <button
+                type="button"
+                onClick={toggleEpisodes}
+                aria-label={
+                  episodesCollapsed
+                    ? "Show episodes panel"
+                    : "Hide episodes panel"
+                }
+                aria-expanded={!episodesCollapsed}
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                Episodes
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <Thread />
+            </div>
+            <AudioPlayerBar />
+          </main>
+          <EpisodesPanel
+            collapsed={episodesCollapsed}
+            onToggle={toggleEpisodes}
+          />
+        </div>
+      </AudioPlayerProvider>
     </AssistantRuntimeProvider>
   );
 }

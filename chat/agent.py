@@ -146,7 +146,10 @@ def get_scott_agent() -> Agent[StateDeps[ScottState]]:
         return [
             {
                 "citation": f"[{idx}]",
+                "episode_id": chunk["episode_id"],
                 "episode_title": chunk["episode_title"],
+                "episode_audio_url": chunk["episode_audio_url"],
+                "episode_image_url": chunk["episode_image_url"],
                 "start_time": round(chunk["start_time"], 1),
                 "end_time": round(chunk["end_time"], 1),
                 "language": chunk["language"],
