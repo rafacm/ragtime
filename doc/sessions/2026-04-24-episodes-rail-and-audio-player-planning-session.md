@@ -70,7 +70,7 @@ Wrote the final plan to `/Users/rafa/.claude/plans/let-s-revisit-this-follow-pea
 
 ### Assistant
 
-Corrected the plan: dropped the DB-join workaround; added `episode_audio_url` directly to `_build_payloads()` and read it from the Qdrant payload in `search()`. Added a new `episodes/management/commands/reembed_all.py` step that walks all READY episodes, flips status to EMBEDDING, and re-runs the existing `embed_episode()` step. Saved a feedback memory (`feedback_reembed_ok_preprod.md`) so future sessions don't propose DB-join workarounds for pre-production schema changes. Re-numbered the steps, updated the verification section to include `manage.py reembed_all`, and flagged the `reembed_all`-vs-live-ingestion race as a risk (command must skip non-READY episodes).
+Corrected the plan: dropped the DB-join workaround; added `episode_audio_url` directly to `_build_payloads()` and read it from the Qdrant payload in `search()`. Initially also proposed a new `episodes/management/commands/reembed_all.py` step to walk all READY episodes and re-run `embed_episode()`. (This command was built during implementation, and then dropped in a follow-up commit after the user pointed out that the Django admin's existing "Reprocess" action already covers batch re-embedding — the final plan and feature doc point to the admin action.) Saved a feedback memory (`feedback_reembed_ok_preprod.md`) so future sessions don't propose DB-join workarounds for pre-production schema changes.
 
 ### User
 

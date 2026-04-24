@@ -27,7 +27,7 @@ Out of scope (tracked for later follow-up PRs per the comment): inline `[N]` chi
 ### Backend
 
 1. **Add `audio_url` to the Qdrant payload** — `episodes/embedder.py`: extend `_build_payloads()` with a new `episode_audio_url` key. Compute as `episode.audio_url or (episode.audio_file.url if episode.audio_file else "")`.
-2. **Re-embed the existing corpus** — new `episodes/management/commands/reembed_all.py`. Iterates READY episodes, flips status to EMBEDDING, calls `embed_episode`. Fail loud via `CommandError`.
+2. **Re-embed the existing corpus** — use the Django admin's existing "Reprocess" action with "embedding" as the starting step. No new management command needed.
 3. **Enrich `ChunkSearchResult`** — `episodes/vector_store.py`: add `episode_audio_url: str`; read from the payload in `QdrantVectorStore.search()`.
 4. **Forward new fields in `search_chunks`** — `chat/agent.py`: add `episode_id`, `episode_audio_url`, `episode_image_url` to the tool's returned dict.
 5. **Episodes JSON endpoint** — `GET /episodes/api/episodes/` → READY episodes ordered by `published_at DESC` (nulls last), fields: `id, title, duration, published_at, audio_url (with audio_file.url fallback), image_url, description (truncated to 280)`. Optional `?limit=`.
@@ -49,7 +49,6 @@ Out of scope (tracked for later follow-up PRs per the comment): inline `[N]` chi
 ## Critical files to modify / create
 
 - `episodes/embedder.py` — add `episode_audio_url` to `_build_payloads()`.
-- `episodes/management/commands/reembed_all.py` (new).
 - `episodes/vector_store.py` — extend `ChunkSearchResult`; read `episode_audio_url` from payload in `search()`.
 - `chat/agent.py` — forward new fields in tool result.
 - `episodes/views.py`, `episodes/urls.py` — new `/episodes/api/episodes/` endpoint.
@@ -63,7 +62,6 @@ Out of scope (tracked for later follow-up PRs per the comment): inline `[N]` chi
 2. **Range requests on hosted media** — local `MEDIA_URL` supports seeking. In prod behind CDN/S3, confirm signed URLs allow `Range`.
 3. **Default rail state** — starting collapsed preserves chat width on ~1280px laptops.
 4. **Episode count growth** — unpaginated is fine for 100s; past ~2k switch to cursor pagination.
-5. **`reembed_all` races** — command skips non-READY episodes to avoid racing an in-flight embed.
 
 ## Verification
 
@@ -73,7 +71,7 @@ Out of scope (tracked for later follow-up PRs per the comment): inline `[N]` chi
 - `uv run python manage.py check` — green.
 
 **Manual**
-1. `uv run python manage.py reembed_all` to populate the `episode_audio_url` payload on existing points.
+1. Populate the `episode_audio_url` payload on existing points via the Django admin: `/admin/episodes/episode/` → select READY episodes → "Reprocess" action → "embedding" step.
 2. `uv run uvicorn ragtime.asgi:application --reload` + `cd frontend && npm run dev`.
 3. Sign in, toggle the right rail, click an episode → bar appears at 0:00.
 4. Ask a question triggering `search_chunks`, click a chunk row → player seeks to `start_time` (switches episode if different; no reload if same).

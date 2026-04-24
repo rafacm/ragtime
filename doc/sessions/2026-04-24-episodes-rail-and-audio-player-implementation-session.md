@@ -6,7 +6,9 @@
 
 ## Summary
 
-Implemented the approved plan end-to-end in a single worktree (`feature/episodes-rail-and-player`). Backend: `episode_audio_url` added to Qdrant payloads with an `audio_file.url` fallback, `ChunkSearchResult` carries it through, Scott's `search_chunks` tool forwards `episode_id` / `episode_audio_url` / `episode_image_url` to the frontend, a new `GET /episodes/api/episodes/` endpoint and a `reembed_all` management command. Frontend: a shared `AudioPlayerProvider` + `useAudioPlayer()` hook around one `HTMLAudioElement`, an `AudioPlayerBar` component with expanded and minimized modes, a collapsible `EpisodesPanel` right rail, and clickable chunk rows in `SearchChunksDisplay`. All 298 backend tests pass, `tsc --noEmit` + Vite build clean, `manage.py check` clean.
+Implemented the approved plan end-to-end in a single worktree (`feature/episodes-rail-and-player`). Backend: `episode_audio_url` added to Qdrant payloads with an `audio_file.url` fallback, `ChunkSearchResult` carries it through, Scott's `search_chunks` tool forwards `episode_id` / `episode_audio_url` / `episode_image_url` to the frontend, and a new `GET /episodes/api/episodes/` endpoint lists READY episodes for the right rail. Frontend: a shared `AudioPlayerProvider` + `useAudioPlayer()` hook around one `HTMLAudioElement`, an `AudioPlayerBar` component with expanded and minimized modes, a collapsible `EpisodesPanel` right rail, and clickable chunk rows in `SearchChunksDisplay`. All 298 backend tests pass, `tsc --noEmit` + Vite build clean, `manage.py check` clean.
+
+A short `reembed_all` management command was created during implementation and then dropped in a follow-up commit after the user pointed out the Django admin's existing "Reprocess" action already covers this use case.
 
 ## Detailed conversation
 
@@ -20,7 +22,7 @@ Autonomous-mode implementation. Verified main was clean and up-to-date, then cre
 
 **Backend step 3 — `search_chunks` tool.** Extended the returned dict in `chat/agent.py:146-157` with `episode_id`, `episode_audio_url`, `episode_image_url`. The state append via `asdict(result)` already carries the new field because it was added to the dataclass.
 
-**Backend step 4 — `reembed_all` command.** Created `episodes/management/commands/reembed_all.py`. Walks `Episode.objects.filter(status=READY)`, re-reads each episode, guards against non-READY states (avoids racing in-flight embeds from a live pipeline), flips status to EMBEDDING so `embed_episode()`'s own status guard passes, and raises `CommandError` with the episode's `error_message` if the embed step ends in FAILED.
+**Backend step 4 — `reembed_all` command (later dropped).** Initially created `episodes/management/commands/reembed_all.py` to walk READY episodes and re-run the embed step. After the PR opened, the user pointed out the Django admin's existing multi-select "Reprocess" action already lets an operator pick "embedding" as the starting step and batch-reprocess — so the command was redundant with an existing UI affordance and was removed in a follow-up commit. The doc and changelog now point to the admin action instead.
 
 **Backend step 5 — `/episodes/api/episodes/` endpoint.** Added `api_episode_list` in `episodes/views.py` alongside helpers `_serialize_episode` and `_episode_audio_url`. Matched the `chat/views.py` plain-Django style (no DRF, just `JsonResponse`). Filter `status=READY`, order by `F("published_at").desc(nulls_last=True)` and then `-id` (discovered this after the first test run — PostgreSQL puts NULLs first with default DESC ordering, which put the single undated fixture ahead of a 2024 episode in the test). Optional `?limit=<1..500>` honored; invalid values return 400. Description truncated to 280 chars with a trailing ellipsis. Mounted at `/episodes/api/episodes/` in `episodes/urls.py`.
 
