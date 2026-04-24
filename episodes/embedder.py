@@ -28,6 +28,10 @@ def _build_payloads(episode, chunks):
         episode.published_at.isoformat() if episode.published_at else None
     )
 
+    audio_url = episode.audio_url or (
+        episode.audio_file.url if episode.audio_file else ""
+    )
+
     payloads = []
     for chunk in chunks:
         ents = by_chunk.get(chunk.pk, [])
@@ -38,6 +42,7 @@ def _build_payloads(episode, chunks):
                 "episode_id": episode.pk,
                 "episode_title": episode.title,
                 "episode_url": episode.url,
+                "episode_audio_url": audio_url,
                 "episode_published_at": published_iso,
                 "episode_image_url": episode.image_url,
                 "start_time": chunk.start_time,

@@ -102,6 +102,53 @@ class EmbedEpisodeTests(TestCase):
         self.assertEqual(payload_by_id[c0.pk]["start_time"], 0.0)
         self.assertEqual(payload_by_id[c2.pk]["entity_ids"], [])
 
+    def test_audio_url_in_payload(self):
+        episode = self._create_episode(
+            url="https://example.com/ep/audio",
+            audio_url="https://cdn.example.com/audio/ep.mp3",
+        )
+        self._create_chunk(episode, index=0)
+
+        self._run_embed(episode.pk, [_vec(0.1)])
+
+        records, _ = self.qdrant.scroll(
+            "ragtime_chunks_test", limit=10, with_payload=True
+        )
+        self.assertEqual(
+            records[0].payload["episode_audio_url"],
+            "https://cdn.example.com/audio/ep.mp3",
+        )
+
+    def test_audio_url_falls_back_to_audio_file(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        episode = self._create_episode(url="https://example.com/ep/audio-file")
+        episode.audio_file = SimpleUploadedFile(
+            "fallback.mp3", b"\x00\x01", content_type="audio/mpeg"
+        )
+        episode.save()
+        self._create_chunk(episode, index=0)
+
+        self._run_embed(episode.pk, [_vec(0.1)])
+
+        records, _ = self.qdrant.scroll(
+            "ragtime_chunks_test", limit=10, with_payload=True
+        )
+        stored = records[0].payload["episode_audio_url"]
+        self.assertTrue(stored)
+        self.assertTrue(stored.endswith(".mp3"))
+
+    def test_audio_url_empty_when_both_missing(self):
+        episode = self._create_episode(url="https://example.com/ep/no-audio")
+        self._create_chunk(episode, index=0)
+
+        self._run_embed(episode.pk, [_vec(0.1)])
+
+        records, _ = self.qdrant.scroll(
+            "ragtime_chunks_test", limit=10, with_payload=True
+        )
+        self.assertEqual(records[0].payload["episode_audio_url"], "")
+
     def test_entity_mentions_in_payload(self):
         episode = self._create_episode(url="https://example.com/ep/ents")
         chunk = self._create_chunk(episode, index=0, text="about miles")
