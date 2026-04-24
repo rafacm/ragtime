@@ -13,7 +13,7 @@ Two gaps in the Scott chat UI, carried over from the deferred-work list in https
 
 ### Backend
 
-- **Qdrant payloads now include `episode_audio_url`** (`episodes/embedder.py`). Computed at embed time as `episode.audio_url or (episode.audio_file.url if episode.audio_file else "")`. A new `reembed_all` management command (`episodes/management/commands/reembed_all.py`) walks all READY episodes, flips status to EMBEDDING, and calls the existing `embed_episode` step so stale points get re-upserted with the new key. Idempotent — `QdrantVectorStore.delete_by_episode()` already wipes prior points at the start of each embed.
+- **Qdrant payloads now include `episode_audio_url`** (`episodes/embedder.py`). Computed at embed time as `episode.audio_url or (episode.audio_file.url if episode.audio_file else "")`. To refresh existing points with the new key, use the Django admin's "Reprocess" action on selected episodes and pick "embedding" as the starting step — `QdrantVectorStore.delete_by_episode()` already wipes prior points at the start of each embed, so the step is idempotent.
 - **`ChunkSearchResult` gains `episode_audio_url: str`** (`episodes/vector_store.py`). `QdrantVectorStore.search()` reads it from the Qdrant payload — no DB join.
 - **Scott's `search_chunks` tool forwards `episode_id`, `episode_audio_url`, `episode_image_url`** to the frontend (`chat/agent.py`). These fields were already in `ScottState.retrieved_chunks` but not in the tool's return dict, so the chat UI never saw them.
 - **New episodes JSON endpoint** `GET /episodes/api/episodes/` (`episodes/views.py`, `episodes/urls.py`). Login-required, returns all READY episodes ordered by `published_at DESC` with NULLs last. Fields: `id, title, duration, published_at, audio_url, image_url, description` (truncated to 280 chars). Optional `?limit=<1..500>`.
@@ -47,7 +47,7 @@ Two gaps in the Scott chat UI, carried over from the deferred-work list in https
 - `uv run python manage.py check` — clean.
 
 **Manual**
-1. Ensure Qdrant payloads have the new `episode_audio_url` key: `uv run python manage.py reembed_all`.
+1. Ensure Qdrant payloads have the new `episode_audio_url` key: open `/admin/episodes/episode/`, select all READY episodes, run the "Reprocess" action, and pick "embedding" as the starting step.
 2. Start services: `uv run uvicorn ragtime.asgi:application --reload` in one terminal; `cd frontend && npm run dev` in another.
 3. Sign in at `/accounts/login/`.
 4. Toggle the right rail from the header button in the chat pane → episodes list renders (READY only, newest first).
@@ -60,7 +60,6 @@ Two gaps in the Scott chat UI, carried over from the deferred-work list in https
 ## Files modified
 
 - `episodes/embedder.py` — add `episode_audio_url` to `_build_payloads()` with `audio_file.url` fallback.
-- `episodes/management/commands/reembed_all.py` (new) — re-embed all READY episodes.
 - `episodes/vector_store.py` — add `episode_audio_url` to `ChunkSearchResult`; read from payload in `search()`.
 - `episodes/views.py` — new `api_episode_list` view + helpers (`_serialize_episode`, `_episode_audio_url`).
 - `episodes/urls.py` — mount `/api/episodes/`.
