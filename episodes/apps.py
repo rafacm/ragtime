@@ -24,9 +24,10 @@ class EpisodesConfig(AppConfig):
     def _init_dbos(self):
         import sys
 
-        # Only initialize DBOS for server/worker entrypoints — other commands
+        # Only initialize DBOS for server/worker entrypoints, plus the
+        # management commands that need to talk to the queue. Other commands
         # (migrate, check, shell, …) don't need a live DBOS connection.
-        _DBOS_COMMANDS = {"runserver"}
+        _DBOS_COMMANDS = {"runserver", "submit_episode", "enrich_entities"}
         is_uvicorn = any("uvicorn" in arg for arg in sys.argv[:1])
         if not is_uvicorn and not _DBOS_COMMANDS.intersection(sys.argv):
             return
@@ -46,7 +47,13 @@ class EpisodesConfig(AppConfig):
             f"postgresql://{user}:{password}@{host}:{port}/{name}",
         )
 
-        import episodes.workflows  # noqa: F401 — register workflows
+        # Import every module that registers DBOS workflows / queues so the
+        # @DBOS.workflow / @DBOS.step / Queue() decorators run BEFORE
+        # DBOS.launch(). Lazy imports from inside steps would otherwise
+        # register against an already-launched DBOS, and enqueues against
+        # those late-registered workflows silently fail.
+        import episodes.workflows  # noqa: F401 — episode_pipeline queue + process_episode
+        import episodes.enrichment  # noqa: F401 — wikidata_enrichment queue + enrich_entity_wikidata
 
         dbos_config: DBOSConfig = {
             "name": "ragtime",
