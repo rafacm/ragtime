@@ -183,6 +183,26 @@ The Scott chat UI is a React application ([assistant-ui](https://www.assistant-u
 
 The frontend communicates with the ASGI server over HTTP+SSE (AG-UI protocol), so both the Uvicorn server and the Vite dev server must be running to develop the chat UI.
 
+#### Submitting episodes
+
+Episodes are normally submitted from the Django admin UI ([http://localhost:8000/admin/](http://localhost:8000/admin/) → *Episodes* → *Add*). To submit one or many URLs from the command line:
+
+```bash
+# One or more URLs as arguments
+uv run python manage.py submit_episodes https://example.com/ep/1 https://example.com/ep/2
+
+# Or read from a file (one URL per line; '#' lines and blank lines ignored)
+uv run python manage.py submit_episodes --file episode-urls.txt
+
+# Or pipe from stdin
+cat episode-urls.txt | uv run python manage.py submit_episodes --file -
+
+# Preview without creating any rows
+uv run python manage.py submit_episodes --file episode-urls.txt --dry-run
+```
+
+Each URL becomes a `pending` episode; the `post_save` signal moves it to `queued` and enqueues a `process_episode` workflow on the `episode_pipeline` queue. Already-submitted URLs are skipped — re-running the command is idempotent.
+
 #### Telemetry (optional)
 
 RAGtime uses OpenTelemetry to trace pipeline steps and LLM calls. The quickest local setup is [Jaeger](https://www.jaegertracing.io/):
