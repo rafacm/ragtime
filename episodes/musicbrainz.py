@@ -31,7 +31,6 @@ class Candidate:
 
     mbid: str          # entity gid (UUID, dashed string form)
     name: str          # primary or alias name that matched
-    sort_name: str
     disambiguation: str
     type: str          # e.g. "Person" / "Group" / "Album" / "City". "" if no type table.
 
@@ -183,14 +182,14 @@ def find_candidates(name: str, entity_type, *, limit: int = 10) -> list[Candidat
         )
         body = sql.SQL(
             """
-            SELECT m.gid::text, m.name, m.sort_name, COALESCE(m.comment, ''),
+            SELECT m.gid::text, m.name, COALESCE(m.comment, ''),
                    COALESCE(t.name, '') AS type_name,
                    MIN(nm.rank) AS rank
             FROM name_matches nm
             JOIN {main} m ON m.id = nm.id
             LEFT JOIN {t} t ON t.id = m.{fk}
             {filter}
-            GROUP BY m.id, m.gid, m.name, m.sort_name, m.comment, t.name
+            GROUP BY m.id, m.gid, m.name, m.comment, t.name
             ORDER BY MIN(nm.rank), m.name
             LIMIT %(limit)s
             """
@@ -203,12 +202,12 @@ def find_candidates(name: str, entity_type, *, limit: int = 10) -> list[Candidat
             )
         body = sql.SQL(
             """
-            SELECT m.gid::text, m.name, m.sort_name, COALESCE(m.comment, ''),
+            SELECT m.gid::text, m.name, COALESCE(m.comment, ''),
                    '' AS type_name,
                    MIN(nm.rank) AS rank
             FROM name_matches nm
             JOIN {main} m ON m.id = nm.id
-            GROUP BY m.id, m.gid, m.name, m.sort_name, m.comment
+            GROUP BY m.id, m.gid, m.name, m.comment
             ORDER BY MIN(nm.rank), m.name
             LIMIT %(limit)s
             """
@@ -231,9 +230,8 @@ def find_candidates(name: str, entity_type, *, limit: int = 10) -> list[Candidat
         Candidate(
             mbid=row[0],
             name=row[1],
-            sort_name=row[2],
-            disambiguation=row[3],
-            type=row[4],
+            disambiguation=row[2],
+            type=row[3],
         )
         for row in rows
     ]

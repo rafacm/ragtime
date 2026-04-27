@@ -43,7 +43,6 @@ def _mb_candidate(mbid, name="X", disambiguation="", type_="Person"):
     return SimpleNamespace(
         mbid=mbid,
         name=name,
-        sort_name=name,
         disambiguation=disambiguation,
         type=type_,
     )

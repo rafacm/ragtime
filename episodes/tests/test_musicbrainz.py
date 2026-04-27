@@ -67,7 +67,6 @@ class FindCandidatesTests(SimpleTestCase):
             (
                 "11d7cba4-0bcd-4b94-a30a-c1d5e80f86a3",
                 "Miles Davis",
-                "Davis, Miles",
                 "Jazz trumpeter",
                 "Person",
                 0,
@@ -75,7 +74,6 @@ class FindCandidatesTests(SimpleTestCase):
             (
                 "abcdef00-0000-0000-0000-000000000000",
                 "Miles Davis Jr.",
-                "Davis, Miles Jr.",
                 "",
                 "Person",
                 1,
@@ -113,7 +111,7 @@ class FindCandidatesTests(SimpleTestCase):
         self.assertEqual(sorted(params["types"]), ["Group", "Orchestra"])
 
     def test_label_lookup_no_type_filter(self):
-        rows = [("uuid-1", "Blue Note", "Blue Note", "jazz label", "", 0)]
+        rows = [("uuid-1", "Blue Note", "jazz label", "", 0)]
         pool = _fake_pool(rows)
         with patch.object(musicbrainz, "_get_pool", return_value=pool):
             result = musicbrainz.find_candidates("Blue Note", _et("label"))
