@@ -23,6 +23,8 @@ class Command(BaseCommand):
                 defaults={
                     "name": et["name"],
                     "wikidata_id": et.get("wikidata_id", ""),
+                    "musicbrainz_table": et.get("musicbrainz_table", ""),
+                    "musicbrainz_filter": et.get("musicbrainz_filter") or {},
                     "description": et.get("description", ""),
                     "examples": et.get("examples", []),
                 },

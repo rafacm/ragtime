@@ -95,61 +95,23 @@ class EmbedEpisodeTests(TestCase):
             "ragtime_chunks_test", limit=10, with_payload=True
         )
         payload_by_id = {r.id: r.payload for r in records}
-        self.assertEqual(payload_by_id[c0.pk]["episode_id"], episode.pk)
-        self.assertEqual(payload_by_id[c0.pk]["text"], "first chunk")
-        self.assertEqual(payload_by_id[c1.pk]["chunk_index"], 1)
-        self.assertEqual(payload_by_id[c2.pk]["language"], "en")
-        self.assertEqual(payload_by_id[c0.pk]["start_time"], 0.0)
-        self.assertEqual(payload_by_id[c2.pk]["entity_ids"], [])
-
-    def test_audio_url_in_payload(self):
-        episode = self._create_episode(
-            url="https://example.com/ep/audio",
-            audio_url="https://cdn.example.com/audio/ep.mp3",
-        )
-        self._create_chunk(episode, index=0)
-
-        self._run_embed(episode.pk, [_vec(0.1)])
-
-        records, _ = self.qdrant.scroll(
-            "ragtime_chunks_test", limit=10, with_payload=True
-        )
+        # Slim payload: only chunk_id / episode_id / language / entity_ids.
         self.assertEqual(
-            records[0].payload["episode_audio_url"],
-            "https://cdn.example.com/audio/ep.mp3",
+            set(payload_by_id[c0.pk].keys()),
+            {"chunk_id", "episode_id", "language", "entity_ids"},
         )
+        self.assertEqual(payload_by_id[c0.pk]["chunk_id"], c0.pk)
+        self.assertEqual(payload_by_id[c0.pk]["episode_id"], episode.pk)
+        self.assertEqual(payload_by_id[c2.pk]["language"], "en")
+        self.assertEqual(payload_by_id[c2.pk]["entity_ids"], [])
+        # Episode title/text/audio_url etc. are NOT in the payload — they
+        # come from Postgres at search time.
+        self.assertNotIn("episode_title", payload_by_id[c0.pk])
+        self.assertNotIn("text", payload_by_id[c0.pk])
+        self.assertNotIn("episode_audio_url", payload_by_id[c0.pk])
+        self.assertNotIn("entity_names", payload_by_id[c0.pk])
 
-    def test_audio_url_falls_back_to_audio_file(self):
-        from django.core.files.uploadedfile import SimpleUploadedFile
-
-        episode = self._create_episode(url="https://example.com/ep/audio-file")
-        episode.audio_file = SimpleUploadedFile(
-            "fallback.mp3", b"\x00\x01", content_type="audio/mpeg"
-        )
-        episode.save()
-        self._create_chunk(episode, index=0)
-
-        self._run_embed(episode.pk, [_vec(0.1)])
-
-        records, _ = self.qdrant.scroll(
-            "ragtime_chunks_test", limit=10, with_payload=True
-        )
-        stored = records[0].payload["episode_audio_url"]
-        self.assertTrue(stored)
-        self.assertTrue(stored.endswith(".mp3"))
-
-    def test_audio_url_empty_when_both_missing(self):
-        episode = self._create_episode(url="https://example.com/ep/no-audio")
-        self._create_chunk(episode, index=0)
-
-        self._run_embed(episode.pk, [_vec(0.1)])
-
-        records, _ = self.qdrant.scroll(
-            "ragtime_chunks_test", limit=10, with_payload=True
-        )
-        self.assertEqual(records[0].payload["episode_audio_url"], "")
-
-    def test_entity_mentions_in_payload(self):
+    def test_entity_ids_in_payload(self):
         episode = self._create_episode(url="https://example.com/ep/ents")
         chunk = self._create_chunk(episode, index=0, text="about miles")
 
@@ -176,13 +138,11 @@ class EmbedEpisodeTests(TestCase):
             "ragtime_chunks_test", limit=10, with_payload=True
         )
         payload = records[0].payload
+        # Entity IDs go to Qdrant for filtering; entity NAMES live in Postgres.
         self.assertEqual(
             sorted(payload["entity_ids"]), sorted([miles.pk, coltrane.pk])
         )
-        self.assertEqual(
-            sorted(payload["entity_names"]),
-            sorted(["Miles Davis", "John Coltrane"]),
-        )
+        self.assertNotIn("entity_names", payload)
 
     def test_no_chunks_goes_straight_to_ready(self):
         episode = self._create_episode(url="https://example.com/ep/empty")
@@ -355,6 +315,135 @@ class EmbedEpisodeTests(TestCase):
             episode.delete()  # must not raise
 
         self.assertFalse(Episode.objects.filter(pk=episode_pk).exists())
+
+
+@override_settings(
+    RAGTIME_EMBEDDING_PROVIDER="openai",
+    RAGTIME_EMBEDDING_API_KEY="test-key",
+    RAGTIME_EMBEDDING_MODEL="text-embedding-3-small",
+    RAGTIME_QDRANT_COLLECTION="ragtime_chunks_search_test",
+)
+class SearchHydrationTests(TestCase):
+    """Search-time hydration: Qdrant has only chunk_id, the rest comes from PG."""
+
+    def setUp(self):
+        detect_embedding_dim.cache_clear()
+        self._dim_patcher = patch(
+            "episodes.vector_store.detect_embedding_dim",
+            return_value=TEST_DIM,
+        )
+        self._dim_patcher.start()
+        self.addCleanup(self._dim_patcher.stop)
+        self.addCleanup(detect_embedding_dim.cache_clear)
+
+        self.qdrant = QdrantClient(":memory:")
+        self.store = QdrantVectorStore(self.qdrant, "ragtime_chunks_search_test")
+        self.store.ensure_collection()
+
+    def _create_episode(self, **kwargs):
+        with patch("episodes.signals.DBOS"):
+            defaults = {
+                "title": "Test Episode",
+                "language": "en",
+                "status": Episode.Status.EMBEDDING,
+            }
+            defaults.update(kwargs)
+            return Episode.objects.create(**defaults)
+
+    def _embed_one(self, episode, chunk, vector):
+        from episodes.embedder import _build_payloads
+        from episodes.vector_store import QdrantPoint
+
+        payload = _build_payloads(episode, [chunk])[0]
+        self.store.upsert_points([QdrantPoint(id=chunk.pk, vector=vector, payload=payload)])
+
+    def _make_chunk(self, episode, index=0, text="some chunk text"):
+        return Chunk.objects.create(
+            episode=episode,
+            index=index,
+            text=text,
+            start_time=index * 30.0,
+            end_time=(index + 1) * 30.0,
+            segment_start=index * 10,
+            segment_end=(index + 1) * 10,
+        )
+
+    def test_hydrates_audio_url_from_episode(self):
+        episode = self._create_episode(
+            url="https://example.com/ep/audio",
+            audio_url="https://cdn.example.com/audio/ep.mp3",
+            title="Episode Title",
+        )
+        chunk = self._make_chunk(episode, text="hello world")
+        self._embed_one(episode, chunk, _vec(0.1))
+
+        results = self.store.search(query_vector=_vec(0.1), top_k=5)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(
+            results[0].episode_audio_url,
+            "https://cdn.example.com/audio/ep.mp3",
+        )
+        self.assertEqual(results[0].episode_title, "Episode Title")
+        self.assertEqual(results[0].text, "hello world")
+
+    def test_hydrates_entity_names_and_ids(self):
+        episode = self._create_episode(url="https://example.com/ep/h-ents")
+        chunk = self._make_chunk(episode, text="about miles")
+
+        entity_type, _ = EntityType.objects.get_or_create(
+            key="musician",
+            defaults={"name": "Musician", "description": "A musician"},
+        )
+        miles = Entity.objects.create(
+            entity_type=entity_type,
+            name="Miles Davis",
+            musicbrainz_id="11d7cba4-0bcd-4b94-a30a-c1d5e80f86a3",
+            wikidata_id="Q93341",
+        )
+        EntityMention.objects.create(
+            entity=miles, episode=episode, chunk=chunk, context="trumpet"
+        )
+
+        self._embed_one(episode, chunk, _vec(0.1))
+
+        results = self.store.search(query_vector=_vec(0.1), top_k=5)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].entity_ids, [miles.pk])
+        self.assertEqual(results[0].entity_names, ["Miles Davis"])
+        self.assertEqual(
+            results[0].musicbrainz_ids,
+            ["11d7cba4-0bcd-4b94-a30a-c1d5e80f86a3"],
+        )
+        self.assertEqual(results[0].wikidata_ids, ["Q93341"])
+
+    def test_postgres_title_edits_visible_without_reembedding(self):
+        """Editing Episode.title in Postgres flows through to search results
+        immediately — no Qdrant payload mutation, no re-embed."""
+        episode = self._create_episode(
+            url="https://example.com/ep/edit", title="Original Title"
+        )
+        chunk = self._make_chunk(episode)
+        self._embed_one(episode, chunk, _vec(0.1))
+
+        # Edit the title — affects Postgres only.
+        episode.title = "Edited Title"
+        episode.save(update_fields=["title", "updated_at"])
+
+        results = self.store.search(query_vector=_vec(0.1), top_k=5)
+        self.assertEqual(results[0].episode_title, "Edited Title")
+
+    def test_skips_chunks_with_no_postgres_row(self):
+        """Stale Qdrant point that no longer has a Postgres chunk: skipped."""
+        episode = self._create_episode(url="https://example.com/ep/stale")
+        chunk = self._make_chunk(episode)
+        self._embed_one(episode, chunk, _vec(0.1))
+
+        # Delete the chunk in Postgres but leave the Qdrant point.
+        chunk_pk = chunk.pk
+        Chunk.objects.filter(pk=chunk_pk).delete()
+
+        results = self.store.search(query_vector=_vec(0.1), top_k=5)
+        self.assertEqual(results, [])
 
 
 @override_settings(

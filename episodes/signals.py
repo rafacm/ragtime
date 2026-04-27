@@ -1,7 +1,7 @@
 import logging
 
 import django.dispatch
-from dbos import DBOS
+from dbos import DBOS  # noqa: F401  -- legacy patch target for tests
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
@@ -17,9 +17,23 @@ step_failed = django.dispatch.Signal()     # sends: event=StepFailureEvent
 @receiver(post_save, sender=Episode)
 def queue_next_step(sender, instance, created, **kwargs):
     if created and instance.status == Episode.Status.PENDING:
-        from .workflows import process_episode
+        from dbos._error import DBOSException
 
-        DBOS.start_workflow(process_episode, instance.pk)
+        from .workflows import episode_queue, process_episode
+
+        # Move to QUEUED so the row visibly reflects "waiting for a worker
+        # slot" before DBOS picks it up. queryset .update() bypasses the
+        # post_save signal — no recursion.
+        Episode.objects.filter(pk=instance.pk).update(status=Episode.Status.QUEUED)
+        try:
+            episode_queue.enqueue(process_episode, instance.pk)
+        except DBOSException:
+            # DBOS isn't initialized (test environment, management command).
+            # Production launches DBOS in apps.ready() so this only swallows
+            # the no-runtime case — never a real enqueue failure.
+            logger.debug(
+                "DBOS not initialized; skipping enqueue for episode %s", instance.pk
+            )
         return
 
 

@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-04-27
+
+### Changed
+
+- Foreground entity resolution switches from Wikidata API to local MusicBrainz Postgres database. New `episodes/musicbrainz.py` (raw psycopg via `psycopg_pool`) does sub-millisecond name → MBID lookups (case-insensitive against main + alias tables) and resolves MBID → Wikidata Q-ID via `l_<entity>_url` external links. Wikidata enrichment moves to a singleton background DBOS queue (`concurrency=1`) — `episodes/enrichment.py` — that backfills `Entity.wikidata_id` per entity, deduplicated globally so common names ("Django Reinhardt") only get enriched once. Foreground never calls Wikidata; episodes reach `READY` as soon as embedding finishes. Adds 8 mappings in `episodes/initial_entity_types.yaml` (musician/musical_group/album/composed_musical_work/music_venue/record_label/city/country); 6 types without MB equivalents (year/role/instrument/genre/recording_session/historical_period) skip MB and go straight to background Wikidata enrichment.
+- Race-safe foreground resolver — replaces all `Entity.objects.create` with `get_or_create`, wraps candidate creation in a sorted Postgres transaction-scoped `pg_advisory_xact_lock` per `(entity_type, name)` (no deadlocks between resolvers that share names), plus an `IntegrityError` retry as defense-in-depth. Addresses the cross-episode `unique_entity_type_name` violation flagged by external review.
+- Episode-pipeline parallelism via a new `episode_pipeline` DBOS queue with `concurrency=settings.RAGTIME_EPISODE_CONCURRENCY` (default 4). `episodes/signals.py` and `episodes/admin.py` switch from `DBOS.start_workflow` to `episode_queue.enqueue`. Adds `Episode.Status.QUEUED` between `PENDING` and `SCRAPING` so episodes waiting for a worker slot are visibly distinct from "freshly submitted" or "stuck". `workflows.create_run_step` transitions `QUEUED → from_step` (or first PIPELINE_STEP) when a worker picks the workflow up.
+- Same-episode workflow dedup — partial unique constraint `unique_running_run_per_episode` (`ProcessingRun(episode_id) WHERE status='running'`) enforces "at most one active run per episode" at the DB level. `episodes/processing.get_active_run` switches from `.first()` to `.get()` so duplicates raise loudly rather than silently picking one.
+- Slim Qdrant payload + Postgres-side hydration. Qdrant now stores only `chunk_id` + `episode_id` + `language` + `entity_ids`; everything Scott displays (episode title, urls, timestamps, chunk text, entity names, MBIDs, Wikidata IDs) is hydrated at search time from Postgres via one query keyed on the returned chunk_ids. Single source of truth — title edits flow through immediately, background Wikidata enrichment writes only Postgres (next search reads through the FK), no `set_payload` mutation needed.
+- Qdrant collection bootstrap moves to `episodes/apps.ready()` (one-time at process startup) plus 409-tolerant `create_collection` — addresses the parallel-embed cold-start race flagged by external review.
+
+### Added
+
+- `RAGTIME_MUSICBRAINZ_DB_HOST/_PORT/_NAME/_USER/_PASSWORD` and `RAGTIME_MUSICBRAINZ_SCHEMA` env vars (defaults inherit from `RAGTIME_DB_*`, schema defaults to `musicbrainz`). `RAGTIME_EPISODE_CONCURRENCY` env var (default 4). Wired through `.env.sample` and the `manage.py configure` wizard (new MusicBrainz + Pipeline sections).
+- `manage.py enrich_entities [--retry-failed] [--limit N]` to backfill any entity in PENDING (or, with `--retry-failed`, FAILED/NOT_FOUND) Wikidata status.
+- `Entity.musicbrainz_id` (UUID), `Entity.wikidata_status` (PENDING/RESOLVED/NOT_FOUND/FAILED), `Entity.wikidata_attempts`, `Entity.wikidata_last_attempted_at`. `EntityType.musicbrainz_table`, `EntityType.musicbrainz_filter`. Migration `0020_*`.
+- `psycopg_pool>=3.2,<4` dependency in `pyproject.toml`.
+- 61 new tests (12 for `episodes/musicbrainz.py`, 13 for `episodes/enrichment.py`, 4 search-time hydration tests in `episodes/tests/test_embed.py`, plus updates across `test_resolve.py`/`test_signals.py`/`test_admin.py`/`test_chunk.py`/`test_download.py`/`test_extract.py`/`test_summarize.py`/`test_transcribe.py`/`core/tests/test_configure.py`). Full suite goes from 261 → 322 passing — [plan](doc/plans/2026-04-27-musicbrainz-resolution.md), [feature](doc/features/2026-04-27-musicbrainz-resolution.md), [planning session](doc/sessions/2026-04-27-musicbrainz-resolution-planning-session.md), [implementation session](doc/sessions/2026-04-27-musicbrainz-resolution-implementation-session.md)
+
 ## 2026-04-24
 
 ### Added

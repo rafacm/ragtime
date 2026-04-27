@@ -214,6 +214,19 @@ RAGTIME_QDRANT_COLLECTION = os.getenv('RAGTIME_QDRANT_COLLECTION', 'ragtime_chun
 RAGTIME_QDRANT_API_KEY = os.getenv('RAGTIME_QDRANT_API_KEY', '')
 RAGTIME_QDRANT_HTTPS = os.getenv('RAGTIME_QDRANT_HTTPS', 'false').lower() in ('true', '1', 'yes')
 
+# MusicBrainz database (read-only, separate Postgres database in same instance by default)
+RAGTIME_MUSICBRAINZ_DB_HOST = os.getenv('RAGTIME_MUSICBRAINZ_DB_HOST', os.getenv('RAGTIME_DB_HOST', 'localhost'))
+RAGTIME_MUSICBRAINZ_DB_PORT = int(os.getenv('RAGTIME_MUSICBRAINZ_DB_PORT', os.getenv('RAGTIME_DB_PORT', '5432')))
+RAGTIME_MUSICBRAINZ_DB_NAME = os.getenv('RAGTIME_MUSICBRAINZ_DB_NAME', 'musicbrainz')
+RAGTIME_MUSICBRAINZ_DB_USER = os.getenv('RAGTIME_MUSICBRAINZ_DB_USER', os.getenv('RAGTIME_DB_USER', 'ragtime'))
+RAGTIME_MUSICBRAINZ_DB_PASSWORD = os.getenv('RAGTIME_MUSICBRAINZ_DB_PASSWORD', os.getenv('RAGTIME_DB_PASSWORD', 'ragtime'))
+RAGTIME_MUSICBRAINZ_SCHEMA = os.getenv('RAGTIME_MUSICBRAINZ_SCHEMA', 'musicbrainz')
+
+# Pipeline parallelism — max episodes processed concurrently through the
+# foreground pipeline. Higher = faster ingestion of a backlog but more
+# pressure on LLM/embedding/transcription provider rate limits.
+RAGTIME_EPISODE_CONCURRENCY = int(os.getenv('RAGTIME_EPISODE_CONCURRENCY', '4'))
+
 # Wikidata integration
 RAGTIME_WIKIDATA_USER_AGENT = os.getenv(
     'RAGTIME_WIKIDATA_USER_AGENT',

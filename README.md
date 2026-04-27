@@ -29,7 +29,7 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 
 - 🎙️ **Episode Ingestion** — Add podcast episodes by URL. RAGtime scrapes metadata (title, description, date, image), downloads audio, and processes it through the pipeline.
 - 📝 **Multilingual Transcription** — Transcribes episodes using configurable backends (Whisper API by default) with segment and word-level timestamps. Supports multiple languages (English, Spanish, German, Swedish, etc.).
-- 🔍 **Entity Extraction** — Identifies jazz entities: musicians, musical groups, albums, music venues, recording sessions, record labels, years. Entities are resolved against existing records using LLM-based matching.
+- 🔍 **Entity Extraction** — Identifies jazz entities: musicians, musical groups, albums, music venues, recording sessions, record labels, years. Entities are resolved against the local MusicBrainz database (foreground, sub-millisecond) and Wikidata (background, throttled singleton enrichment).
 - 📇 **Episode Indexing** — Splits transcripts into segments and generates multilingual embeddings stored in Qdrant. Enables cross-language semantic search so Scott can retrieve relevant content regardless of the question's language.
 - 🎷 **Scott — Your Jazz AI** — A conversational agent that answers questions strictly from ingested episode content. Scott responds in the user's language and provides references to specific episodes and timestamps. Responses stream in real-time.
 - 📊 **AI Evaluation** — Measures pipeline and Scott quality using [RAGAS](https://docs.ragas.io/) (faithfulness, answer relevancy, context precision/recall) with scores tracked in [Langfuse](https://langfuse.com/docs/scores/model-based-evals/ragas).
@@ -40,7 +40,7 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 
 ### What's already implemented
 
-- **Episode ingestion**: submit episodes by URL, metadata scraping, audio download, transcription, summarization,  chunking, entity extraction and resolution with [Wikidata](https://www.wikidata.org/) integration, and multilingual embeddings into [Qdrant](https://qdrant.tech/).
+- **Episode ingestion**: submit episodes by URL, metadata scraping, audio download, transcription, summarization, chunking, entity extraction with foreground resolution against a local [MusicBrainz](https://musicbrainz.org/) Postgres database and background [Wikidata](https://www.wikidata.org/) enrichment, and multilingual embeddings into [Qdrant](https://qdrant.tech/).
 - **Episode management UI**: Django admin interface to view episode status and metadata and browse extracted entities.
 - **Configuration wizard**: interactive `manage.py configure` command for all `RAGTIME_*` env vars.
 - **Telemetry**: [OpenTelemetry](https://opentelemetry.io/)-based tracing for pipeline steps and LLM calls with optional collectors: console, [Jaeger](https://www.jaegertracing.io/), and [Langfuse](https://langfuse.com).
@@ -57,20 +57,23 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixe
 
 [![Processing Pipeline](doc/architecture/ragtime-processing-pipeline.svg)](https://app.excalidraw.com/s/3Cob4pHK6Ge/3zFsvWxbOWQ)
 
-Each step updates the episode's `status` field. A `post_save` signal starts a [DBOS](https://docs.dbos.dev/) durable workflow that sequences all steps with PostgreSQL-backed checkpointing — on crash or restart, the workflow resumes from the last completed step. Failures trigger the [recovery layer](doc/README.md#recovery).
+Each step updates the episode's `status` field. A `post_save` signal enqueues a [DBOS](https://docs.dbos.dev/) durable workflow on the `episode_pipeline` queue (default `concurrency=4` via `RAGTIME_EPISODE_CONCURRENCY`) that sequences all steps with PostgreSQL-backed checkpointing — on crash or restart, the workflow resumes from the last completed step. Failures trigger the [recovery layer](doc/README.md#recovery). Episodes that arrive while all worker slots are busy sit visibly in the `queued` state until DBOS picks them up.
 
 | # | Step | Status | Description |
 |---|------|--------|-------------|
 | 1 | 📥 Submit | `pending` | User submits an episode URL |
+| ⏸ | ⏳ Queue | `queued` | Waiting for a pipeline worker slot |
 | 2 | 🕷️ Scrape | `scraping` | Extract metadata and detect language |
 | 3 | ⬇️ Download | `downloading` | Download audio and extract duration |
 | 4 | 🎙️ Transcribe | `transcribing` | Whisper API transcription with timestamps |
 | 5 | 📋 Summarize | `summarizing` | LLM-generated episode summary |
 | 6 | ✂️ Chunk | `chunking` | Split transcript into ~150-word chunks |
 | 7 | 🔍 Extract | `extracting` | Named entity recognition per chunk |
-| 8 | 🧩 Resolve | `resolving` | Entity linking and deduplication via Wikidata |
+| 8 | 🧩 Resolve | `resolving` | Entity linking + deduplication against the local MusicBrainz database |
 | 9 | 📐 Embed | `embedding` | Multilingual embeddings into Qdrant |
 | 10 | ✅ Ready | `ready` | Episode available for Scott to query |
+
+Wikidata IDs are filled in *after* `ready` by a separate background DBOS workflow on a singleton-concurrency queue (`wikidata_enrichment`, `concurrency=1`). It tries `MBID → Wikidata` via MusicBrainz external links first (local DB, no network) and falls back to the Wikidata API only when needed. Per-entity, deduplicated globally — common names get enriched once across all episodes.
 
 See the [full pipeline documentation](doc/README.md) for per-step details, entity types, and the recovery layer.
 

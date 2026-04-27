@@ -19,6 +19,7 @@ class EpisodesConfig(AppConfig):
         setup_telemetry()
 
         self._init_dbos()
+        self._init_qdrant()
 
     def _init_dbos(self):
         import sys
@@ -53,3 +54,32 @@ class EpisodesConfig(AppConfig):
         }
         DBOS(config=dbos_config)
         DBOS.launch()
+
+    def _init_qdrant(self):
+        """Bootstrap the Qdrant collection once per process at startup.
+
+        Previously, ``ensure_collection()`` ran inside every per-episode
+        embed step, which races with itself when multiple episodes embed
+        in parallel against an empty Qdrant. Doing it once here makes the
+        embed step a no-op against a pre-existing collection.
+
+        Skipped for management commands that don't touch Qdrant (migrate,
+        check, makemigrations, …) — same gating as DBOS.
+        """
+        import sys
+
+        _QDRANT_COMMANDS = {"runserver"}
+        is_uvicorn = any("uvicorn" in arg for arg in sys.argv[:1])
+        if not is_uvicorn and not _QDRANT_COMMANDS.intersection(sys.argv):
+            return
+
+        try:
+            from .vector_store import get_vector_store
+
+            get_vector_store().ensure_collection()
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception(
+                "Could not ensure Qdrant collection at startup; will retry per-embed."
+            )

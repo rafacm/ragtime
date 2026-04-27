@@ -5,6 +5,7 @@ from django.utils import timezone
 class Episode(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending"
+        QUEUED = "queued"
         SCRAPING = "scraping"
         DOWNLOADING = "downloading"
         TRANSCRIBING = "transcribing"
@@ -82,6 +83,17 @@ class EntityType(models.Model):
         help_text="Example entities of this type, e.g. The Blackhawk Sessions, 1959 Sessions",
     )
     is_active = models.BooleanField(default=True)
+    musicbrainz_table = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="MusicBrainz table to query for candidates (artist, release_group, label, place, work, area). Empty = no MB lookup.",
+    )
+    musicbrainz_filter = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Extra filter applied to MB candidates, e.g. {\"artist_type\": \"Person\"} or {\"area_type\": \"City\"}.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -93,6 +105,12 @@ class EntityType(models.Model):
 
 
 class Entity(models.Model):
+    class WikidataStatus(models.TextChoices):
+        PENDING = "pending"
+        RESOLVED = "resolved"
+        NOT_FOUND = "not_found"
+        FAILED = "failed"
+
     entity_type = models.ForeignKey(
         EntityType, on_delete=models.PROTECT, related_name="entities"
     )
@@ -104,6 +122,21 @@ class Entity(models.Model):
         db_index=True,
         help_text="Wikidata entity Q-ID, e.g. Q93341 for 'Miles Davis'",
     )
+    musicbrainz_id = models.CharField(
+        max_length=36,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="MusicBrainz entity gid (UUID).",
+    )
+    wikidata_status = models.CharField(
+        max_length=20,
+        choices=WikidataStatus.choices,
+        default=WikidataStatus.PENDING,
+        db_index=True,
+    )
+    wikidata_attempts = models.PositiveSmallIntegerField(default=0)
+    wikidata_last_attempted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -201,6 +234,13 @@ class ProcessingRun(models.Model):
 
     class Meta:
         ordering = ["-started_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["episode"],
+                condition=models.Q(status="running"),
+                name="unique_running_run_per_episode",
+            ),
+        ]
 
     def __str__(self):
         return str(self.pk)

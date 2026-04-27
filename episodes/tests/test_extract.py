@@ -252,13 +252,13 @@ class ExtractEntitiesTests(TestCase):
 
         episode = self._create_episode(
             url="https://example.com/ep/ext-3",
-            status=Episode.Status.PENDING,
+            status=Episode.Status.QUEUED,
         )
 
         extract_entities(episode.pk)
 
         episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.PENDING)
+        self.assertEqual(episode.status, Episode.Status.QUEUED)
 
     def test_nonexistent_episode(self):
         from episodes.extractor import extract_entities

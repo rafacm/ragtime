@@ -6,31 +6,36 @@ from episodes.models import Episode
 
 
 class SignalTests(TestCase):
-    @patch("episodes.signals.DBOS")
-    def test_creating_episode_starts_workflow(self, mock_dbos):
+    @patch("episodes.workflows.episode_queue")
+    def test_creating_episode_enqueues_workflow(self, mock_queue):
         episode = Episode.objects.create(url="https://example.com/ep/signal-1")
         from episodes.workflows import process_episode
 
-        mock_dbos.start_workflow.assert_called_once_with(
-            process_episode, episode.pk
-        )
+        mock_queue.enqueue.assert_called_once_with(process_episode, episode.pk)
 
-    @patch("episodes.signals.DBOS")
-    def test_updating_episode_does_not_start_workflow(self, mock_dbos):
+    @patch("episodes.workflows.episode_queue")
+    def test_creating_episode_marks_queued(self, mock_queue):
+        episode = Episode.objects.create(url="https://example.com/ep/signal-1b")
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.QUEUED)
+
+    @patch("episodes.workflows.episode_queue")
+    def test_updating_episode_does_not_enqueue_workflow(self, mock_queue):
         episode = Episode.objects.create(url="https://example.com/ep/signal-2")
-        mock_dbos.reset_mock()
+        mock_queue.reset_mock()
 
         episode.title = "Updated"
         episode.save()
 
-        mock_dbos.start_workflow.assert_not_called()
+        mock_queue.enqueue.assert_not_called()
 
-    @patch("episodes.signals.DBOS")
-    def test_status_change_does_not_start_workflow(self, mock_dbos):
+    @patch("episodes.workflows.episode_queue")
+    def test_status_change_does_not_enqueue_workflow(self, mock_queue):
         episode = Episode.objects.create(url="https://example.com/ep/signal-3")
-        mock_dbos.reset_mock()
+        mock_queue.reset_mock()
 
         episode.status = Episode.Status.DOWNLOADING
         episode.save(update_fields=["status", "updated_at"])
 
-        mock_dbos.start_workflow.assert_not_called()
+        mock_queue.enqueue.assert_not_called()

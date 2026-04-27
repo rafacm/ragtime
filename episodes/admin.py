@@ -288,7 +288,9 @@ class EpisodeAdmin(admin.ModelAdmin):
         )
 
     def _execute_reprocess(self, request, queryset):
-        from .workflows import process_episode
+        from dbos._error import DBOSException
+
+        from .workflows import episode_queue, process_episode
 
         from_step = request.POST["from_step"]
         episode_ids = request.POST.getlist("episode_ids")
@@ -305,10 +307,16 @@ class EpisodeAdmin(admin.ModelAdmin):
                 resolved_by="human:admin",
             )
 
-            episode.status = from_step
+            episode.status = Episode.Status.QUEUED
             episode.error_message = ""
             episode.save(update_fields=["status", "error_message", "updated_at"])
-            DBOS.start_workflow(process_episode, episode.pk, from_step)
+            try:
+                episode_queue.enqueue(process_episode, episode.pk, from_step)
+            except DBOSException:
+                logger.debug(
+                    "DBOS not initialized; skipping enqueue for episode %s",
+                    episode.pk,
+                )
             count += 1
 
         self.message_user(
