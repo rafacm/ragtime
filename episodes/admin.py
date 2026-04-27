@@ -540,19 +540,95 @@ class EntityTypeAdmin(admin.ModelAdmin):
 
 @admin.register(Entity)
 class EntityAdmin(admin.ModelAdmin):
-    list_display = ("name", "entity_type", "wikidata_link", "mention_count", "created_at")
-    list_filter = ("entity_type__name",)
-    search_fields = ("name",)
-    readonly_fields = ("entity_type", "name", "wikidata_id_display", "created_at", "updated_at")
+    list_display = (
+        "name",
+        "entity_type",
+        "musicbrainz_link",
+        "wikidata_link",
+        "wikidata_status",
+        "mention_count",
+        "created_at",
+    )
+    list_filter = ("entity_type__name", "wikidata_status")
+    search_fields = ("name", "musicbrainz_id", "wikidata_id")
+    readonly_fields = (
+        "entity_type",
+        "name",
+        "musicbrainz_id_display",
+        "wikidata_id_display",
+        "wikidata_status",
+        "wikidata_attempts",
+        "wikidata_last_attempted_at",
+        "created_at",
+        "updated_at",
+    )
     inlines = [EntityMentionInlineForEntity]
 
     def get_fieldsets(self, request, obj=None):
         return [
-            (None, {"fields": ("entity_type", "name", "wikidata_id_display")}),
-            ("Timestamps", {"classes": ("collapse",), "fields": ("created_at", "updated_at")}),
+            (
+                None,
+                {
+                    "fields": (
+                        "entity_type",
+                        "name",
+                        "musicbrainz_id_display",
+                        "wikidata_id_display",
+                    )
+                },
+            ),
+            (
+                "Wikidata enrichment",
+                {
+                    "classes": ("collapse",),
+                    "fields": (
+                        "wikidata_status",
+                        "wikidata_attempts",
+                        "wikidata_last_attempted_at",
+                    ),
+                },
+            ),
+            (
+                "Timestamps",
+                {"classes": ("collapse",), "fields": ("created_at", "updated_at")},
+            ),
         ]
 
-    @admin.display(description="Wikidata ID")
+    @admin.display(description="MusicBrainz ID", ordering="musicbrainz_id")
+    def musicbrainz_link(self, obj):
+        if obj.musicbrainz_id:
+            short = obj.musicbrainz_id[:8]
+            return format_html(
+                '<a href="https://musicbrainz.org/{}/{}" target="_blank" '
+                'rel="noopener" title="{}">{}\u2026</a>',
+                self._mb_path(obj),
+                obj.musicbrainz_id,
+                obj.musicbrainz_id,
+                short,
+            )
+        return "\u2014"
+
+    @admin.display(description="MusicBrainz ID")
+    def musicbrainz_id_display(self, obj):
+        if obj.musicbrainz_id:
+            return format_html(
+                '<a href="https://musicbrainz.org/{}/{}" target="_blank" rel="noopener">{}</a>',
+                self._mb_path(obj),
+                obj.musicbrainz_id,
+                obj.musicbrainz_id,
+            )
+        return "\u2014"
+
+    @staticmethod
+    def _mb_path(obj):
+        # Map our musicbrainz_table to MusicBrainz.org's URL path segment.
+        # Most match 1:1; release_group is the standout exception.
+        table = obj.entity_type.musicbrainz_table
+        return {
+            "release_group": "release-group",
+        }.get(table, table or "artist")
+
+    @admin.display(description="Wikidata ID", ordering="wikidata_id")
     def wikidata_link(self, obj):
         if obj.wikidata_id:
             return format_html(
