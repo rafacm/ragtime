@@ -85,6 +85,44 @@ class EpisodeAdminTests(TestCase):
         self.assertEqual(episode.status, Episode.Status.QUEUED)
 
     @patch("episodes.signals.DBOS")
+    def test_reprocess_skips_episode_with_active_run(self, mock_async):
+        """Reprocessing an episode that already has a RUNNING ProcessingRun
+        must skip it (not enqueue a duplicate workflow that would later
+        fail the partial unique constraint)."""
+        from episodes.models import ProcessingRun
+
+        episode = Episode.objects.create(
+            url="https://example.com/ep/admin-active",
+            status=Episode.Status.SCRAPING,
+            title="Active Episode",
+        )
+        # An in-flight run.
+        ProcessingRun.objects.create(
+            episode=episode, status=ProcessingRun.Status.RUNNING
+        )
+
+        with patch("episodes.workflows.episode_queue") as mock_queue:
+            response = self.client.post(
+                "/admin/episodes/episode/",
+                {
+                    "action": "reprocess",
+                    "_selected_action": [episode.pk],
+                    "episode_ids": [episode.pk],
+                    "from_step": Episode.Status.SCRAPING,
+                },
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        # Workflow was NOT enqueued.
+        mock_queue.enqueue.assert_not_called()
+        # Status was NOT overwritten — the in-flight run keeps its status.
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.SCRAPING)
+        # The user sees a warning naming the skipped episode.
+        self.assertContains(response, "Active Episode")
+
+    @patch("episodes.signals.DBOS")
     def test_metadata_fields_readonly_when_failed(self, mock_async):
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-3",

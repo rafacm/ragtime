@@ -129,6 +129,61 @@ class FindCandidatesTests(SimpleTestCase):
         self.assertEqual(result, [])
 
 
+class ConninfoEscapingTests(SimpleTestCase):
+    """`_get_pool` must escape credentials with whitespace/special chars
+    rather than producing a malformed DSN via naive f-string interpolation."""
+
+    def setUp(self):
+        musicbrainz._pool = None
+
+    def _build_conninfo(self, **overrides):
+        """Build the conninfo string the same way `_get_pool` would."""
+        from django.test import override_settings
+        from psycopg.conninfo import conninfo_to_dict
+
+        # Capture the call args ConnectionPool would receive.
+        captured = {}
+
+        def fake_pool(*args, **kwargs):
+            captured.update(kwargs)
+            return MagicMock()
+
+        defaults = dict(
+            RAGTIME_MUSICBRAINZ_DB_HOST="localhost",
+            RAGTIME_MUSICBRAINZ_DB_PORT=5432,
+            RAGTIME_MUSICBRAINZ_DB_NAME="musicbrainz",
+            RAGTIME_MUSICBRAINZ_DB_USER="ragtime",
+            RAGTIME_MUSICBRAINZ_DB_PASSWORD="ragtime",
+            RAGTIME_MUSICBRAINZ_SCHEMA="musicbrainz",
+        )
+        defaults.update(overrides)
+        with override_settings(**defaults), patch.object(
+            musicbrainz, "ConnectionPool", side_effect=fake_pool
+        ):
+            musicbrainz._get_pool()
+        return conninfo_to_dict(captured["conninfo"])
+
+    def test_password_with_whitespace_round_trips(self):
+        params = self._build_conninfo(
+            RAGTIME_MUSICBRAINZ_DB_PASSWORD="my secret pw",
+        )
+        self.assertEqual(params["password"], "my secret pw")
+
+    def test_password_with_quote_round_trips(self):
+        params = self._build_conninfo(
+            RAGTIME_MUSICBRAINZ_DB_PASSWORD="p'wd\"weird",
+        )
+        self.assertEqual(params["password"], "p'wd\"weird")
+
+    def test_dbname_and_user_round_trip(self):
+        params = self._build_conninfo(
+            RAGTIME_MUSICBRAINZ_DB_NAME="my db",
+            RAGTIME_MUSICBRAINZ_DB_USER="user with space",
+        )
+        self.assertEqual(params["dbname"], "my db")
+        self.assertEqual(params["user"], "user with space")
+
+
 class GetWikidataQidTests(SimpleTestCase):
     def setUp(self):
         musicbrainz._pool = None

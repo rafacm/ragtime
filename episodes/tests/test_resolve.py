@@ -875,6 +875,102 @@ class ResolveEntitiesTests(TestCase):
         entity = Entity.objects.get(entity_type=musician_type, name="Miles Davis")
         self.assertEqual(entity.musicbrainz_id, mbid)
 
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_existing_entity_gaining_mbid_is_enqueued_for_enrichment(self, mock_factory):
+        """A pre-existing PENDING entity that gets an MBID this run must be
+        enqueued for background Wikidata enrichment — otherwise it sits in
+        PENDING forever unless someone manually backfills."""
+        from episodes.resolver import resolve_entities
+
+        musician_type = _get_entity_type("musician")
+        existing = Entity.objects.create(
+            entity_type=musician_type, name="Miles Davis"
+        )
+        # Sanity: starts PENDING with no MBID, no Wikidata ID.
+        self.assertEqual(existing.wikidata_status, Entity.WikidataStatus.PENDING)
+        self.assertEqual(existing.musicbrainz_id, "")
+
+        mbid = "11d7cba4-0bcd-4b94-a30a-c1d5e80f86a3"
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = {
+            "matches": [
+                {
+                    "extracted_name": "Miles Davis",
+                    "canonical_name": "Miles Davis",
+                    "matched_entity_id": existing.pk,
+                    "musicbrainz_id": mbid,
+                },
+            ],
+        }
+        mock_factory.return_value = mock_provider
+
+        episode = self._create_episode(
+            url="https://example.com/ep/upgrade-existing",
+            status=Episode.Status.RESOLVING,
+        )
+        self._create_chunk(episode, index=0, entities_json={
+            "musician": [{"name": "Miles Davis", "context": "trumpet"}],
+        })
+
+        with patch(
+            "episodes.resolver._fetch_musicbrainz_candidates",
+            return_value={"Miles Davis": [_mb_candidate(mbid, name="Miles Davis")]},
+        ):
+            with patch("episodes.signals.DBOS"):
+                resolve_entities(episode.pk)
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.musicbrainz_id, mbid)
+
+        # The entity must have been enqueued for enrichment despite not
+        # being newly created.
+        self.assertTrue(self._mock_enqueue.called)
+        enqueued_ids = self._mock_enqueue.call_args[0][0]
+        self.assertIn(existing.pk, enqueued_ids)
+
+    @patch("episodes.resolver._fetch_musicbrainz_candidates", return_value={})
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_existing_resolved_entity_not_enqueued(self, mock_factory, _mock_mb):
+        """Entities that already have wikidata_id are never re-enqueued."""
+        from episodes.resolver import resolve_entities
+
+        musician_type = _get_entity_type("musician")
+        existing = Entity.objects.create(
+            entity_type=musician_type,
+            name="Miles Davis",
+            wikidata_id="Q93341",
+            wikidata_status=Entity.WikidataStatus.RESOLVED,
+        )
+
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = {
+            "matches": [
+                {
+                    "extracted_name": "Miles Davis",
+                    "canonical_name": "Miles Davis",
+                    "matched_entity_id": existing.pk,
+                    "musicbrainz_id": None,
+                },
+            ],
+        }
+        mock_factory.return_value = mock_provider
+
+        episode = self._create_episode(
+            url="https://example.com/ep/already-enriched",
+            status=Episode.Status.RESOLVING,
+        )
+        self._create_chunk(episode, index=0, entities_json={
+            "musician": [{"name": "Miles Davis", "context": "trumpet"}],
+        })
+
+        with patch("episodes.signals.DBOS"):
+            resolve_entities(episode.pk)
+
+        # Either not called at all (empty set short-circuits in
+        # _enqueue_enrichment) OR called with an empty list.
+        if self._mock_enqueue.called:
+            self.assertEqual(self._mock_enqueue.call_args[0][0], [])
+
     @patch("episodes.resolver._fetch_musicbrainz_candidates", return_value={})
     @patch("episodes.resolver.get_resolution_provider")
     def test_foreground_does_not_call_wikidata(self, mock_factory, _mock_mb):
