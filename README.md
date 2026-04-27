@@ -142,6 +142,26 @@ uv run python manage.py createsuperuser   # Create an admin user for the Django 
 uv run python manage.py load_entity_types # Seed initial entity types
 ```
 
+#### MusicBrainz database
+
+The foreground entity-resolution step queries a local [MusicBrainz](https://musicbrainz.org/) database to map extracted names to canonical MBIDs in sub-millisecond DB queries (instead of rate-limited Wikidata API calls). One-time import via [`musicbrainz-database-setup`](https://github.com/rafacm/musicbrainz-database-setup):
+
+```bash
+# Create an empty 'musicbrainz' database next to the 'ragtime' database.
+docker compose exec postgres createdb -U ragtime musicbrainz
+
+# One-shot import — runs the upstream CLI directly from GitHub via uvx,
+# downloads the latest MusicBrainz dump, creates the schema, and streams
+# COPY for every table. ~30+ minutes depending on disk speed. Resumable.
+uvx --from git+https://github.com/rafacm/musicbrainz-database-setup \
+  musicbrainz-database-setup run \
+  --db postgresql://ragtime:ragtime@localhost:5432/musicbrainz \
+  --modules core \
+  --latest
+```
+
+See [MusicBrainz database](doc/README.md#musicbrainz-database) in the docs for why it's needed, configuration via `RAGTIME_MUSICBRAINZ_*`, optional modules, and tuning tips.
+
 #### Application server (ASGI)
 
 ```bash
@@ -189,28 +209,6 @@ Or non-interactively:
 ```bash
 DJANGO_SUPERUSER_PASSWORD=admin uv run python manage.py createsuperuser --username admin --email admin@example.com --noinput
 ```
-
-### MusicBrainz database
-
-The foreground entity-resolution step queries a **local [MusicBrainz](https://musicbrainz.org/) database** to map extracted names ("Miles Davis", "Blue Note", "Take Five") to canonical MusicBrainz IDs (MBIDs). Local lookups are sub-millisecond and parallel-safe — every entity name in every chunk gets a fast DB query instead of a rate-limited Wikidata API call. This is what lets the pipeline finish a typical episode in seconds rather than minutes. Wikidata IDs are still resolved, but in a singleton background worker after the episode reaches `ready` (see [Background Wikidata enrichment](doc/README.md#background-wikidata-enrichment)).
-
-Set up the database with [`musicbrainz-database-setup`](https://github.com/rafacm/musicbrainz-database-setup), a one-shot CLI that downloads the latest MusicBrainz dump, creates the schema, and `COPY`s every table. The default RAGtime configuration expects a database named `musicbrainz` reachable from your `RAGTIME_DB_HOST` (you can put it in the same PostgreSQL 16+ instance as `ragtime`):
-
-```bash
-# Create an empty 'musicbrainz' database next to ragtime
-docker compose exec postgres createdb -U ragtime musicbrainz
-
-# Import the latest MusicBrainz dump (one-shot, ~30+ minutes depending on disk speed)
-uvx --from git+https://github.com/rafacm/musicbrainz-database-setup \
-  musicbrainz-database-setup run \
-  --db postgresql://ragtime:ragtime@localhost:5432/musicbrainz \
-  --modules core \
-  --latest
-```
-
-The connection string is `postgresql://<user>:<password>@<host>:<port>/<database>` — match the `RAGTIME_DB_*` values in your `.env` if you're using the same Postgres instance, or override via the `RAGTIME_MUSICBRAINZ_DB_*` env vars if MB lives elsewhere. The schema lands under `musicbrainz` inside that database (override with `RAGTIME_MUSICBRAINZ_SCHEMA` if needed).
-
-This is a one-time setup — RAGtime only reads from MB. See the [musicbrainz-database-setup README](https://github.com/rafacm/musicbrainz-database-setup) for resumable downloads, server-side tuning, the optional `derived` / `cover-art` / `wikidocs` modules, and how to keep credentials out of the URL.
 
 ## Tech Stack
 

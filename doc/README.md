@@ -405,15 +405,36 @@ Vite serves the React chat UI with HMR on port 5173. Both the ASGI server and Vi
 
 ### MusicBrainz database
 
-The foreground [resolve step](#8--resolve-entities-status-resolving) queries a local MusicBrainz Postgres database for candidate MBIDs. Without it, the resolver still works (it falls back to LLM-only resolution against existing entities), but MBIDs never land — and every entity drops into the slower Wikidata-API path during background enrichment. With it, the foreground stays sub-millisecond per entity and parallel-safe across episodes.
+#### Why it's needed
 
-Use [`musicbrainz-database-setup`](https://github.com/rafacm/musicbrainz-database-setup) to import the dump:
+The foreground [resolve step](#8--resolve-entities-status-resolving) maps extracted names ("Miles Davis", "Blue Note", "Take Five") to canonical MusicBrainz IDs by querying a local MusicBrainz Postgres database. Local lookups are sub-millisecond and parallel-safe — every entity name in every chunk gets a fast DB query instead of a rate-limited Wikidata API call, which is what lets the pipeline finish a typical episode in seconds rather than minutes.
+
+Without the MB database, the resolver still works (it falls back to LLM-only resolution against existing entities), but no MBIDs ever land. Every entity then drops into the slower Wikidata-API path during [background enrichment](#background-wikidata-enrichment), serialized through the singleton `wikidata_enrichment` queue at 5 req/s. The pipeline still produces correct results, just much more slowly.
+
+#### Importing the dump
+
+Use [`musicbrainz-database-setup`](https://github.com/rafacm/musicbrainz-database-setup), a one-shot CLI that downloads the latest dump from the [MetaBrainz mirror](https://wiki.musicbrainz.org/MusicBrainz_Database/Download), creates the schema, and `COPY`s every table:
 
 ```bash
-# 1. Create the database (defaults to 'musicbrainz', alongside the 'ragtime' DB)
+# 1. Create the database — defaults to 'musicbrainz', alongside the 'ragtime' DB
+#    in the same Postgres instance from docker compose. RAGtime's compose file
+#    ships postgres:17-alpine, which satisfies the importer's PostgreSQL 16+
+#    requirement out of the box.
 docker compose exec postgres createdb -U ragtime musicbrainz
 
-# 2. One-shot import (~30+ minutes; resumable if interrupted)
+# 2. One-shot import.
+#    - `uvx --from git+...` runs the importer's CLI straight from GitHub
+#      without a local clone or separate install.
+#    - `--db <conninfo>` is libpq-style; user must have SUPERUSER on the DB
+#      (the docker-compose 'ragtime' role does, since it owns the cluster).
+#    - `--modules core` pulls just the core entity tables RAGtime needs
+#      (artist / release_group / work / place / label / area + aliases +
+#      l_*_url external links). Skip `derived` / `cover-art` / `wikidocs`
+#      unless you want them for other tooling.
+#    - `--latest` skips the interactive dump-picker and grabs the newest dump
+#      from the MetaBrainz mirror. Use `--date YYYYMMDD-HHMMSS` to pin one.
+#    Takes ~30+ minutes depending on disk speed; downloads are resumable and
+#    SHA256-verified, COPY parallelizes via pbzip2/lbzip2 if either is on PATH.
 uvx --from git+https://github.com/rafacm/musicbrainz-database-setup \
   musicbrainz-database-setup run \
   --db postgresql://ragtime:ragtime@localhost:5432/musicbrainz \
@@ -421,9 +442,30 @@ uvx --from git+https://github.com/rafacm/musicbrainz-database-setup \
   --latest
 ```
 
-Connect RAGtime to it via `RAGTIME_MUSICBRAINZ_DB_HOST/_PORT/_NAME/_USER/_PASSWORD` and `RAGTIME_MUSICBRAINZ_SCHEMA` (defaults inherit from `RAGTIME_DB_*`, schema defaults to `musicbrainz`). RAGtime only reads from this database — installs of MB are entirely managed by the upstream tool. PostgreSQL 16+ is required (RAGtime's Docker Compose ships `postgres:17-alpine`).
+The connection string is `postgresql://<user>:<password>@<host>:<port>/<database>`. To put MB in the same Postgres instance as `ragtime`, match the `RAGTIME_DB_*` values in your `.env`; to put it elsewhere, point the `RAGTIME_MUSICBRAINZ_DB_*` env vars at the new host.
 
-See the [musicbrainz-database-setup project page](https://github.com/rafacm/musicbrainz-database-setup) for the full setup guide: optional `derived` / `cover-art` / `wikidocs` modules, server-side tuning to halve import time, and how to keep credentials out of the URL.
+#### Configuration
+
+By default RAGtime expects MB at the same Postgres host/port/user/password as the main `ragtime` database, in a database called `musicbrainz`, with the schema name `musicbrainz`. Override per-key via env vars when MB lives elsewhere:
+
+| Env var | Default | Purpose |
+|---|---|---|
+| `RAGTIME_MUSICBRAINZ_DB_HOST` | inherits `RAGTIME_DB_HOST` | MB Postgres host |
+| `RAGTIME_MUSICBRAINZ_DB_PORT` | inherits `RAGTIME_DB_PORT` | MB Postgres port |
+| `RAGTIME_MUSICBRAINZ_DB_NAME` | `musicbrainz` | Database name |
+| `RAGTIME_MUSICBRAINZ_DB_USER` | inherits `RAGTIME_DB_USER` | Read-only role works |
+| `RAGTIME_MUSICBRAINZ_DB_PASSWORD` | inherits `RAGTIME_DB_PASSWORD` | |
+| `RAGTIME_MUSICBRAINZ_SCHEMA` | `musicbrainz` | Schema MB tables live in (the upstream importer's default) |
+
+`uv run python manage.py configure` walks all of these interactively under the **MusicBrainz** section of the wizard.
+
+#### Operational notes
+
+- This is a one-time setup. RAGtime only **reads** from MB; it never writes. Re-import is only needed when you want a fresher dump.
+- The full `core` module is what RAGtime uses (artist / release_group / work / place / label / area + their `*_alias` and `l_*_url` tables). Optional modules (`derived` / `cover-art` / `wikidocs`) aren't read by RAGtime today — leave them out unless you want them for other tooling.
+- The upstream importer is resumable, SHA256-verifies every download, and `pbzip2`/`lbzip2` will roughly halve the COPY phase if available on `$PATH`.
+
+See the [musicbrainz-database-setup project page](https://github.com/rafacm/musicbrainz-database-setup) for the full setup guide: server-side Postgres tuning to halve import time, how to keep the password out of the connection URL via `PGPASSWORD` / `~/.pgpass`, and managed-Postgres caveats.
 
 ### Running tests
 
