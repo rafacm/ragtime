@@ -403,6 +403,28 @@ cd frontend && npm run dev
 
 Vite serves the React chat UI with HMR on port 5173. Both the ASGI server and Vite must be running to develop the chat UI.
 
+### MusicBrainz database
+
+The foreground [resolve step](#8--resolve-entities-status-resolving) queries a local MusicBrainz Postgres database for candidate MBIDs. Without it, the resolver still works (it falls back to LLM-only resolution against existing entities), but MBIDs never land — and every entity drops into the slower Wikidata-API path during background enrichment. With it, the foreground stays sub-millisecond per entity and parallel-safe across episodes.
+
+Use [`musicbrainz-database-setup`](https://github.com/rafacm/musicbrainz-database-setup) to import the dump:
+
+```bash
+# 1. Create the database (defaults to 'musicbrainz', alongside the 'ragtime' DB)
+docker compose exec postgres createdb -U ragtime musicbrainz
+
+# 2. One-shot import (~30+ minutes; resumable if interrupted)
+uvx --from git+https://github.com/rafacm/musicbrainz-database-setup \
+  musicbrainz-database-setup run \
+  --db postgresql://ragtime:ragtime@localhost:5432/musicbrainz \
+  --modules core \
+  --latest
+```
+
+Connect RAGtime to it via `RAGTIME_MUSICBRAINZ_DB_HOST/_PORT/_NAME/_USER/_PASSWORD` and `RAGTIME_MUSICBRAINZ_SCHEMA` (defaults inherit from `RAGTIME_DB_*`, schema defaults to `musicbrainz`). RAGtime only reads from this database — installs of MB are entirely managed by the upstream tool. PostgreSQL 16+ is required (RAGtime's Docker Compose ships `postgres:17-alpine`).
+
+See the [musicbrainz-database-setup project page](https://github.com/rafacm/musicbrainz-database-setup) for the full setup guide: optional `derived` / `cover-art` / `wikidocs` modules, server-side tuning to halve import time, and how to keep credentials out of the URL.
+
 ### Running tests
 
 PostgreSQL must be running before running tests:
