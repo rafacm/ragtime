@@ -102,10 +102,10 @@ class DownloadEpisodeTests(TestCase):
 
         episode = self._create_episode(
             url="https://example.com/ep/dl-4",
-            status=Episode.Status.PENDING,
+            status=Episode.Status.QUEUED,
         )
 
         download_episode(episode.pk)
 
         episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.PENDING)
+        self.assertEqual(episode.status, Episode.Status.QUEUED)

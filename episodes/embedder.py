@@ -1,4 +1,10 @@
-"""Embed pipeline step: generate vectors for chunks and upsert them to Qdrant."""
+"""Embed pipeline step: generate vectors for chunks and upsert them to Qdrant.
+
+Qdrant payload is intentionally slim — only what's needed for server-side
+filtering. Everything else (episode metadata, chunk text, entity names,
+MBIDs, Wikidata IDs) is fetched from Postgres at query time. See
+``episodes.vector_store`` for the rationale.
+"""
 
 import logging
 from collections import defaultdict
@@ -13,44 +19,34 @@ logger = logging.getLogger(__name__)
 
 
 def _build_payloads(episode, chunks):
+    """Slim Qdrant payload — only fields used for filtering / FK lookup.
+
+    Fields kept (server-side filterable):
+    * ``chunk_id``  — FK back to Postgres for hydration at search time
+    * ``episode_id`` — Scott's per-episode filter
+    * ``language`` — future per-language filter
+    * ``entity_ids`` — entity-faceted retrieval
+
+    Everything else (titles, urls, text, entity names, etc.) lives in
+    Postgres and is hydrated at search time. Editing them is a one-row
+    Postgres UPDATE — no re-embedding, no Qdrant payload mutation.
+    """
     mentions = (
         EntityMention.objects.filter(episode=episode)
-        .select_related("entity")
-        .values("chunk_id", "entity_id", "entity__name")
+        .values("chunk_id", "entity_id")
     )
-    by_chunk = defaultdict(list)
+    by_chunk: dict[int, list[int]] = defaultdict(list)
     for m in mentions:
-        by_chunk[m["chunk_id"]].append(
-            {"id": m["entity_id"], "name": m["entity__name"]}
-        )
-
-    published_iso = (
-        episode.published_at.isoformat() if episode.published_at else None
-    )
-
-    audio_url = episode.audio_url or (
-        episode.audio_file.url if episode.audio_file else ""
-    )
+        by_chunk[m["chunk_id"]].append(m["entity_id"])
 
     payloads = []
     for chunk in chunks:
-        ents = by_chunk.get(chunk.pk, [])
         payloads.append(
             {
                 "chunk_id": chunk.pk,
-                "chunk_index": chunk.index,
                 "episode_id": episode.pk,
-                "episode_title": episode.title,
-                "episode_url": episode.url,
-                "episode_audio_url": audio_url,
-                "episode_published_at": published_iso,
-                "episode_image_url": episode.image_url,
-                "start_time": chunk.start_time,
-                "end_time": chunk.end_time,
                 "language": episode.language,
-                "entity_ids": [e["id"] for e in ents],
-                "entity_names": [e["name"] for e in ents],
-                "text": chunk.text,
+                "entity_ids": by_chunk.get(chunk.pk, []),
             }
         )
     return payloads
@@ -78,6 +74,9 @@ def embed_episode(episode_id: int) -> None:
 
     try:
         store = get_vector_store()
+        # ensure_collection is idempotent and called once at process startup
+        # in apps.ready(); calling it again here is cheap insurance against
+        # cold-start ordering issues with non-uvicorn entrypoints.
         store.ensure_collection()
         # Always wipe stale points first. Covers two cases: re-chunked
         # episodes (chunk PKs change), and re-runs into an empty chunk set

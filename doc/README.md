@@ -71,23 +71,61 @@ New types can be added through Django admin; existing types can be deactivated (
 
 #### 8. 🧩 Resolve entities (status: `resolving`)
 
-**Entity Linking (NEL)** — maps extracted mentions to canonical entity records, deduplicating across chunks.
+**Entity Linking (NEL)** — maps extracted mentions to canonical entity records, deduplicating across chunks. Foreground resolution is **MusicBrainz-first** — the local MB Postgres database is queried for candidate MBIDs (sub-millisecond, parallel-safe). Wikidata enrichment runs separately in the background; the foreground never calls the Wikidata API.
 
 Aggregates all extracted names across every chunk, then resolves **once per entity type** using LLM-based fuzzy matching against two sources:
 
 1. **Existing DB records** — prevents duplicates when the same entity was seen in a previous episode.
-2. **[Wikidata](https://www.wikidata.org/) candidates** — searches by name and type, presenting candidates (with Q-IDs and descriptions) to the LLM for confirmation. Matched entities receive a `wikidata_id` for canonical identification.
+2. **MusicBrainz candidates** — local DB search by name + alias against the type's MB table (artist, release_group, work, place, label, area), presenting MBID + disambiguation to the LLM. Matched entities receive a `musicbrainz_id` (UUID).
+
+Race-safe under parallel episode pipelines: every `Entity` create goes through `get_or_create` plus a sorted Postgres `pg_advisory_xact_lock` per `(entity_type, name)` (transaction-scoped, so concurrent resolvers serialize on shared names without deadlocking).
+
+**Entity-type to MB-table mapping** (defined in `episodes/initial_entity_types.yaml`):
+
+| Entity type | MB table | MB filter | Foreground source |
+|---|---|---|---|
+| `musician` | `artist` | `type=Person` | MusicBrainz |
+| `musical_group` | `artist` | `type=Group/Orchestra/Choir` | MusicBrainz |
+| `album` | `release_group` | `primary_type=Album` | MusicBrainz |
+| `composed_musical_work` | `work` | — | MusicBrainz |
+| `music_venue` | `place` | — | MusicBrainz |
+| `record_label` | `label` | — | MusicBrainz |
+| `city` | `area` | `type=City` | MusicBrainz |
+| `country` | `area` | `type=Country` | MusicBrainz |
+| `recording_session`, `year`, `historical_period`, `music_genre`, `musical_instrument`, `role` | — | — | name-only (background Wikidata) |
 
 **Example** — continuing from the extract step, suppose the episode's chunks collectively mention "Bird", "Charlie Parker", "Yardbird", and "Dizzy Gillespie":
 
-| Extracted mentions | Resolved to (canonical entity) | Wikidata ID |
+| Extracted mentions | Resolved to (canonical entity) | MBID |
 |---|---|---|
-| Bird, Charlie Parker, Yardbird | Charlie Parker | [Q103767](https://www.wikidata.org/wiki/Q103767) |
-| Dizzy Gillespie | Dizzy Gillespie | [Q49575](https://www.wikidata.org/wiki/Q49575) |
+| Bird, Charlie Parker, Yardbird | Charlie Parker | `91a05b78-c89f-4d2e-9bf8-f3a4abe44a76` |
+| Dizzy Gillespie | Dizzy Gillespie | `0a2f3672-ee44-4c84-9b27-9234e4b27cc1` |
 
 All three surface forms collapse into a single `Entity` record for Charlie Parker. An `EntityMention` is created for each (entity, chunk) pair, preserving which chunks mentioned the entity and the context of each mention.
 
+The newly-created `Entity` rows are enqueued for **background Wikidata enrichment** (see below). The episode itself moves on to the embed step immediately — Wikidata Q-IDs may land minutes/hours later.
+
 This two-phase design (extract then resolve) is intentional: extraction is cheap and parallelizable per chunk, while resolution requires cross-chunk aggregation and knowledge base lookups. It also allows re-running resolution independently — e.g., after improving matching logic — without re-extracting.
+
+##### Background Wikidata enrichment
+
+After foreground resolution, a singleton DBOS workflow on the `wikidata_enrichment` queue (`concurrency=1`, `worker_concurrency=1`) backfills `Entity.wikidata_id`. Per entity, deduplicated globally — common names get enriched once across all episodes.
+
+Strategy:
+
+1. If `Entity.musicbrainz_id` is set, look up the Wikidata link via MusicBrainz's external-links data (local DB join through `l_<entity>_url` → `url`, no network).
+2. Otherwise, fall back to the Wikidata API (rate-limited, single concurrent worker by construction).
+3. Persist `Entity.wikidata_id` and bookkeeping (`wikidata_status`, `wikidata_attempts`, `wikidata_last_attempted_at`).
+
+Wikidata IDs flow into Scott's search results via search-time hydration (`vector_store.search_chunks()` joins `EntityMention → Entity`). No Qdrant payload mutation needed.
+
+Backfill any pending entities (e.g. after extending `MAX_ATTEMPTS` or after a long Wikidata outage):
+
+```
+uv run python manage.py enrich_entities                 # PENDING only
+uv run python manage.py enrich_entities --retry-failed  # also FAILED + NOT_FOUND
+uv run python manage.py enrich_entities --limit 100
+```
 
 Search Wikidata from the CLI with:
 
@@ -100,23 +138,22 @@ uv run python manage.py lookup_entity --type musician "Miles Davis"
 
 Generate multilingual embeddings for every chunk and upsert them into a [Qdrant](https://qdrant.tech/) collection alongside the metadata Scott needs to cite them.
 
-Default embedding model: OpenAI [`text-embedding-3-small`](https://platform.openai.com/docs/guides/embeddings) (1536-dim, multilingual, cosine distance). Chunks are embedded in batches of 128 texts per OpenAI request; Qdrant points are upserted in batches of 128. The collection is auto-created on first write and defaults to `ragtime_chunks`. Only the raw `chunk.text` is embedded — entity IDs, episode metadata, and timestamps live in the Qdrant point payload, not in the vector.
+Default embedding model: OpenAI [`text-embedding-3-small`](https://platform.openai.com/docs/guides/embeddings) (1536-dim, multilingual, cosine distance). Chunks are embedded in batches of 128 texts per OpenAI request; Qdrant points are upserted in batches of 128. The collection is bootstrapped once at process startup (`episodes/apps.ready()`) and defaults to `ragtime_chunks`. Only the raw `chunk.text` is embedded — episode metadata, entity names, and timestamps are **not** stored in Qdrant; they're hydrated from Postgres at search time.
 
 Point IDs are deterministic (`chunk.pk`), so upserts are idempotent. The step always calls `delete_by_episode()` before writing — this keeps re-runs safe after re-chunking, and clears stale points when an episode is re-ingested into zero chunks (otherwise Scott could retrieve content that no longer exists in Postgres).
 
-Vector dimensions are **detected at runtime** by probing the configured embedding provider once per process (one single-word `provider.embed(["dim-probe"])` call, cached via `@lru_cache`). The collection is created with whatever dim the live model produces. If an existing collection was created with a different dim, `ensure_collection()` fails fast with a clear error that names both dims and the current model, protecting against silent schema drift when `RAGTIME_EMBEDDING_MODEL` is changed. `manage.py configure` additionally prints a warning when the user changes the model value, pointing at `manage.py dbreset` as the recovery path.
+Vector dimensions are **detected at runtime** by probing the configured embedding provider once per process (one single-word `provider.embed(["dim-probe"])` call, cached via `@lru_cache`). The collection is created with whatever dim the live model produces. If an existing collection was created with a different dim, `ensure_collection()` fails fast with a clear error that names both dims and the current model, protecting against silent schema drift when `RAGTIME_EMBEDDING_MODEL` is changed. `manage.py configure` additionally prints a warning when the user changes the model value, pointing at `manage.py dbreset` as the recovery path. Concurrent cold starts are tolerated — `ensure_collection()` treats a 409 from `create_collection` as success.
 
-Each Qdrant point carries this payload (indexed fields marked with ⚡):
+Each Qdrant point carries a slim payload (indexed fields marked with ⚡):
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `chunk_id`, `chunk_index` | int | Chunk identity |
-| `episode_id` ⚡ | int | Filter by episode |
-| `episode_title`, `episode_url`, `episode_published_at`, `episode_image_url` | str | For citation rendering without a Postgres round-trip |
-| `start_time`, `end_time` | float | Deep-link to audio position |
-| `language` ⚡ | str | Bias retrieval by language |
-| `entity_ids` ⚡, `entity_names` | list | Resolved mentions in this chunk |
-| `text` | str | Raw chunk text for snippet display |
+| `chunk_id` | int | FK back to Postgres for search-time hydration |
+| `episode_id` ⚡ | int | Filter by episode (Scott's per-episode filter) |
+| `language` ⚡ | str | Future per-language filter |
+| `entity_ids` ⚡ | list[int] | Entity-faceted retrieval / future ranking |
+
+Everything else Scott displays (episode title, urls, chunk text, entity names, MBIDs, Wikidata IDs) is fetched from Postgres at search time via a single keyed query in `vector_store.search_chunks()`. This makes Postgres the single source of truth — title edits and background Wikidata enrichment flow through immediately without re-embedding or `set_payload` calls.
 
 When an Episode is deleted, a `post_delete` signal calls `delete_by_episode()` to keep Qdrant consistent with Postgres (errors are logged and swallowed — a stale Qdrant point is better than a failing admin delete).
 

@@ -34,14 +34,20 @@ def create_run(episode, resume_from=""):
 
 
 def get_active_run(episode):
-    """Return the most recent RUNNING run for the episode, or None."""
-    return (
-        ProcessingRun.objects.filter(
+    """Return the unique RUNNING run for the episode, or ``None``.
+
+    The partial unique index ``unique_running_run_per_episode`` enforces
+    "at most one RUNNING run per episode" at the DB level. We surface
+    ``MultipleObjectsReturned`` rather than silently picking one — if it
+    ever fires, the constraint or migration is broken and we want a loud
+    test failure rather than corrupt step bookkeeping.
+    """
+    try:
+        return ProcessingRun.objects.get(
             episode=episode, status=ProcessingRun.Status.RUNNING
         )
-        .order_by("-started_at")
-        .first()
-    )
+    except ProcessingRun.DoesNotExist:
+        return None
 
 
 def start_step(episode, step_name):

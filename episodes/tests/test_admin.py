@@ -61,7 +61,7 @@ class EpisodeAdminTests(TestCase):
         mock_async.reset_mock()
 
         # Submit the intermediate page with from_step
-        with patch("episodes.admin.DBOS") as mock_admin_async:
+        with patch("episodes.workflows.episode_queue") as mock_queue:
             response = self.client.post(
                 "/admin/episodes/episode/",
                 {
@@ -75,12 +75,14 @@ class EpisodeAdminTests(TestCase):
             self.assertEqual(response.status_code, 200)
             from episodes.workflows import process_episode
 
-            mock_admin_async.start_workflow.assert_called_once_with(
+            mock_queue.enqueue.assert_called_once_with(
                 process_episode, episode.pk, Episode.Status.SCRAPING
             )
 
+        # Reprocess sets status to QUEUED — the workflow's create_run_step
+        # transitions QUEUED -> from_step when a worker picks it up.
         episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.SCRAPING)
+        self.assertEqual(episode.status, Episode.Status.QUEUED)
 
     @patch("episodes.signals.DBOS")
     def test_metadata_fields_readonly_when_failed(self, mock_async):

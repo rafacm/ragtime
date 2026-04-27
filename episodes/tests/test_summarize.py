@@ -68,13 +68,13 @@ class SummarizeEpisodeTests(TestCase):
 
         episode = self._create_episode(
             url="https://example.com/ep/sum-2",
-            status=Episode.Status.PENDING,
+            status=Episode.Status.QUEUED,
         )
 
         summarize_episode(episode.pk)
 
         episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.PENDING)
+        self.assertEqual(episode.status, Episode.Status.QUEUED)
 
     def test_empty_transcript(self):
         from episodes.summarizer import summarize_episode

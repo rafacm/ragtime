@@ -120,13 +120,13 @@ class TranscribeEpisodeTests(TestCase):
 
         episode = self._create_episode(
             url="https://example.com/ep/tr-4",
-            status=Episode.Status.PENDING,
+            status=Episode.Status.QUEUED,
         )
 
         transcribe_episode(episode.pk)
 
         episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.PENDING)
+        self.assertEqual(episode.status, Episode.Status.QUEUED)
 
     @patch("episodes.transcriber.get_transcription_provider")
     def test_empty_language_passes_none(self, mock_factory):

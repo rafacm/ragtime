@@ -232,6 +232,7 @@ class ConfigureWizardTest(TestCase):
             "",               # Embedding API key (reuse shared LLM key)
             "",               # Qdrant API key (keep default)
             "",               # Scott API key (keep default)
+            "",               # MusicBrainz DB password (keep default)
             "",               # Recovery agent API key (keep default)
             "",               # Langfuse secret key (keep default)
             "",               # Langfuse public key (keep default)
@@ -260,6 +261,12 @@ class ConfigureWizardTest(TestCase):
             "",               # Scott model (keep default)
             "",               # Scott top_k (keep default)
             "",               # Scott score threshold (keep default)
+            "",               # MusicBrainz DB host
+            "",               # MusicBrainz DB port
+            "",               # MusicBrainz DB name
+            "",               # MusicBrainz DB user
+            "",               # MusicBrainz schema
+            "",               # Pipeline EPISODE_CONCURRENCY
             "",               # Wikidata user agent (keep default)
             "",               # Wikidata cache backend (keep default)
             "",               # Wikidata cache TTL (keep default)
@@ -352,6 +359,7 @@ class ConfigureWizardTest(TestCase):
             "",               # Embedding API key (reuse shared LLM key)
             "",               # Qdrant API key (keep default)
             "",               # Scott API key (keep default)
+            "",               # MusicBrainz DB password (keep default)
             "",               # Recovery agent API key (keep default)
             "",               # Langfuse secret key (keep default)
             "",               # Langfuse public key (keep default)
@@ -380,6 +388,12 @@ class ConfigureWizardTest(TestCase):
             "",               # Scott model (keep default)
             "",               # Scott top_k (keep default)
             "",               # Scott score threshold (keep default)
+            "",               # MusicBrainz DB host
+            "",               # MusicBrainz DB port
+            "",               # MusicBrainz DB name
+            "",               # MusicBrainz DB user
+            "",               # MusicBrainz schema
+            "",               # Pipeline EPISODE_CONCURRENCY
             "",               # Wikidata user agent (keep default)
             "",               # Wikidata cache backend (keep default)
             "",               # Wikidata cache TTL (keep default)
@@ -437,6 +451,7 @@ class ConfigureWizardTest(TestCase):
             "",               # Embedding API key (reuse shared LLM key)
             "",               # Qdrant API key (keep default)
             "",               # Scott API key (keep default)
+            "",               # MusicBrainz DB password (keep default)
             "",               # Recovery agent API key (keep default)
             "",               # Langfuse secret key (keep default)
             "",               # Langfuse public key (keep default)
@@ -462,6 +477,8 @@ class ConfigureWizardTest(TestCase):
             "",               # Qdrant collection
             "",               # Qdrant https
             "", "", "", "",     # Scott (4 non-secret fields)
+            "", "", "", "", "", # MusicBrainz DB host/port/name/user + schema
+            "",                 # Pipeline EPISODE_CONCURRENCY
             "", "", "", "", "",  # Wikidata (5 fields)
             "", "", "",         # Recovery agent (3 fields)
             "", "", "",         # OTel (3 fields)

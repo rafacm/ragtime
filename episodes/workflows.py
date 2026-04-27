@@ -7,12 +7,20 @@ sequences all pipeline steps, checkpointing after each one.
 import importlib
 import logging
 
-from dbos import DBOS
+from dbos import DBOS, Queue
+from django.conf import settings
 
 from .models import PIPELINE_STEPS, Episode, ProcessingRun, ProcessingStep
 from .processing import create_run
 
 logger = logging.getLogger(__name__)
+
+# Pipeline-wide concurrency cap. Episodes beyond this limit sit in DBOS's
+# queue table with ``Episode.Status.QUEUED`` until a worker frees a slot.
+episode_queue = Queue(
+    "episode_pipeline",
+    concurrency=settings.RAGTIME_EPISODE_CONCURRENCY,
+)
 
 STEP_FUNCTIONS = {
     Episode.Status.SCRAPING: "episodes.scraper.scrape_episode",
@@ -51,7 +59,8 @@ def process_episode(episode_id: int, from_step: str = "") -> None:
         # allowed — it is forbidden from inside a step).
         resume_step = get_pending_resume_step(episode_id, step_name)
         if resume_step:
-            DBOS.start_workflow(process_episode, episode_id, resume_step)
+            mark_queued(episode_id)
+            episode_queue.enqueue(process_episode, episode_id, resume_step)
             return
 
         if is_run_still_active(run_id):
@@ -62,6 +71,16 @@ def process_episode(episode_id: int, from_step: str = "") -> None:
 @DBOS.step()
 def create_run_step(episode_id: int, from_step: str) -> int:
     episode = Episode.objects.get(pk=episode_id)
+    # Episode was placed in QUEUED at enqueue time so the user could see it
+    # waiting for a worker. The workflow is now running, so transition into
+    # the first pipeline step's status. Each step's body still does its own
+    # ``status = step_name`` write, but the transition here makes the
+    # precondition checks (``if status != EXPECTED: return``) pass without
+    # changing every step's semantics.
+    target_status = from_step or PIPELINE_STEPS[0]
+    if episode.status == Episode.Status.QUEUED:
+        episode.status = target_status
+        episode.save(update_fields=["status", "updated_at"])
     return create_run(episode, resume_from=from_step).pk
 
 
@@ -112,6 +131,19 @@ def get_pending_resume_step(episode_id: int, failed_step: str) -> str:
 
 
 @DBOS.step()
+def mark_queued(episode_id: int) -> None:
+    """Set ``Episode.Status.QUEUED`` ahead of an enqueue call.
+
+    Used when the workflow itself dispatches a follow-up workflow (recovery
+    resume). The user-facing ``status`` reflects the wait time before the
+    queue picks it up.
+    """
+    Episode.objects.filter(pk=episode_id).update(
+        status=Episode.Status.QUEUED,
+    )
+
+
+@DBOS.step()
 def mark_run_failed(run_id: int, step_name: str) -> None:
     from django.utils import timezone
 
@@ -133,7 +165,8 @@ def run_agent_recovery(episode_id: int, pipeline_event_id: int) -> None:
     execute_agent_recovery(episode_id, pipeline_event_id)
     resume_step = get_pending_resume_step(episode_id, failed_step)
     if resume_step:
-        DBOS.start_workflow(process_episode, episode_id, resume_step)
+        mark_queued(episode_id)
+        episode_queue.enqueue(process_episode, episode_id, resume_step)
 
 
 @DBOS.step()

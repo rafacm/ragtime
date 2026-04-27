@@ -112,13 +112,13 @@ class ChunkEpisodeTests(TestCase):
 
         episode = self._create_episode(
             url="https://example.com/ep/chunk-3",
-            status=Episode.Status.PENDING,
+            status=Episode.Status.QUEUED,
         )
 
         chunk_episode(episode.pk)
 
         episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.PENDING)
+        self.assertEqual(episode.status, Episode.Status.QUEUED)
 
     def test_chunk_episode_reprocessing(self):
         from episodes.chunker import chunk_episode

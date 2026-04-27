@@ -1,6 +1,8 @@
 - key: musician
   name: Musician
   wikidata_id: Q639669
+  musicbrainz_table: artist
+  musicbrainz_filter: {artist_type: Person}
   description: Person who composes, conducts or performs music.
   examples:
     - Miles Davis
@@ -10,6 +12,8 @@
 - key: musical_group
   name: Musical Group
   wikidata_id: Q215380
+  musicbrainz_table: artist
+  musicbrainz_filter: {artist_type_in: [Group, Orchestra, Choir]}
   description: Musical ensemble which performs music.
   examples:
     - The Jazz Messengers
@@ -19,6 +23,8 @@
 - key: album
   name: Album
   wikidata_id: Q482994
+  musicbrainz_table: release_group
+  musicbrainz_filter: {primary_type: Album}
   description: Specific studio or live record releases.
   examples:
     - Kind of Blue
@@ -27,6 +33,8 @@
 - key: composed_musical_work
   name: Composed Musical Work
   wikidata_id: Q207628
+  musicbrainz_table: work
+  musicbrainz_filter: {}
   description: Original piece or work of music, either vocal or instrumental.
   examples:
     - Take Five
@@ -36,6 +44,8 @@
 - key: music_venue
   name: Music Venue
   wikidata_id: Q8719053
+  musicbrainz_table: place
+  musicbrainz_filter: {}
   description: Any location used for a concert or musical performance.
   examples:
     - Village Vanguard
@@ -45,6 +55,8 @@
 - key: recording_session
   name: Recording Session
   wikidata_id: Q98216532
+  musicbrainz_table: ""
+  musicbrainz_filter: {}
   description: A specific date/time/place of a recording.
   examples:
     - The Blackhawk Sessions
@@ -53,6 +65,8 @@
 - key: record_label
   name: Record Label
   wikidata_id: Q18127
+  musicbrainz_table: label
+  musicbrainz_filter: {}
   description: Brand and trademark associated with the marketing of music recordings and music videos.
   examples:
     - Blue Note
@@ -62,6 +76,8 @@
 - key: year
   name: Year
   wikidata_id: Q577
+  musicbrainz_table: ""
+  musicbrainz_filter: {}
   description: The specific calendar year mentioned.
   examples:
     - "1959"
@@ -71,6 +87,8 @@
 - key: historical_period
   name: Historical Period
   wikidata_id: Q11514315
+  musicbrainz_table: ""
+  musicbrainz_filter: {}
   description: Segment of time in history.
   examples:
     - The Swing Era
@@ -80,6 +98,8 @@
 - key: city
   name: City
   wikidata_id: Q515
+  musicbrainz_table: area
+  musicbrainz_filter: {area_type: City}
   description: The specific metropolitan area.
   examples:
     - New Orleans
@@ -89,6 +109,8 @@
 - key: country
   name: Country
   wikidata_id: Q6256
+  musicbrainz_table: area
+  musicbrainz_filter: {area_type: Country}
   description: The nation of origin or performance.
   examples:
     - USA
@@ -99,6 +121,8 @@
 - key: music_genre
   name: Music Genre
   wikidata_id: Q188451
+  musicbrainz_table: ""
+  musicbrainz_filter: {}
   description: Category that identifies pieces of music as belonging to a shared tradition or set of conventions.
   examples:
     - Bebop
@@ -109,6 +133,8 @@
 - key: musical_instrument
   name: Musical Instrument
   wikidata_id: Q34379
+  musicbrainz_table: ""
+  musicbrainz_filter: {}
   description: Device created or adapted to make musical sounds.
   examples:
     - Trumpet
@@ -118,6 +144,8 @@
 - key: role
   name: Role
   wikidata_id: Q12737077
+  musicbrainz_table: ""
+  musicbrainz_filter: {}
   description: The artist's function in that moment.
   examples:
     - Bandleader

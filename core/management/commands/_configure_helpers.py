@@ -142,8 +142,47 @@ SYSTEMS = [
         ],
     },
     {
+        "name": "MusicBrainz",
+        "description": "Local MusicBrainz Postgres database for foreground entity resolution (https://github.com/rafacm/musicbrainz-database-setup)",
+        "shareable": False,
+        "subsystems": [
+            {
+                "prefix": "RAGTIME_MUSICBRAINZ_DB",
+                "label": "MusicBrainz DB",
+                "fields": [
+                    ("HOST", "localhost", False),
+                    ("PORT", "5432", False),
+                    ("NAME", "musicbrainz", False),
+                    ("USER", "ragtime", False),
+                    ("PASSWORD", "ragtime", True),
+                ],
+            },
+            {
+                "prefix": "RAGTIME_MUSICBRAINZ",
+                "label": "MusicBrainz schema",
+                "fields": [
+                    ("SCHEMA", "musicbrainz", False),
+                ],
+            },
+        ],
+    },
+    {
+        "name": "Pipeline",
+        "description": "Episode-pipeline parallelism",
+        "shareable": False,
+        "subsystems": [
+            {
+                "prefix": "RAGTIME",
+                "label": "Pipeline",
+                "fields": [
+                    ("EPISODE_CONCURRENCY", "4", False),
+                ],
+            },
+        ],
+    },
+    {
         "name": "Wikidata",
-        "description": "Entity lookup via Wikidata API",
+        "description": "Background entity-enrichment via Wikidata API (foreground uses MusicBrainz)",
         "shareable": False,
         "subsystems": [
             {
