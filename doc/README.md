@@ -467,6 +467,16 @@ By default RAGtime expects MB at the same Postgres host/port/user/password as th
 
 See the [musicbrainz-database-setup project page](https://github.com/rafacm/musicbrainz-database-setup) for the full setup guide: server-side Postgres tuning to halve import time, how to keep the password out of the connection URL via `PGPASSWORD` / `~/.pgpass`, and managed-Postgres caveats.
 
+### Submitting an episode
+
+Episodes are normally submitted from the Django admin UI ([http://localhost:8000/admin/](http://localhost:8000/admin/) → *Episodes* → *Add*). For ad-hoc CLI submission during testing:
+
+```bash
+uv run python manage.py submit_episode https://example.com/ep/123
+```
+
+The command creates a single ``Episode`` row with ``status=pending``; the ``post_save`` signal then moves it to ``queued`` and enqueues a ``process_episode`` workflow on the ``episode_pipeline`` DBOS queue. Run the command repeatedly for multiple episodes — re-submitting an already-submitted URL is a no-op (the existing row is reported and no second workflow is enqueued).
+
 ### Running tests
 
 PostgreSQL must be running before running tests:
