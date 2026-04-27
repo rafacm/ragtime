@@ -250,7 +250,25 @@ def resolve_entities(episode_id: int) -> None:
         episode.save(update_fields=["status", "updated_at"])
         return
 
-    new_entity_ids: list[int] = []
+    # Entities to enqueue for background Wikidata enrichment after the
+    # transaction commits. Includes:
+    #   - newly-created Entity rows
+    #   - pre-existing Entity rows touched by this resolve that are still
+    #     wikidata_status=PENDING. Without this, an existing entity can
+    #     gain its musicbrainz_id from the LLM but never reach the
+    #     enrichment queue, leaving it pending until someone manually runs
+    #     `manage.py enrich_entities`.
+    entities_to_enrich: set[int] = set()
+
+    from .enrichment import MAX_ATTEMPTS
+
+    def _maybe_enqueue(entity: Entity) -> None:
+        if (
+            not entity.wikidata_id
+            and entity.wikidata_status == Entity.WikidataStatus.PENDING
+            and entity.wikidata_attempts < MAX_ATTEMPTS
+        ):
+            entities_to_enrich.add(entity.pk)
 
     try:
         provider = get_resolution_provider()
@@ -280,9 +298,8 @@ def resolve_entities(episode_id: int) -> None:
                     all_mentions = []
                     seen_mentions: set[tuple[int, int]] = set()
                     for name in unique_names:
-                        entity, created = _get_or_create_entity(entity_type, name)
-                        if created:
-                            new_entity_ids.append(entity.pk)
+                        entity, _created = _get_or_create_entity(entity_type, name)
+                        _maybe_enqueue(entity)
                         all_mentions.extend(
                             _collect_mentions(
                                 name, entity, names_dict, episode, seen_mentions
@@ -327,15 +344,14 @@ def resolve_entities(episode_id: int) -> None:
                             )
                             existing_by_mbid[mbid] = entity
                     else:
-                        entity, created = _get_or_create_entity(
+                        entity, _created = _get_or_create_entity(
                             entity_type, canonical_name, mbid
                         )
-                        if created:
-                            new_entity_ids.append(entity.pk)
                         if entity.musicbrainz_id:
                             existing_by_mbid[entity.musicbrainz_id] = entity
                         existing_by_id[entity.pk] = entity
 
+                    _maybe_enqueue(entity)
                     all_mentions.extend(
                         _collect_mentions(
                             extracted_name, entity, names_dict, episode, seen_mentions
@@ -350,9 +366,8 @@ def resolve_entities(episode_id: int) -> None:
                         "LLM omitted '%s' from resolution — creating without musicbrainz_id",
                         name,
                     )
-                    entity, created = _get_or_create_entity(entity_type, name)
-                    if created:
-                        new_entity_ids.append(entity.pk)
+                    entity, _created = _get_or_create_entity(entity_type, name)
+                    _maybe_enqueue(entity)
                     all_mentions.extend(
                         _collect_mentions(
                             name, entity, names_dict, episode, seen_mentions
@@ -373,4 +388,4 @@ def resolve_entities(episode_id: int) -> None:
         return
 
     # Outside the transaction so DBOS only sees committed entities.
-    _enqueue_enrichment(new_entity_ids)
+    _enqueue_enrichment(sorted(entities_to_enrich))

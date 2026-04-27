@@ -132,4 +132,22 @@ Wrote three docs per AGENTS.md format: plan copy, feature doc, planning session 
 
 Skipped the destructive cutover steps (drop `ragtime` DB / Qdrant collection / re-ingest) — those depend on the user having the MB Postgres DB stood up locally and active API keys, and are documented in the feature doc as the on-device verification recipe.
 
-Created the PR with the full doc bundle (plan + feature doc + both session transcripts + CHANGELOG entry).
+Branch was auto-named `worktree-feature-musicbrainz-resolution` by EnterWorktree; renamed to `feature/musicbrainz-resolution` to match the repo's convention. Pushed and created PR #100 with the full doc bundle (plan + feature doc + both session transcripts + CHANGELOG entry).
+
+### PR #100 review feedback
+
+The user reviewed the PR and left three comments. The `/pr-review-comments-process` and `/pr-review-comments-implement` skills surfaced and processed them.
+
+**Comment 1 (resolver.py:323) — Missed enrichment for upgraded existing entities.** The original code only collected newly-created entities into `new_entity_ids`. When the LLM matched an extracted name to a pre-existing PENDING entity and provided an MBID, the resolver wrote the MBID but never enqueued that entity for Wikidata enrichment — it would sit in PENDING forever unless someone manually ran `manage.py enrich_entities`.
+
+Fix: replaced `new_entity_ids` with an `entities_to_enrich: set[int]` populated by a `_maybe_enqueue(entity)` helper called at every site where the resolver touches an Entity (newly created, matched-by-id, matched-by-MBID, LLM-omitted-name fallback, trivial-path no-LLM branch). The helper enqueues only rows still eligible for enrichment: `not wikidata_id and wikidata_status == PENDING and wikidata_attempts < MAX_ATTEMPTS`. `MAX_ATTEMPTS` imported from `episodes.enrichment` (lazy import to keep it close to the helper). Added `test_existing_entity_gaining_mbid_is_enqueued_for_enrichment` (regression for this exact case) and `test_existing_resolved_entity_not_enqueued` (negative case).
+
+**Comment 2 (admin.py:310) — Admin reprocess could race an in-flight workflow.** The original `_execute_reprocess` unconditionally set `Episode.Status.QUEUED` and enqueued a workflow even when there was already a RUNNING `ProcessingRun`. The new partial unique constraint (`unique_running_run_per_episode`) would fail the second workflow's `create_run`, but in the meantime the user-visible status would have been overwritten while the original run was mid-pipeline, then the second workflow would die with a confusing constraint error.
+
+Fix: added a guard at the top of the per-episode loop in `_execute_reprocess` — if `ProcessingRun.objects.filter(episode=episode, status=RUNNING).exists()`, the episode is added to `skipped_titles` and the loop `continue`s. After the loop, `message_user(level=messages.WARNING)` surfaces the skipped titles (capped at 5 with a "…" suffix). Existing success message remains for episodes that did proceed. Added `test_reprocess_skips_episode_with_active_run` asserting no enqueue, no status overwrite, and the warning text in the response.
+
+**Comment 3 (musicbrainz.py:49) — Brittle DSN string interpolation.** `_get_pool` was building the conninfo string via f-string interpolation, which breaks if any of the credentials or db name contain whitespace, quotes, or backslashes — a generated password with a space in it would produce an invalid DSN and the pool would fail at the first call.
+
+Fix: switched to `psycopg.conninfo.make_conninfo(host=…, port=…, dbname=…, user=…, password=…)`. Added three regression tests in a new `ConninfoEscapingTests` class that exercise the real `_get_pool` code path with patched `ConnectionPool` to capture the conninfo arg, then round-trip it through `psycopg.conninfo.conninfo_to_dict`: password with spaces, password with single + double quotes, dbname + user with whitespace. All values come back identical to the originals.
+
+Test suite goes from 322 → 328 (6 new). All three review threads replied to via `gh api repos/.../pulls/100/comments/<id>/replies` and resolved via the GraphQL `resolveReviewThread` mutation. Follow-up commit pushed to `feature/musicbrainz-resolution`.

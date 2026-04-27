@@ -288,8 +288,10 @@ class EpisodeAdmin(admin.ModelAdmin):
         )
 
     def _execute_reprocess(self, request, queryset):
+        from django.contrib import messages
         from dbos._error import DBOSException
 
+        from .models import ProcessingRun
         from .workflows import episode_queue, process_episode
 
         from_step = request.POST["from_step"]
@@ -297,7 +299,19 @@ class EpisodeAdmin(admin.ModelAdmin):
         episodes = Episode.objects.filter(pk__in=episode_ids)
 
         count = 0
+        skipped_titles = []
         for episode in episodes:
+            # Skip episodes that already have an active workflow. Without
+            # this guard, the second enqueue would create a workflow that
+            # later fails create_run() against the partial unique
+            # constraint — but only after we've already set status=QUEUED,
+            # confusingly overwriting the in-flight run's status.
+            if ProcessingRun.objects.filter(
+                episode=episode, status=ProcessingRun.Status.RUNNING
+            ).exists():
+                skipped_titles.append(episode.title or episode.url)
+                continue
+
             # Resolve any AWAITING_HUMAN recovery attempts
             episode.recovery_attempts.filter(
                 status=RecoveryAttempt.Status.AWAITING_HUMAN
@@ -318,6 +332,15 @@ class EpisodeAdmin(admin.ModelAdmin):
                     episode.pk,
                 )
             count += 1
+
+        if skipped_titles:
+            self.message_user(
+                request,
+                f"Skipped {len(skipped_titles)} episode(s) with an active "
+                f"processing run: {', '.join(skipped_titles[:5])}"
+                + (" …" if len(skipped_titles) > 5 else ""),
+                level=messages.WARNING,
+            )
 
         self.message_user(
             request,

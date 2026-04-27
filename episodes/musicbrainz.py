@@ -19,6 +19,7 @@ from typing import Any
 
 from django.conf import settings
 from psycopg import sql
+from psycopg.conninfo import make_conninfo
 from psycopg_pool import ConnectionPool
 
 logger = logging.getLogger(__name__)
@@ -46,12 +47,16 @@ def _get_pool() -> ConnectionPool:
     with _pool_lock:
         if _pool is not None:
             return _pool
-        conninfo = (
-            f"host={settings.RAGTIME_MUSICBRAINZ_DB_HOST} "
-            f"port={settings.RAGTIME_MUSICBRAINZ_DB_PORT} "
-            f"dbname={settings.RAGTIME_MUSICBRAINZ_DB_NAME} "
-            f"user={settings.RAGTIME_MUSICBRAINZ_DB_USER} "
-            f"password={settings.RAGTIME_MUSICBRAINZ_DB_PASSWORD}"
+        # ``make_conninfo`` properly escapes credentials / db names that
+        # contain whitespace or special characters; building the DSN by
+        # f-string interpolation breaks for passwords with quotes,
+        # backslashes, or spaces.
+        conninfo = make_conninfo(
+            host=settings.RAGTIME_MUSICBRAINZ_DB_HOST,
+            port=settings.RAGTIME_MUSICBRAINZ_DB_PORT,
+            dbname=settings.RAGTIME_MUSICBRAINZ_DB_NAME,
+            user=settings.RAGTIME_MUSICBRAINZ_DB_USER,
+            password=settings.RAGTIME_MUSICBRAINZ_DB_PASSWORD,
         )
         _pool = ConnectionPool(
             conninfo=conninfo,
