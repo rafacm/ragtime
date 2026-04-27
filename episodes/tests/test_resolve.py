@@ -970,6 +970,138 @@ class ResolveEntitiesTests(TestCase):
         if self._mock_enqueue.called:
             self.assertEqual(self._mock_enqueue.call_args[0][0], [])
 
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_safety_net_assigns_sole_mb_candidate_when_llm_omits_mbid(self, mock_factory):
+        """If MB returns exactly one candidate with a matching name and the LLM
+        forgets to include the MBID, the resolver still assigns it. Regression
+        for the live-run case where 'Quintette du Hot Club de France' had a
+        single perfect MB match (`ee55e4e8…`) but the LLM returned null."""
+        from episodes.resolver import resolve_entities
+
+        mbid = "ee55e4e8-807d-49b1-8470-d1c0898ed7cb"
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = {
+            "matches": [
+                {
+                    "extracted_name": "Quintette du Hot Club de France",
+                    "canonical_name": "Quintette du Hot Club de France",
+                    "matched_entity_id": None,
+                    "musicbrainz_id": None,  # LLM omitted it
+                },
+            ],
+        }
+        mock_factory.return_value = mock_provider
+
+        episode = self._create_episode(
+            url="https://example.com/ep/safety-net",
+            status=Episode.Status.RESOLVING,
+        )
+        self._create_chunk(episode, index=0, entities_json={
+            "musical_group": [{"name": "Quintette du Hot Club de France", "context": "Django's group"}],
+        })
+
+        # Sole MB candidate with the same name.
+        mb_candidates = {
+            "Quintette du Hot Club de France": [
+                _mb_candidate(mbid, name="Quintette du Hot Club de France", type_="Group"),
+            ],
+        }
+
+        with patch(
+            "episodes.resolver._fetch_musicbrainz_candidates",
+            return_value=mb_candidates,
+        ):
+            with patch("episodes.signals.DBOS"):
+                resolve_entities(episode.pk)
+
+        e = Entity.objects.get(name="Quintette du Hot Club de France")
+        self.assertEqual(e.musicbrainz_id, mbid)
+
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_safety_net_skipped_when_llm_changes_canonical_name(self, mock_factory):
+        """If the LLM returns a different canonical_name, that's a signal it
+        identified a different entity than the MB candidate suggests — do not
+        auto-assign the MBID."""
+        from episodes.resolver import resolve_entities
+
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = {
+            "matches": [
+                {
+                    "extracted_name": "John Smith",
+                    "canonical_name": "Other John",  # LLM rebadged the entity
+                    "matched_entity_id": None,
+                    "musicbrainz_id": None,
+                },
+            ],
+        }
+        mock_factory.return_value = mock_provider
+
+        episode = self._create_episode(
+            url="https://example.com/ep/safety-net-skip",
+            status=Episode.Status.RESOLVING,
+        )
+        self._create_chunk(episode, index=0, entities_json={
+            "musician": [{"name": "John Smith", "context": "vocalist"}],
+        })
+
+        mb_candidates = {
+            "John Smith": [_mb_candidate("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", name="John Smith")],
+        }
+
+        with patch(
+            "episodes.resolver._fetch_musicbrainz_candidates", return_value=mb_candidates
+        ):
+            with patch("episodes.signals.DBOS"):
+                resolve_entities(episode.pk)
+
+        # Entity created with the LLM's canonical_name, no MBID.
+        e = Entity.objects.get(name="Other John")
+        self.assertEqual(e.musicbrainz_id, "")
+
+    @patch("episodes.resolver.get_resolution_provider")
+    def test_safety_net_skipped_when_multiple_mb_candidates(self, mock_factory):
+        """When MB returns multiple candidates, the LLM is the only arbiter.
+        If the LLM returns null, do NOT pick one arbitrarily."""
+        from episodes.resolver import resolve_entities
+
+        mock_provider = MagicMock()
+        mock_provider.structured_extract.return_value = {
+            "matches": [
+                {
+                    "extracted_name": "Django Reinhardt",
+                    "canonical_name": "Django Reinhardt",
+                    "matched_entity_id": None,
+                    "musicbrainz_id": None,
+                },
+            ],
+        }
+        mock_factory.return_value = mock_provider
+
+        episode = self._create_episode(
+            url="https://example.com/ep/safety-net-multi",
+            status=Episode.Status.RESOLVING,
+        )
+        self._create_chunk(episode, index=0, entities_json={
+            "musician": [{"name": "Django Reinhardt", "context": "guitar"}],
+        })
+
+        mb_candidates = {
+            "Django Reinhardt": [
+                _mb_candidate("650bf385-6f6d-4992-a3b9-779d144920a4", name="Django Reinhardt", disambiguation="French jazz guitarist"),
+                _mb_candidate("96f23107-8200-4618-88c1-501f1692d492", name="Django Reinhardt", disambiguation="German singer"),
+            ],
+        }
+
+        with patch(
+            "episodes.resolver._fetch_musicbrainz_candidates", return_value=mb_candidates
+        ):
+            with patch("episodes.signals.DBOS"):
+                resolve_entities(episode.pk)
+
+        e = Entity.objects.get(name="Django Reinhardt")
+        self.assertEqual(e.musicbrainz_id, "")
+
     @patch("episodes.resolver._fetch_musicbrainz_candidates", return_value={})
     @patch("episodes.resolver.get_resolution_provider")
     def test_foreground_does_not_call_wikidata(self, mock_factory, _mock_mb):

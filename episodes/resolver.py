@@ -333,6 +333,23 @@ def resolve_entities(episode_id: int) -> None:
                     matched_id = match["matched_entity_id"]
                     canonical_name = match.get("canonical_name") or extracted_name
 
+                    # Safety net: when MB returned exactly one candidate AND
+                    # the LLM didn't supply an MBID AND the LLM's canonical
+                    # name matches the candidate's name (case-insensitive),
+                    # accept the candidate. MB only returns a candidate when
+                    # the name matched exactly against the main or alias
+                    # tables, so a single result is high-precision; the LLM
+                    # was almost certainly just sloppy about including the
+                    # mbid field. The LLM can still override by returning a
+                    # different canonical_name (i.e. signaling "this is a
+                    # different entity than the one MB suggested").
+                    if not mbid:
+                        candidates_for_name = mb_candidates.get(extracted_name) or []
+                        if len(candidates_for_name) == 1:
+                            sole = candidates_for_name[0]
+                            if sole.name.casefold() == canonical_name.casefold():
+                                mbid = sole.mbid
+
                     if mbid and mbid in existing_by_mbid:
                         entity = existing_by_mbid[mbid]
                     elif matched_id is not None and matched_id in existing_by_id:
