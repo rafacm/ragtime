@@ -6,7 +6,6 @@
 
 - [Processing Pipeline](#processing-pipeline)
   - [Steps](#steps) (1–10)
-  - [Download cascade](#download-cascade)
 - [How Scott Works](#how-scott-works)
 - [Wikidata Cache](#wikidata-cache)
 - [Telemetry (OpenTelemetry)](#telemetry-opentelemetry)
@@ -27,7 +26,18 @@ User submits an episode page URL. Duplicate URLs are rejected.
 
 #### 2. 🕷️ Fetch Details (status: `fetching_details`)
 
-Extract metadata (title, description, date, image, audio URL, GUID) and detect language via a [Pydantic AI](https://ai.pydantic.dev/) agent ([`episodes/agents/fetch_details.py`](../episodes/agents/fetch_details.py)) calling the configured LLM with structured output. The step orchestrator ([`episodes/fetch_details_step.py`](../episodes/fetch_details_step.py)) owns HTML fetch + clean, the fast-path skip when required fields are pre-filled (admin reprocess after a fix-and-retry), the empty-field-only merge that never overwrites human-edited fields, and the completeness check. The required-fields contract is `("title",)` only — `audio_url` is optional here because the Download step's agent owns audio-URL discovery (see [Download cascade](#download-cascade)) when fetch-details could not extract one. Episodes that cannot recover even a title are marked `failed` for human review.
+Extract episode metadata via a [Pydantic AI](https://ai.pydantic.dev/) agent ([`episodes/agents/fetch_details.py`](../episodes/agents/fetch_details.py)) calling the configured LLM with structured output.
+
+The agent's `EpisodeDetails` schema covers `title`, `description`, `published_at` (ISO date), `image_url`, `language` (ISO 639-1), `audio_url`, and `guid` (RSS-feed-style identifier — `urn:` URIs, `itunes:episodeGuid`, `<guid>` tags, `data-guid` attributes; used as a hint by the Download step's `lookup_podcast_index` tool). Pydantic validators normalise dates and reject non-ISO-639-1 language codes.
+
+The step orchestrator ([`episodes/fetch_details_step.py`](../episodes/fetch_details_step.py)) owns:
+
+- HTML fetch + clean (strips `<script>`/`<style>`/`<nav>`/`<footer>`/etc., truncates to 30 000 chars).
+- A fast-path skip when required fields are already populated — used when an admin reprocesses an episode after editing metadata in the change form.
+- An empty-field-only merge that never overwrites human-edited fields.
+- A completeness check against `REQUIRED_FIELDS = ("title",)`. `audio_url` is intentionally **not** required: the Download step (step 3) owns audio-URL discovery for cases where the page didn't expose one.
+
+Episodes that fail to extract even a title are marked `failed`; the admin can edit metadata and reprocess.
 
 Configure via the wizard or `.env` — Convention B encodes the provider in the model string prefix:
 
@@ -38,7 +48,51 @@ RAGTIME_FETCH_DETAILS_MODEL=openai:gpt-4.1-mini    # or anthropic:claude-sonnet-
 
 #### 3. ⬇️ Download (status: `downloading`)
 
-Download the audio file and extract duration via a three-tier cascade — see [Download cascade](#download-cascade) for the full details.
+Three-tier cascade implemented in [`episodes/downloader.py`](../episodes/downloader.py):
+
+1. **`wget` on `episode.audio_url`** — sub-second on the happy path, no LLM cost. Most episodes finish here.
+2. **Pydantic AI download agent** ([`episodes/agents/download.py`](../episodes/agents/download.py)) — invoked when `wget` fails or `audio_url` is empty. The agent runs as a single [`agent.run()`](https://ai.pydantic.dev/agents/#running-agents) call; Pydantic AI maintains the full tool-call / result history within the run so the agent adapts based on what it has already tried. A 30-request usage limit caps cost per run. The agent has three classes of tools:
+   * `lookup_podcast_index` — fans out across configured podcast indexes ([fyyd.de](https://fyyd.de/), [podcastindex.org](https://podcastindex.org/)). Each index is a deterministic source of the publisher's RSS-feed enclosure URL and bypasses interactive UI entirely. The agent tries this first.
+   * `download_file` — fetches a known URL via the Playwright request context (shares cookies with any prior page navigation).
+   * Browsing — `navigate_to_url`, `find_audio_links`, `click_element`, `intercept_audio_requests`, `analyze_screenshot`, `click_at_coordinates`, `translate_text` — for sites whose audio URL only appears after interactive UI is exercised. When the episode language is known, the agent uses `translate_text` to translate UI labels ("Information", "Download") into the page's language. Screenshots taken during the run are attached to OpenTelemetry traces (and to Langfuse media when that collector is enabled).
+3. **Failure** — when both tiers give up, the step raises `DownloadFailed(message, episode_id, sources_tried, wget_error, agent_message)`. DBOS records the exception class + args, so `dbos workflow steps <id>` (and the Episode admin's "View workflow steps" link) shows exactly which sources were tried and why.
+
+On success the step extracts the duration with `mutagen.MP3`, attaches the file to `Episode.audio_file`, and advances `Episode.status` to `transcribing`.
+
+##### Configuring the download agent
+
+Install the Playwright browser once:
+```
+uv run playwright install chromium
+```
+
+Configure via the wizard or set these in `.env`:
+```
+RAGTIME_DOWNLOAD_AGENT_API_KEY=sk-your-key
+RAGTIME_DOWNLOAD_AGENT_MODEL=openai:gpt-4.1-mini   # any Pydantic AI model string
+RAGTIME_DOWNLOAD_AGENT_TIMEOUT=120
+```
+
+`translate_text` uses the configured translation provider:
+```
+RAGTIME_TRANSLATION_PROVIDER=openai
+RAGTIME_TRANSLATION_API_KEY=sk-your-key
+RAGTIME_TRANSLATION_MODEL=gpt-4.1-mini
+```
+
+##### Configuring podcast indexes
+
+`RAGTIME_PODCAST_INDEXES` is an ordered, comma-separated list of providers. Empty disables index lookup entirely (the agent falls back to browsing). Supported names:
+
+- `fyyd` — fyyd.de's read API is open. `RAGTIME_FYYD_API_KEY` is optional and only raises rate limits.
+- `podcastindex` — podcastindex.org. Requires `RAGTIME_PODCASTINDEX_API_KEY` and `RAGTIME_PODCASTINDEX_API_SECRET`. Tries GUID lookup first when one is available (extracted by fetch-details), falls back to title + show search.
+
+Example:
+```
+RAGTIME_PODCAST_INDEXES=podcastindex,fyyd
+RAGTIME_PODCASTINDEX_API_KEY=…
+RAGTIME_PODCASTINDEX_API_SECRET=…
+```
 
 #### 4. 🎙️ Transcribe (status: `transcribing`)
 
@@ -183,60 +237,6 @@ RAGTIME_QDRANT_HTTPS=false
 #### 10. ✅ Ready (status: `ready`)
 
 Episode fully processed and available for Scott to query.
-
-### Download cascade
-
-The Download step has a three-tier cascade implemented in [`episodes/downloader.py`](../episodes/downloader.py):
-
-1. **`wget` on `episode.audio_url`** — sub-second on the happy path, no LLM cost. Most episodes finish here.
-2. **Pydantic AI download agent** — invoked when `wget` fails or `audio_url` is empty. The agent ([`episodes/agents/download.py`](../episodes/agents/download.py)) has three classes of tools:
-   * `lookup_podcast_index` — fans out across configured podcast indexes (fyyd.de, podcastindex.org). Each index is a deterministic source of the publisher's RSS-feed enclosure URL and bypasses interactive UI entirely. The agent tries this first.
-   * `download_file` — fetches a known URL via the Playwright request context (shares cookies with any prior page navigation).
-   * Browsing — `navigate_to_url`, `find_audio_links`, `click_element`, `intercept_audio_requests`, `analyze_screenshot`, `click_at_coordinates`, `translate_text` — for sites whose audio URL only appears after interactive UI is exercised.
-
-   The agent runs as a single [`agent.run()`](https://ai.pydantic.dev/agents/#running-agents) call; Pydantic AI maintains the full tool-call / result history within the run so the agent adapts based on what it has already tried. A 30-request usage limit caps cost per run. When the episode language is known, the agent receives language context and uses `translate_text` to translate UI labels ("Information", "Download") into the page's language. Screenshots taken during the run are attached to OTel traces (and to Langfuse media when that collector is enabled).
-3. **Failure** — when both tiers give up, the step raises `DownloadFailed(message, episode_id, sources_tried, wget_error, agent_message)`. DBOS records the exception class + args, so `dbos workflow steps <id>` (and the Episode admin's "View workflow steps" link) shows exactly which sources were tried and why.
-
-#### Configuring the download agent
-
-Install the Playwright browser once:
-```
-uv run playwright install chromium
-```
-
-Configure via the wizard:
-```
-uv run python manage.py configure
-```
-or set these variables in `.env`:
-```
-RAGTIME_DOWNLOAD_AGENT_API_KEY=sk-your-key
-RAGTIME_DOWNLOAD_AGENT_MODEL=openai:gpt-4.1-mini   # any Pydantic AI model string
-RAGTIME_DOWNLOAD_AGENT_TIMEOUT=120
-```
-
-`translate_text` uses the configured translation provider:
-```
-RAGTIME_TRANSLATION_PROVIDER=openai
-RAGTIME_TRANSLATION_API_KEY=sk-your-key
-RAGTIME_TRANSLATION_MODEL=gpt-4.1-mini
-```
-
-#### Configuring podcast indexes
-
-`RAGTIME_PODCAST_INDEXES` is an ordered, comma-separated list of providers. Empty disables index lookup entirely (the agent falls back to browsing). Supported names:
-
-* `fyyd` — fyyd.de's read API is open. `RAGTIME_FYYD_API_KEY` is optional and only raises rate limits.
-* `podcastindex` — podcastindex.org. Requires `RAGTIME_PODCASTINDEX_API_KEY` and `RAGTIME_PODCASTINDEX_API_SECRET`. Tries GUID lookup first when the agent provides one (extracted by fetch-details), falls back to title + show search.
-
-Example:
-```
-RAGTIME_PODCAST_INDEXES=podcastindex,fyyd
-RAGTIME_PODCASTINDEX_API_KEY=…
-RAGTIME_PODCASTINDEX_API_SECRET=…
-```
-
-> **Diagrams:** the recovery-layer Excalidraw diagram in `doc/architecture/ragtime-recovery.svg` is now stale (the recovery layer was deleted). The processing-pipeline diagram still reflects the 10-step model accurately.
 
 ## How Scott Works
 
