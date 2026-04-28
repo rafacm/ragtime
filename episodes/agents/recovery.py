@@ -11,6 +11,7 @@ from pydantic_ai.usage import UsageLimits
 from ..events import StepFailureEvent
 from ..models import Episode
 from . import recovery_tools as tools
+from ._model import build_model
 from .recovery_browser import recovery_browser
 from .recovery_deps import RecoveryAgentResult, RecoveryDeps
 
@@ -72,47 +73,15 @@ Use these labels directly in your selectors to find and click elements.
 """
 
 
-def _build_model():
-    """Build a Pydantic AI model from settings.
-
-    Passes the API key directly to the provider constructor instead of
-    mutating ``os.environ``, so credentials don't leak to other tasks
-    in long-lived Django Q workers.
-    """
-    from pydantic_ai.providers.openai import OpenAIProvider
-
-    model_str = getattr(settings, "RAGTIME_RECOVERY_AGENT_MODEL", "openai:gpt-4.1-mini")
-    api_key = getattr(settings, "RAGTIME_RECOVERY_AGENT_API_KEY", "")
-
-    if not api_key:
-        # No explicit key — let Pydantic AI resolve from its own env vars
-        return model_str
-
-    provider_name = model_str.split(":")[0] if ":" in model_str else "openai"
-    model_name = model_str.split(":", 1)[1] if ":" in model_str else model_str
-
-    if provider_name == "openai":
-        from pydantic_ai.models.openai import OpenAIResponsesModel
-
-        return OpenAIResponsesModel(model_name, provider=OpenAIProvider(api_key=api_key))
-
-    # For other providers, fall back to env var (they may not be installed)
-    env_key_map = {
-        "anthropic": "ANTHROPIC_API_KEY",
-        "google": "GOOGLE_API_KEY",
-    }
-    env_var = env_key_map.get(provider_name)
-    if env_var:
-        _prev = os.environ.get(env_var)
-        os.environ[env_var] = api_key
-    return model_str
-
-
 def _build_agent() -> Agent[RecoveryDeps, RecoveryAgentResult]:
     """Create and configure the recovery agent."""
     from .. import telemetry
 
-    model = _build_model()
+    model_string = getattr(
+        settings, "RAGTIME_RECOVERY_AGENT_MODEL", "openai:gpt-4.1-mini"
+    )
+    api_key = getattr(settings, "RAGTIME_RECOVERY_AGENT_API_KEY", "")
+    model = build_model(model_string, api_key)
 
     kwargs = dict(
         deps_type=RecoveryDeps,

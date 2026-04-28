@@ -1,10 +1,12 @@
 from datetime import date
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from django.test import TestCase, override_settings
+from pydantic_ai.models.test import TestModel
 
-from episodes.models import Episode
+from episodes.agents.fetch_details import EpisodeDetails, get_agent
 from episodes.fetch_details_step import clean_html, fetch_episode_details
+from episodes.models import Episode
 
 
 class CleanHtmlTests(TestCase):
@@ -48,7 +50,13 @@ class CleanHtmlTests(TestCase):
     RAGTIME_FETCH_DETAILS_MODEL="openai:gpt-4.1-mini",
 )
 class FetchEpisodeDetailsTests(TestCase):
-    """Tests for the fetch_episode_details task function with mocked HTTP and LLM."""
+    """Tests for ``fetch_episode_details`` with the agent's model overridden.
+
+    Uses ``Agent.override(model=TestModel())`` from Pydantic AI's testing
+    utilities — ``TestModel`` returns a deterministic structured payload
+    matching the agent's ``output_type`` schema, so we exercise the full
+    code path (validators, step orchestrator, save logic) without an LLM.
+    """
 
     SAMPLE_HTML = """
     <html>
@@ -63,39 +71,44 @@ class FetchEpisodeDetailsTests(TestCase):
     </html>
     """
 
-    LLM_COMPLETE_RESPONSE = {
-        "title": "Jazz Episode 1",
-        "description": "A great episode about jazz.",
-        "published_at": "2026-01-15",
-        "image_url": "https://example.com/image.jpg",
-        "language": "en",
-        "audio_url": "https://example.com/ep1.mp3",
-    }
-
-    LLM_INCOMPLETE_RESPONSE = {
-        "title": "Jazz Episode 1",
-        "description": "A great episode about jazz.",
-        "published_at": None,
-        "image_url": None,
-        "language": "en",
-        "audio_url": None,  # Missing required field
-    }
+    def setUp(self):
+        # Reset memoized agent instance — settings change per test class
+        # via override_settings, but get_agent caches the first one.
+        get_agent.cache_clear()
 
     def _create_episode(self, **kwargs):
         """Create episode without triggering post_save signal."""
         with patch("episodes.signals.DBOS"):
             return Episode.objects.create(**kwargs)
 
-    @patch("episodes.fetch_details_step.get_scraping_provider")
+    def _override_agent(self, output: EpisodeDetails | None = None):
+        """Return an Agent.override() context manager that returns *output*.
+
+        ``TestModel(custom_output_args=...)`` short-circuits the LLM call
+        and feeds the structured payload straight to the validator, so
+        the agent returns the desired ``EpisodeDetails`` instance.
+        """
+        if output is None:
+            output = EpisodeDetails(
+                title="Jazz Episode 1",
+                description="A great episode about jazz.",
+                published_at=date(2026, 1, 15),
+                image_url="https://example.com/image.jpg",
+                language="en",
+                audio_url="https://example.com/ep1.mp3",
+            )
+        agent = get_agent()
+        return agent.override(
+            model=TestModel(custom_output_args=output.model_dump(mode="json"))
+        )
+
     @patch("episodes.fetch_details_step.fetch_html")
-    def test_success_path(self, mock_fetch, mock_provider_factory):
+    def test_success_path(self, mock_fetch):
         mock_fetch.return_value = self.SAMPLE_HTML
-        mock_provider = MagicMock()
-        mock_provider.structured_extract.return_value = self.LLM_COMPLETE_RESPONSE
-        mock_provider_factory.return_value = mock_provider
 
         episode = self._create_episode(url="https://example.com/ep/1")
-        fetch_episode_details(episode.pk)
+        with self._override_agent():
+            fetch_episode_details(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
@@ -105,16 +118,19 @@ class FetchEpisodeDetailsTests(TestCase):
         self.assertEqual(episode.published_at, date(2026, 1, 15))
         self.assertNotEqual(episode.scraped_html, "")
 
-    @patch("episodes.fetch_details_step.get_scraping_provider")
     @patch("episodes.fetch_details_step.fetch_html")
-    def test_incomplete_extraction_fails(self, mock_fetch, mock_provider_factory):
+    def test_incomplete_extraction_fails(self, mock_fetch):
         mock_fetch.return_value = self.SAMPLE_HTML
-        mock_provider = MagicMock()
-        mock_provider.structured_extract.return_value = self.LLM_INCOMPLETE_RESPONSE
-        mock_provider_factory.return_value = mock_provider
 
         episode = self._create_episode(url="https://example.com/ep/2")
-        fetch_episode_details(episode.pk)
+        incomplete = EpisodeDetails(
+            title="Jazz Episode 1",
+            description="A great episode about jazz.",
+            language="en",
+            audio_url=None,
+        )
+        with self._override_agent(incomplete):
+            fetch_episode_details(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
@@ -132,9 +148,8 @@ class FetchEpisodeDetailsTests(TestCase):
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
 
-    @patch("episodes.fetch_details_step.get_scraping_provider")
-    def test_reprocess_with_user_filled_fields(self, mock_provider_factory):
-        """When user fills required fields and reprocesses, LLM is skipped."""
+    def test_reprocess_with_user_filled_fields(self):
+        """When user fills required fields and reprocesses, agent is skipped."""
         episode = self._create_episode(
             url="https://example.com/ep/4",
             title="Filled by user",
@@ -143,54 +158,33 @@ class FetchEpisodeDetailsTests(TestCase):
             status=Episode.Status.FAILED,
         )
 
-        fetch_episode_details(episode.pk)
+        # Override to a model that would raise if called — fast-path skip
+        # must short-circuit before reaching the agent.
+        with patch("episodes.fetch_details_step._run_agent_sync") as mock_run:
+            fetch_episode_details(episode.pk)
+            mock_run.assert_not_called()
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
-        # LLM should not have been called
-        mock_provider_factory.assert_not_called()
 
-    @patch("episodes.fetch_details_step.get_scraping_provider")
     @patch("episodes.fetch_details_step.fetch_html")
-    def test_uses_cached_html_on_reprocess(self, mock_fetch, mock_provider_factory):
+    def test_uses_cached_html_on_reprocess(self, mock_fetch):
         """When scraped_html is already stored, HTTP fetch is skipped."""
-        mock_provider = MagicMock()
-        mock_provider.structured_extract.return_value = self.LLM_COMPLETE_RESPONSE
-        mock_provider_factory.return_value = mock_provider
-
         episode = self._create_episode(
             url="https://example.com/ep/5",
             scraped_html="<html>cached</html>",
             status=Episode.Status.FAILED,
         )
 
-        fetch_episode_details(episode.pk)
+        with self._override_agent():
+            fetch_episode_details(episode.pk)
 
         mock_fetch.assert_not_called()
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
 
-    @patch("episodes.fetch_details_step.get_scraping_provider")
     @patch("episodes.fetch_details_step.fetch_html")
-    def test_success_sets_downloading_status(self, mock_fetch, mock_provider_factory):
-        """LLM extraction path sets status to DOWNLOADING."""
-        mock_fetch.return_value = self.SAMPLE_HTML
-        mock_provider = MagicMock()
-        mock_provider.structured_extract.return_value = self.LLM_COMPLETE_RESPONSE
-        mock_provider_factory.return_value = mock_provider
-
-        episode = self._create_episode(url="https://example.com/ep/6")
-
-        fetch_episode_details(episode.pk)
-
-        episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
-
-    @patch("episodes.fetch_details_step.get_scraping_provider")
-    @patch("episodes.fetch_details_step.fetch_html")
-    def test_incomplete_metadata_does_not_overwrite_recovery_status(
-        self, mock_fetch, mock_provider_factory
-    ):
+    def test_incomplete_metadata_does_not_overwrite_recovery_status(self, mock_fetch):
         """When recovery changes status during fail_step, the step must not overwrite it.
 
         Regression test: the step used to call fail_step() before episode.save(),
@@ -198,9 +192,6 @@ class FetchEpisodeDetailsTests(TestCase):
         subsequent save() to overwrite it back to FAILED.
         """
         mock_fetch.return_value = self.SAMPLE_HTML
-        mock_provider = MagicMock()
-        mock_provider.structured_extract.return_value = self.LLM_INCOMPLETE_RESPONSE
-        mock_provider_factory.return_value = mock_provider
 
         episode = self._create_episode(url="https://example.com/ep/recovery")
 
@@ -209,7 +200,6 @@ class FetchEpisodeDetailsTests(TestCase):
         create_run(episode)
 
         def fake_recovery(sender, event, pipeline_event, **kwargs):
-            """Simulate agent recovery setting TRANSCRIBING during fail_step signal."""
             ep = Episode.objects.get(pk=event.episode_id)
             ep.status = Episode.Status.TRANSCRIBING
             ep.error_message = ""
@@ -219,7 +209,14 @@ class FetchEpisodeDetailsTests(TestCase):
 
         step_failed.connect(fake_recovery)
         try:
-            fetch_episode_details(episode.pk)
+            incomplete = EpisodeDetails(
+                title="Jazz Episode 1",
+                description="A great episode about jazz.",
+                language="en",
+                audio_url=None,
+            )
+            with self._override_agent(incomplete):
+                fetch_episode_details(episode.pk)
         finally:
             step_failed.disconnect(fake_recovery)
 
@@ -233,3 +230,28 @@ class FetchEpisodeDetailsTests(TestCase):
     def test_nonexistent_episode(self):
         # Should not raise, just log error
         fetch_episode_details(99999)
+
+
+class EpisodeDetailsValidatorTests(TestCase):
+    """Pure-Pydantic tests — no Django ORM, no agent run."""
+
+    def test_parses_iso_date(self):
+        d = EpisodeDetails(published_at="2026-01-15")
+        self.assertEqual(d.published_at, date(2026, 1, 15))
+
+    def test_invalid_date_becomes_none(self):
+        d = EpisodeDetails(published_at="January 15, 2026")
+        self.assertIsNone(d.published_at)
+
+    def test_empty_date_becomes_none(self):
+        self.assertIsNone(EpisodeDetails(published_at="").published_at)
+        self.assertIsNone(EpisodeDetails(published_at=None).published_at)
+
+    def test_iso_639_language_kept(self):
+        self.assertEqual(EpisodeDetails(language="en").language, "en")
+        self.assertEqual(EpisodeDetails(language="sv").language, "sv")
+
+    def test_invalid_language_becomes_none(self):
+        self.assertIsNone(EpisodeDetails(language="english").language)
+        self.assertIsNone(EpisodeDetails(language="EN").language)
+        self.assertIsNone(EpisodeDetails(language="").language)
