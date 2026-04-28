@@ -211,18 +211,35 @@ SYSTEMS = [
         ],
     },
     {
-        "name": "Recovery",
-        "description": "Automatic recovery for pipeline failures",
+        "name": "Download Agent",
+        "description": "Playwright + podcast-index agent invoked when wget fails",
         "shareable": False,
         "subsystems": [
             {
-                "prefix": "RAGTIME_RECOVERY",
-                "label": "Recovery",
+                "prefix": "RAGTIME_DOWNLOAD_AGENT",
+                "label": "Download Agent",
+                # Convention B: provider encoded in the model string prefix.
                 "fields": [
-                    ("AGENT_ENABLED", "false", False),
-                    ("AGENT_API_KEY", "", True),
-                    ("AGENT_MODEL", "openai:gpt-4.1-mini", False),
-                    ("AGENT_TIMEOUT", "120", False),
+                    ("API_KEY", "", True),
+                    ("MODEL", "openai:gpt-4.1-mini", False),
+                    ("TIMEOUT", "120", False),
+                ],
+            },
+        ],
+    },
+    {
+        "name": "Podcast Indexes",
+        "description": "Optional fallback sources for the download agent (fyyd, podcastindex)",
+        "shareable": False,
+        "subsystems": [
+            {
+                "prefix": "RAGTIME",
+                "label": "Indexes (comma-separated, e.g. podcastindex,fyyd)",
+                "fields": [
+                    ("PODCAST_INDEXES", "", False),
+                    ("FYYD_API_KEY", "", True),
+                    ("PODCASTINDEX_API_KEY", "", True),
+                    ("PODCASTINDEX_API_SECRET", "", True),
                 ],
             },
         ],

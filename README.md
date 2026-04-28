@@ -44,7 +44,7 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 - **Episode management UI**: Django admin interface to view episode status and metadata and browse extracted entities.
 - **Configuration wizard**: interactive `manage.py configure` command for all `RAGTIME_*` env vars.
 - **Telemetry**: [OpenTelemetry](https://opentelemetry.io/)-based tracing for pipeline steps and LLM calls with optional collectors: console, [Jaeger](https://www.jaegertracing.io/), and [Langfuse](https://langfuse.com).
-- **Agent-based recovery**: [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation recovers from fetch-details and download failures automatically.
+- **Agent-driven download**: when the cheap `wget` path fails, a [Pydantic AI](https://ai.pydantic.dev/) agent with podcast-index lookup ([fyyd](https://fyyd.de/), [podcastindex.org](https://podcastindex.org/)) and [Playwright](https://playwright.dev/) browser automation discovers the audio URL from the publisher's page or interactive UI.
 - **Scott chatbot**: strict-RAG conversational agent that answers questions only from ingested episode content, with citations and real-time streaming via [AG-UI](https://github.com/ag-ui-protocol/ag-ui). React frontend built with [assistant-ui](https://www.assistant-ui.com/) and conversation history persisted in Django.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixes, implementation plans, feature documentation and session transcripts.
@@ -57,14 +57,14 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixe
 
 [![Processing Pipeline](doc/architecture/ragtime-processing-pipeline.svg)](https://app.excalidraw.com/s/3Cob4pHK6Ge/3zFsvWxbOWQ)
 
-Each step updates the episode's `status` field. A `post_save` signal enqueues a [DBOS](https://docs.dbos.dev/) durable workflow on the `episode_pipeline` queue (default `concurrency=4` via `RAGTIME_EPISODE_CONCURRENCY`) that sequences all steps with PostgreSQL-backed checkpointing — on crash or restart, the workflow resumes from the last completed step. Failures trigger the [recovery layer](doc/README.md#recovery). Episodes that arrive while all worker slots are busy sit visibly in the `queued` state until DBOS picks them up.
+Each step updates the episode's `status` field. A `post_save` signal enqueues a [DBOS](https://docs.dbos.dev/) durable workflow on the `episode_pipeline` queue (default `concurrency=4` via `RAGTIME_EPISODE_CONCURRENCY`) that sequences all steps with PostgreSQL-backed checkpointing — on crash or restart, the workflow resumes from the last completed step. The workflow exposes one `@DBOS.step()` per pipeline phase, so `dbos workflow steps <id>` (and the Episode admin's "View workflow steps" link) shows exactly which phase ran, its output, or the exception raised. Episodes that arrive while all worker slots are busy sit visibly in the `queued` state until DBOS picks them up.
 
 | # | Step | Status | Description |
 |---|------|--------|-------------|
 | 1 | 📥 Submit | `pending` | User submits an episode URL |
 | ⏸ | ⏳ Queue | `queued` | Waiting for a pipeline worker slot |
 | 2 | 🕷️ Fetch Details | `fetching_details` | Extract metadata and detect language |
-| 3 | ⬇️ Download | `downloading` | Download audio and extract duration |
+| 3 | ⬇️ Download | `downloading` | Download audio (cheap `wget` first; agent + podcast-index fallback) and extract duration |
 | 4 | 🎙️ Transcribe | `transcribing` | Whisper API transcription with timestamps |
 | 5 | 📋 Summarize | `summarizing` | LLM-generated episode summary |
 | 6 | ✂️ Chunk | `chunking` | Split transcript into ~150-word chunks |
@@ -75,13 +75,13 @@ Each step updates the episode's `status` field. A `post_save` signal enqueues a 
 
 Wikidata IDs are filled in *after* `ready` by a separate background DBOS workflow on a singleton-concurrency queue (`wikidata_enrichment`, `concurrency=1`). It tries `MBID → Wikidata` via MusicBrainz external links first (local DB, no network) and falls back to the Wikidata API only when needed. Per-entity, deduplicated globally — common names get enriched once across all episodes.
 
-See the [full pipeline documentation](doc/README.md) for per-step details, entity types, and the recovery layer.
+See the [full pipeline documentation](doc/README.md) for per-step details, the download-agent cascade, and entity types.
 
 ## Documentation
 
 Detailed documentation lives in the [`doc/`](doc/) directory:
 
-- [Full pipeline documentation](doc/README.md) — per-step details, entity types, recovery layer
+- [Full pipeline documentation](doc/README.md) — per-step details, the download-agent cascade, entity types
 - [How Scott works](doc/README.md#how-scott-works) — RAG architecture and query flow
 - [Telemetry (OpenTelemetry)](doc/README.md#telemetry-opentelemetry) — tracing setup, collectors (console, Jaeger, Langfuse)
 - [Architecture diagrams](doc/architecture/) — processing pipeline diagram
@@ -217,7 +217,7 @@ DJANGO_SUPERUSER_PASSWORD=admin uv run python manage.py createsuperuser --userna
 - **Database**: [PostgreSQL 17](https://www.postgresql.org/) (via [Docker Compose](https://docs.docker.com/compose/))
 - **Vector Store**: [Qdrant](https://qdrant.tech/) (via [Docker Compose](https://docs.docker.com/compose/))
 - **Durable Workflows**: [DBOS Transact](https://docs.dbos.dev/) (PostgreSQL-backed durable execution)
-- **AI Agents**: [Pydantic AI](https://ai.pydantic.dev/) (recovery agent)
+- **AI Agents**: [Pydantic AI](https://ai.pydantic.dev/) (fetch-details agent, download agent)
 - **Transcription**: Configurable — [Whisper API](https://platform.openai.com/docs/guides/speech-to-text) (default), local Whisper, etc.
 - **LLM**: Configurable — [Claude](https://www.anthropic.com/) (Anthropic), [GPT](https://openai.com/) (OpenAI), etc.
 - **Embeddings**: Configurable — must support multilingual models for cross-language retrieval
