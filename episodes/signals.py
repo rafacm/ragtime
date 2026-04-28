@@ -1,6 +1,5 @@
 import logging
 
-import django.dispatch
 from dbos import DBOS  # noqa: F401  -- legacy patch target for tests
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
@@ -8,10 +7,6 @@ from django.dispatch import receiver
 from .models import Episode
 
 logger = logging.getLogger(__name__)
-
-# Custom signals for pipeline events
-step_completed = django.dispatch.Signal()  # sends: event=StepCompletedEvent
-step_failed = django.dispatch.Signal()     # sends: event=StepFailureEvent
 
 
 @receiver(post_save, sender=Episode)

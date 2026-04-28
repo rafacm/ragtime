@@ -1,17 +1,35 @@
 """DBOS durable workflows for the episode ingestion pipeline.
 
-Replaces Django Q2 signal-driven dispatch with a single workflow that
-sequences all pipeline steps, checkpointing after each one.
+One ``@DBOS.step()`` per pipeline phase — ``dbos workflow steps <id>``
+mirrors ``PIPELINE_STEPS`` exactly. Each phase wraps the existing
+module-level function and returns a structured dataclass on success;
+failures propagate up and DBOS records the exception class + args.
+
+DBOS owns the source of truth for workflow state. The ``Episode``
+row carries the user-facing status / error_message; everything else
+the deleted ``ProcessingRun`` / ``ProcessingStep`` / ``PipelineEvent``
+tables tracked is now in the DBOS workflow log.
 """
 
-import importlib
+from __future__ import annotations
+
+import dataclasses
 import logging
 
 from dbos import DBOS, Queue
 from django.conf import settings
 
-from .models import PIPELINE_STEPS, Episode, ProcessingRun, ProcessingStep
-from .processing import create_run
+from . import (
+    chunker,
+    downloader,
+    embedder,
+    extractor,
+    fetch_details_step,
+    resolver,
+    summarizer,
+    transcriber,
+)
+from .models import PIPELINE_STEPS, Episode
 
 logger = logging.getLogger(__name__)
 
@@ -22,139 +40,108 @@ episode_queue = Queue(
     concurrency=settings.RAGTIME_EPISODE_CONCURRENCY,
 )
 
-STEP_FUNCTIONS = {
-    Episode.Status.FETCHING_DETAILS: "episodes.fetch_details_step.fetch_episode_details",
-    Episode.Status.DOWNLOADING: "episodes.downloader.download_episode",
-    Episode.Status.TRANSCRIBING: "episodes.transcriber.transcribe_episode",
-    Episode.Status.SUMMARIZING: "episodes.summarizer.summarize_episode",
-    Episode.Status.CHUNKING: "episodes.chunker.chunk_episode",
-    Episode.Status.EXTRACTING: "episodes.extractor.extract_entities",
-    Episode.Status.RESOLVING: "episodes.resolver.resolve_entities",
-    Episode.Status.EMBEDDING: "episodes.embedder.embed_episode",
-}
+
+@dataclasses.dataclass(frozen=True)
+class StepOutput:
+    """Default success payload for steps without richer detail.
+
+    DBOS persists this verbatim — visible via ``dbos workflow steps``.
+    """
+
+    episode_id: int
+    step_name: str
 
 
 @DBOS.workflow()
 def process_episode(episode_id: int, from_step: str = "") -> None:
     """Run the full episode ingestion pipeline with durable checkpointing."""
-    run_id = create_run_step(episode_id, from_step)
+    _bootstrap_status(episode_id, from_step)
 
     skipping = bool(from_step)
-    for step_name in PIPELINE_STEPS:
+    for step_name, step_fn in _PIPELINE_DISPATCH:
         if skipping:
             if step_name == from_step:
                 skipping = False
             else:
                 continue
-
-        execute_pipeline_step(episode_id, step_name)
-
-        if is_run_still_active(run_id) and did_step_complete(run_id, step_name):
-            continue
-
-        # Step did not complete — either fail_step ran or the step silently
-        # returned. If the recovery chain (running synchronously inside the
-        # step) set episode.status to a later pipeline step, dispatch a new
-        # workflow from here (workflow context, where start_workflow is
-        # allowed — it is forbidden from inside a step).
-        resume_step = get_pending_resume_step(episode_id, step_name)
-        if resume_step:
-            mark_queued(episode_id)
-            episode_queue.enqueue(process_episode, episode_id, resume_step)
-            return
-
-        if is_run_still_active(run_id):
-            mark_run_failed(run_id, step_name)
-        return
+        step_fn(episode_id)
 
 
 @DBOS.step()
-def create_run_step(episode_id: int, from_step: str) -> int:
+def _bootstrap_status(episode_id: int, from_step: str) -> StepOutput:
+    """Move QUEUED → first-pipeline-step (or *from_step*) once a worker picks up."""
     episode = Episode.objects.get(pk=episode_id)
-    # Episode was placed in QUEUED at enqueue time so the user could see it
-    # waiting for a worker. The workflow is now running, so transition into
-    # the first pipeline step's status. Each step's body still does its own
-    # ``status = step_name`` write, but the transition here makes the
-    # precondition checks (``if status != EXPECTED: return``) pass without
-    # changing every step's semantics.
     target_status = from_step or PIPELINE_STEPS[0]
     if episode.status == Episode.Status.QUEUED:
         episode.status = target_status
         episode.save(update_fields=["status", "updated_at"])
-    return create_run(episode, resume_from=from_step).pk
+    return StepOutput(episode_id=episode_id, step_name=target_status)
 
 
 @DBOS.step()
-def execute_pipeline_step(episode_id: int, step_name: str) -> None:
-    func_path = STEP_FUNCTIONS[step_name]
-    module_path, func_name = func_path.rsplit(".", 1)
-    module = importlib.import_module(module_path)
-    func = getattr(module, func_name)
-    func(episode_id)
+def fetch_details_step_(episode_id: int) -> StepOutput:
+    fetch_details_step.fetch_episode_details(episode_id)
+    return StepOutput(episode_id=episode_id, step_name=Episode.Status.FETCHING_DETAILS)
 
 
 @DBOS.step()
-def is_run_still_active(run_id: int) -> bool:
-    return ProcessingRun.objects.get(pk=run_id).status == ProcessingRun.Status.RUNNING
+def download_step(episode_id: int) -> StepOutput:
+    downloader.download_episode(episode_id)
+    return StepOutput(episode_id=episode_id, step_name=Episode.Status.DOWNLOADING)
 
 
 @DBOS.step()
-def did_step_complete(run_id: int, step_name: str) -> bool:
-    return (
-        ProcessingStep.objects.filter(
-            run_id=run_id, step_name=step_name, status=ProcessingStep.Status.COMPLETED
-        ).exists()
-    )
+def transcribe_step(episode_id: int) -> StepOutput:
+    transcriber.transcribe_episode(episode_id)
+    return StepOutput(episode_id=episode_id, step_name=Episode.Status.TRANSCRIBING)
 
 
 @DBOS.step()
-def get_pending_resume_step(episode_id: int, failed_step: str) -> str:
-    """Return a later-than-failed status, or empty string.
+def summarize_step(episode_id: int) -> StepOutput:
+    summarizer.summarize_episode(episode_id)
+    return StepOutput(episode_id=episode_id, step_name=Episode.Status.SUMMARIZING)
 
-    Historically used by the deleted recovery layer to advance the
-    workflow when a synchronous recovery hop set ``episode.status``
-    to a later pipeline step. Kept as a no-op for the rest of this
-    transition; commit 6 will rewrite the workflow to drop it.
+
+@DBOS.step()
+def chunk_step(episode_id: int) -> StepOutput:
+    chunker.chunk_episode(episode_id)
+    return StepOutput(episode_id=episode_id, step_name=Episode.Status.CHUNKING)
+
+
+@DBOS.step()
+def extract_step(episode_id: int) -> StepOutput:
+    extractor.extract_entities(episode_id)
+    return StepOutput(episode_id=episode_id, step_name=Episode.Status.EXTRACTING)
+
+
+@DBOS.step()
+def resolve_step(episode_id: int) -> StepOutput:
+    resolver.resolve_entities(episode_id)
+    return StepOutput(episode_id=episode_id, step_name=Episode.Status.RESOLVING)
+
+
+@DBOS.step()
+def embed_step(episode_id: int) -> StepOutput:
+    embedder.embed_episode(episode_id)
+    return StepOutput(episode_id=episode_id, step_name=Episode.Status.EMBEDDING)
+
+
+_PIPELINE_DISPATCH = [
+    (Episode.Status.FETCHING_DETAILS, fetch_details_step_),
+    (Episode.Status.DOWNLOADING, download_step),
+    (Episode.Status.TRANSCRIBING, transcribe_step),
+    (Episode.Status.SUMMARIZING, summarize_step),
+    (Episode.Status.CHUNKING, chunk_step),
+    (Episode.Status.EXTRACTING, extract_step),
+    (Episode.Status.RESOLVING, resolve_step),
+    (Episode.Status.EMBEDDING, embed_step),
+]
+
+
+def workflow_id_for(episode_id: int, attempt: int = 1) -> str:
+    """Deterministic DBOS workflow ID — DBOS rejects duplicates.
+
+    Replaces the ``unique_running_run_per_episode`` partial index that
+    the deleted ``ProcessingRun`` table used to enforce.
     """
-    episode = Episode.objects.get(pk=episode_id)
-    status = episode.status
-    if status not in PIPELINE_STEPS:
-        return ""
-    try:
-        failed_idx = PIPELINE_STEPS.index(failed_step)
-        status_idx = PIPELINE_STEPS.index(status)
-    except ValueError:
-        return ""
-    if status_idx <= failed_idx:
-        return ""
-    return status
-
-
-@DBOS.step()
-def mark_queued(episode_id: int) -> None:
-    """Set ``Episode.Status.QUEUED`` ahead of an enqueue call.
-
-    Used when the workflow itself dispatches a follow-up workflow (recovery
-    resume). The user-facing ``status`` reflects the wait time before the
-    queue picks it up.
-    """
-    Episode.objects.filter(pk=episode_id).update(
-        status=Episode.Status.QUEUED,
-    )
-
-
-@DBOS.step()
-def mark_run_failed(run_id: int, step_name: str) -> None:
-    from django.utils import timezone
-
-    run = ProcessingRun.objects.get(pk=run_id)
-    run.status = ProcessingRun.Status.FAILED
-    run.finished_at = timezone.now()
-    run.save(update_fields=["status", "finished_at"])
-    logger.error(
-        "Step %s returned without completing or failing — marking run %s as failed",
-        step_name,
-        run_id,
-    )
-
-
+    return f"episode-{episode_id}-run-{attempt}"

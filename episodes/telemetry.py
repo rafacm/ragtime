@@ -254,27 +254,18 @@ def _build_step_attributes(step_name, episode_id):
 
     Returns (attributes_dict, session_id, user_id, metadata_dict).
     """
-    from .models import Episode, ProcessingRun
+    from .models import Episode
 
     attributes = {
         "ragtime.step.name": step_name,
         "ragtime.episode.id": str(episode_id),
     }
 
-    run = (
-        ProcessingRun.objects.filter(
-            episode_id=episode_id,
-            status=ProcessingRun.Status.RUNNING,
-        )
-        .order_by("-started_at")
-        .first()
-    )
-
-    if run:
-        ts = run.started_at.strftime("%Y-%m-%d-%H-%M")
-        session_id = f"processing-run-{run.pk}-episode-{episode_id}-{ts}"
-    else:
-        session_id = f"episode-{episode_id}"
+    # ProcessingRun was dropped — DBOS now owns workflow IDs. Use a
+    # stable per-episode session ID for telemetry. (Per-run IDs would
+    # require pulling the current DBOS workflow ID, which adds a
+    # cross-cutting dependency for marginal value.)
+    session_id = f"episode-{episode_id}"
 
     user_id = f"episode-{episode_id}"
     attributes["ragtime.session.id"] = session_id
