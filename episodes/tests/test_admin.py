@@ -31,6 +31,35 @@ class EpisodeAdminTests(TestCase):
         episode = Episode.objects.create(url="https://example.com/ep/admin-1")
         response = self.client.get(f"/admin/episodes/episode/{episode.pk}/change/")
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "View workflow steps")
+
+    @patch("episodes.signals.DBOS")
+    def test_dbos_steps_view_renders_when_dbos_unavailable(self, mock_async):
+        """The DBOS-backed steps view must render even when DBOS is offline."""
+        episode = Episode.objects.create(url="https://example.com/ep/admin-dbos-1")
+        with patch("episodes.admin._dbos_workflow_steps", return_value=[]):
+            response = self.client.get(
+                f"/admin/episodes/episode/{episode.pk}/dbos-steps/"
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "DBOS workflow steps")
+        self.assertContains(response, "No DBOS workflow records")
+
+    @patch("episodes.signals.DBOS")
+    def test_dbos_steps_view_renders_step_rows(self, mock_async):
+        episode = Episode.objects.create(url="https://example.com/ep/admin-dbos-2")
+        steps = [
+            {"function_name": "fetch_details_step_", "step_id": 1, "output": {"step_name": "fetching_details"}, "error": None},
+            {"function_name": "download_step", "step_id": 2, "output": None, "error": "DownloadFailed: …"},
+        ]
+        with patch("episodes.admin._dbos_workflow_steps", return_value=steps):
+            response = self.client.get(
+                f"/admin/episodes/episode/{episode.pk}/dbos-steps/"
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "fetch_details_step_")
+        self.assertContains(response, "download_step")
+        self.assertContains(response, "DownloadFailed")
 
     @patch("episodes.signals.DBOS")
     def test_reprocess_action_shows_intermediate_page(self, mock_async):
