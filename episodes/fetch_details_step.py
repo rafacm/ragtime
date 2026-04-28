@@ -34,7 +34,11 @@ MAX_HTML_LENGTH = 30_000
 
 # Step's "ready to advance" contract — independent of the agent's output
 # contract. The step refuses to leave FETCHING_DETAILS without these fields.
-REQUIRED_FIELDS = ("title", "audio_url")
+# ``audio_url`` is intentionally NOT required: the download agent owns
+# audio-URL discovery (cheap-path wget if present, otherwise
+# podcast-index lookup or Playwright browsing) for cases where
+# fetch-details could only recover a title.
+REQUIRED_FIELDS = ("title",)
 
 
 def fetch_html(url: str) -> str:
@@ -102,7 +106,7 @@ def fetch_episode_details(episode_id: int) -> None:
         details = _run_agent_sync(episode.scraped_html)
 
         # Apply extracted fields (only update empty fields)
-        for field in ("title", "description", "image_url", "language", "audio_url"):
+        for field in ("title", "description", "image_url", "language", "audio_url", "guid"):
             value = getattr(details, field)
             if value and not getattr(episode, field):
                 setattr(episode, field, value)
@@ -114,7 +118,7 @@ def fetch_episode_details(episode_id: int) -> None:
         update_fields = [
             "status", "error_message",
             "title", "description", "image_url",
-            "language", "audio_url", "published_at", "updated_at",
+            "language", "audio_url", "guid", "published_at", "updated_at",
         ]
         if _has_required_fields(episode):
             complete_step(episode, Episode.Status.FETCHING_DETAILS)

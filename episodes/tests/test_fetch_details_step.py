@@ -119,24 +119,63 @@ class FetchEpisodeDetailsTests(TestCase):
         self.assertNotEqual(episode.scraped_html, "")
 
     @patch("episodes.fetch_details_step.fetch_html")
-    def test_incomplete_extraction_fails(self, mock_fetch):
+    def test_title_only_advances_to_downloading(self, mock_fetch):
+        """audio_url is no longer required — download owns URL discovery."""
         mock_fetch.return_value = self.SAMPLE_HTML
 
         episode = self._create_episode(url="https://example.com/ep/2")
-        incomplete = EpisodeDetails(
+        title_only = EpisodeDetails(
             title="Jazz Episode 1",
             description="A great episode about jazz.",
             language="en",
             audio_url=None,
+        )
+        with self._override_agent(title_only):
+            fetch_episode_details(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
+        self.assertEqual(episode.title, "Jazz Episode 1")
+        self.assertEqual(episode.audio_url, "")  # Was null in response
+
+    @patch("episodes.fetch_details_step.fetch_html")
+    def test_missing_title_fails(self, mock_fetch):
+        """title is the only required field — extraction without it fails."""
+        mock_fetch.return_value = self.SAMPLE_HTML
+
+        episode = self._create_episode(url="https://example.com/ep/2-no-title")
+        incomplete = EpisodeDetails(
+            title=None,
+            description="A great episode about jazz.",
+            language="en",
+            audio_url="https://example.com/ep1.mp3",
         )
         with self._override_agent(incomplete):
             fetch_episode_details(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
-        self.assertEqual(episode.title, "Jazz Episode 1")
-        self.assertEqual(episode.audio_url, "")  # Was null in response
+        self.assertEqual(episode.title, "")
         self.assertIn("Incomplete metadata", episode.error_message)
+
+    @patch("episodes.fetch_details_step.fetch_html")
+    def test_extracts_guid(self, mock_fetch):
+        """The agent's guid output flows into Episode.guid."""
+        mock_fetch.return_value = self.SAMPLE_HTML
+
+        episode = self._create_episode(url="https://example.com/ep/guid")
+        with_guid = EpisodeDetails(
+            title="Jazz Episode 1",
+            description="A great episode about jazz.",
+            language="en",
+            audio_url="https://example.com/ep1.mp3",
+            guid="urn:example:episode:abc123",
+        )
+        with self._override_agent(with_guid):
+            fetch_episode_details(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.guid, "urn:example:episode:abc123")
 
     @patch("episodes.fetch_details_step.fetch_html")
     def test_http_error_sets_failed(self, mock_fetch):
@@ -209,11 +248,13 @@ class FetchEpisodeDetailsTests(TestCase):
 
         step_failed.connect(fake_recovery)
         try:
+            # Title omitted: with the relaxed REQUIRED_FIELDS=("title",)
+            # contract, this is the only way to force the incomplete path.
             incomplete = EpisodeDetails(
-                title="Jazz Episode 1",
+                title=None,
                 description="A great episode about jazz.",
                 language="en",
-                audio_url=None,
+                audio_url="https://example.com/ep1.mp3",
             )
             with self._override_agent(incomplete):
                 fetch_episode_details(episode.pk)

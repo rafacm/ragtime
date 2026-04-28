@@ -39,6 +39,11 @@ relative URLs, you cannot resolve them, so return them as-is.
 Also check <meta> tags and embedded player markup.
 - For published_at: return in YYYY-MM-DD format.
 - For language: return an ISO 639-1 code (e.g. "en", "es", "de", "sv").
+- For guid: return the episode's RSS-feed-style identifier when one is present \
+in the HTML — look for ``urn:`` URIs, ``itunes:episodeGuid``, ``<guid>`` tags, \
+or ``data-guid``/``data-episode-id`` attributes. This is a hint for podcast \
+index lookups, so any stable per-episode identifier is acceptable. Return null \
+when none is visible.
 - Check <meta> tags (og:title, og:description, og:image, etc.) first, \
 then fall back to page content.
 - Return null for any field you cannot confidently determine.
@@ -60,6 +65,7 @@ class EpisodeDetails(BaseModel):
     image_url: str | None = None
     language: str | None = None
     audio_url: str | None = None
+    guid: str | None = None
 
     @field_validator("published_at", mode="before")
     @classmethod
