@@ -277,6 +277,14 @@ RAGTIME_RECOVERY_AGENT_API_KEY = os.getenv('RAGTIME_RECOVERY_AGENT_API_KEY', '')
 RAGTIME_RECOVERY_AGENT_MODEL = os.getenv('RAGTIME_RECOVERY_AGENT_MODEL', 'openai:gpt-4.1-mini')
 RAGTIME_RECOVERY_AGENT_TIMEOUT = int(os.getenv('RAGTIME_RECOVERY_AGENT_TIMEOUT', '120'))
 
+# Podcast indexes — comma-separated, ordered list of providers used
+# by the download agent's lookup_podcast_index tool. Empty disables
+# index lookup. Supported names: "fyyd", "podcastindex".
+RAGTIME_PODCAST_INDEXES = os.getenv('RAGTIME_PODCAST_INDEXES', '')
+RAGTIME_FYYD_API_KEY = os.getenv('RAGTIME_FYYD_API_KEY', '')
+RAGTIME_PODCASTINDEX_API_KEY = os.getenv('RAGTIME_PODCASTINDEX_API_KEY', '')
+RAGTIME_PODCASTINDEX_API_SECRET = os.getenv('RAGTIME_PODCASTINDEX_API_SECRET', '')
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
