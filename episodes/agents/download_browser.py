@@ -1,4 +1,4 @@
-"""Playwright browser lifecycle for recovery attempts."""
+"""Playwright browser lifecycle for the download agent."""
 
 import contextlib
 
@@ -6,8 +6,8 @@ from playwright.async_api import Page, async_playwright
 
 
 @contextlib.asynccontextmanager
-async def recovery_browser(download_dir: str) -> Page:
-    """Yield a fresh Playwright page configured for recovery.
+async def download_browser(download_dir: str) -> Page:
+    """Yield a fresh Playwright page configured for the download agent.
 
     Headless-only, with downloads enabled, custom user-agent, and a 30-second
     default timeout.  Callers are responsible for saving downloads (e.g. into
@@ -22,7 +22,7 @@ async def recovery_browser(download_dir: str) -> Page:
         browser = await pw.chromium.launch(headless=True)
         context = await browser.new_context(
             accept_downloads=True,
-            user_agent="RAGtime/0.1 (podcast recovery agent)",
+            user_agent="RAGtime/0.1 (podcast download agent)",
         )
         # Route downloads to the specified directory
         page = await context.new_page()

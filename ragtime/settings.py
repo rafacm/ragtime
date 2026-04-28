@@ -270,12 +270,24 @@ RAGTIME_LANGFUSE_SECRET_KEY = os.getenv('RAGTIME_LANGFUSE_SECRET_KEY', '')
 RAGTIME_LANGFUSE_PUBLIC_KEY = os.getenv('RAGTIME_LANGFUSE_PUBLIC_KEY', '')
 RAGTIME_LANGFUSE_HOST = os.getenv('RAGTIME_LANGFUSE_HOST', 'http://localhost:3000')
 
-# Recovery layer
-RAGTIME_RECOVERY_CHAIN = ["agent", "human"]
-RAGTIME_RECOVERY_AGENT_ENABLED = os.getenv('RAGTIME_RECOVERY_AGENT_ENABLED', 'false').lower() in ('true', '1', 'yes')
-RAGTIME_RECOVERY_AGENT_API_KEY = os.getenv('RAGTIME_RECOVERY_AGENT_API_KEY', '')
-RAGTIME_RECOVERY_AGENT_MODEL = os.getenv('RAGTIME_RECOVERY_AGENT_MODEL', 'openai:gpt-4.1-mini')
-RAGTIME_RECOVERY_AGENT_TIMEOUT = int(os.getenv('RAGTIME_RECOVERY_AGENT_TIMEOUT', '120'))
+# Download agent — Playwright + podcast-index Pydantic AI agent
+# invoked when the cheap wget path on episode.audio_url fails.
+# (Falls back to RAGTIME_RECOVERY_AGENT_* env vars during the
+# transition; they are removed in a follow-up commit.)
+RAGTIME_DOWNLOAD_AGENT_API_KEY = os.getenv(
+    'RAGTIME_DOWNLOAD_AGENT_API_KEY',
+    os.getenv('RAGTIME_RECOVERY_AGENT_API_KEY', ''),
+)
+RAGTIME_DOWNLOAD_AGENT_MODEL = os.getenv(
+    'RAGTIME_DOWNLOAD_AGENT_MODEL',
+    os.getenv('RAGTIME_RECOVERY_AGENT_MODEL', 'openai:gpt-4.1-mini'),
+)
+RAGTIME_DOWNLOAD_AGENT_TIMEOUT = int(
+    os.getenv(
+        'RAGTIME_DOWNLOAD_AGENT_TIMEOUT',
+        os.getenv('RAGTIME_RECOVERY_AGENT_TIMEOUT', '120'),
+    )
+)
 
 # Podcast indexes — comma-separated, ordered list of providers used
 # by the download agent's lookup_podcast_index tool. Empty disables

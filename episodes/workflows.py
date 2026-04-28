@@ -109,12 +109,12 @@ def did_step_complete(run_id: int, step_name: str) -> bool:
 
 @DBOS.step()
 def get_pending_resume_step(episode_id: int, failed_step: str) -> str:
-    """Return the pipeline step recovery wants to resume from, or empty string.
+    """Return a later-than-failed status, or empty string.
 
-    Recovery (``resume_pipeline``) signals success by updating
-    ``episode.status`` to a later pipeline step. If that status is strictly
-    after the failed step, return it so the workflow can dispatch a new
-    workflow from that step.
+    Historically used by the deleted recovery layer to advance the
+    workflow when a synchronous recovery hop set ``episode.status``
+    to a later pipeline step. Kept as a no-op for the rest of this
+    transition; commit 6 will rewrite the workflow to drop it.
     """
     episode = Episode.objects.get(pk=episode_id)
     status = episode.status
@@ -158,111 +158,3 @@ def mark_run_failed(run_id: int, step_name: str) -> None:
     )
 
 
-@DBOS.workflow()
-def run_agent_recovery(episode_id: int, pipeline_event_id: int) -> None:
-    """Durable workflow for admin-triggered agent recovery retries."""
-    failed_step = get_pipeline_event_step(pipeline_event_id)
-    execute_agent_recovery(episode_id, pipeline_event_id)
-    resume_step = get_pending_resume_step(episode_id, failed_step)
-    if resume_step:
-        mark_queued(episode_id)
-        episode_queue.enqueue(process_episode, episode_id, resume_step)
-
-
-@DBOS.step()
-def get_pipeline_event_step(pipeline_event_id: int) -> str:
-    from .models import PipelineEvent
-    return PipelineEvent.objects.get(pk=pipeline_event_id).step_name
-
-
-@DBOS.step()
-def execute_agent_recovery(episode_id: int, pipeline_event_id: int) -> None:
-    from django.utils import timezone
-
-    from .events import StepFailureEvent
-    from .models import PipelineEvent, RecoveryAttempt
-
-    pe = PipelineEvent.objects.select_related("processing_step").get(
-        pk=pipeline_event_id
-    )
-    episode = Episode.objects.get(pk=episode_id)
-
-    attempt_number = (
-        RecoveryAttempt.objects.filter(
-            episode_id=episode_id,
-            pipeline_event__step_name=pe.step_name,
-        ).count()
-        + 1
-    )
-
-    event = StepFailureEvent(
-        episode_id=episode_id,
-        step_name=pe.step_name,
-        processing_run_id=pe.processing_step.run_id,
-        processing_step_id=pe.processing_step_id,
-        error_type=pe.error_type,
-        error_message=pe.error_message,
-        http_status=pe.http_status,
-        exception_class=pe.exception_class,
-        attempt_number=attempt_number,
-        cached_data=pe.context.get("cached_data", {}),
-        timestamp=timezone.now(),
-    )
-
-    try:
-        from .agents.recovery import run_recovery_agent
-        from .agents.recovery_resume import resume_pipeline
-
-        result = run_recovery_agent(event)
-        if result.success:
-            resumed = resume_pipeline(event, result)
-            if resumed:
-                RecoveryAttempt.objects.create(
-                    episode=episode,
-                    pipeline_event=pe,
-                    strategy="agent",
-                    status=RecoveryAttempt.Status.ATTEMPTED,
-                    success=True,
-                    message=result.message,
-                )
-                logger.info(
-                    "Admin-triggered agent recovery succeeded for episode %s",
-                    episode_id,
-                )
-            else:
-                RecoveryAttempt.objects.create(
-                    episode=episode,
-                    pipeline_event=pe,
-                    strategy="agent",
-                    status=RecoveryAttempt.Status.AWAITING_HUMAN,
-                    success=False,
-                    message="Agent reported success but pipeline could not resume",
-                )
-                logger.warning(
-                    "Admin-triggered agent recovery: resume failed for episode %s",
-                    episode_id,
-                )
-        else:
-            RecoveryAttempt.objects.create(
-                episode=episode,
-                pipeline_event=pe,
-                strategy="agent",
-                status=RecoveryAttempt.Status.AWAITING_HUMAN,
-                success=False,
-                message=result.message or "Agent could not recover",
-            )
-            logger.info(
-                "Admin-triggered agent recovery failed for episode %s", episode_id
-            )
-    except Exception as exc:
-        RecoveryAttempt.objects.create(
-            episode=episode,
-            pipeline_event=pe,
-            strategy="agent",
-            status=RecoveryAttempt.Status.AWAITING_HUMAN,
-            success=False,
-            message=f"Agent error: {exc}",
-        )
-        logger.exception(
-            "Admin-triggered agent recovery error for episode %s", episode_id
-        )
