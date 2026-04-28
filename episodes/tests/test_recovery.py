@@ -62,7 +62,7 @@ class AgentStrategyTests(TestCase):
 
 
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
-    @patch("episodes.agents.run_recovery_agent")
+    @patch("episodes.agents.recovery.run_recovery_agent")
     def test_agent_success_calls_resume(self, mock_agent):
         """Successful agent recovery calls resume_pipeline."""
         from episodes.agents.recovery_deps import RecoveryAgentResult
@@ -84,7 +84,7 @@ class AgentStrategyTests(TestCase):
 
 
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
-    @patch("episodes.agents.run_recovery_agent")
+    @patch("episodes.agents.recovery.run_recovery_agent")
     def test_agent_failure_escalates(self, mock_agent):
         """When the agent fails, it escalates to the next strategy."""
         from episodes.agents.recovery_deps import RecoveryAgentResult
@@ -102,7 +102,7 @@ class AgentStrategyTests(TestCase):
 
 
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
-    @patch("episodes.agents.run_recovery_agent", side_effect=RuntimeError("Browser crashed"))
+    @patch("episodes.agents.recovery.run_recovery_agent", side_effect=RuntimeError("Browser crashed"))
     def test_agent_exception_escalates(self, _mock_agent):
         """When the agent raises, it escalates with error message."""
         strategy = AgentStrategy()
@@ -173,7 +173,7 @@ class HandleStepFailureTests(TestCase):
 
 
     @patch("episodes.signals.DBOS")
-    @patch("episodes.agents.run_recovery_agent")
+    @patch("episodes.agents.recovery.run_recovery_agent")
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
     def test_agent_escalates_to_human(self, mock_agent, _):
         """When agent is enabled but fails, it escalates to human."""
