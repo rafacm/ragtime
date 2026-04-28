@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from ._configure_helpers import (
+    CONVENTION_B_PROVIDER_DEFAULTS,
     SYSTEMS,
     mask_secret,
     prompt_value,
@@ -163,16 +164,30 @@ class Command(BaseCommand):
                     if suffix == "MODEL":
                         env_key = f"{subsystem['prefix']}_{suffix}"
                         current = existing.get(env_key, default)
-                        # For Convention B subsystems, sync the model prefix
-                        # to the shared provider so picking ``anthropic`` here
-                        # doesn't leave a stale ``openai:`` prefix on the
-                        # model default. Idempotent across re-runs.
+                        # For Convention B subsystems, propose a default that
+                        # matches the shared provider end-to-end (prefix +
+                        # provider-appropriate suffix). If the existing value
+                        # already names the shared provider, keep its suffix
+                        # — the user chose it for a reason. Otherwise, swap
+                        # in the provider's recommended default so
+                        # ``anthropic`` doesn't produce ``anthropic:gpt-4.1-
+                        # mini`` and friends. Idempotent across re-runs.
                         if conventionB:
-                            if ":" in current:
-                                _, _, model_part = current.partition(":")
+                            existing_provider, _, existing_model = (
+                                current.partition(":") if ":" in current
+                                else ("", "", current)
+                            )
+                            if existing_provider == shared_provider and existing_model:
+                                current = f"{shared_provider}:{existing_model}"
                             else:
-                                model_part = current
-                            current = f"{shared_provider}:{model_part}"
+                                provider_default = CONVENTION_B_PROVIDER_DEFAULTS.get(
+                                    shared_provider, ""
+                                )
+                                current = (
+                                    f"{shared_provider}:{provider_default}"
+                                    if provider_default
+                                    else f"{shared_provider}:"
+                                )
                         new_values[env_key] = prompt_value(
                             f"{subsystem['label']} model", current, False
                         )

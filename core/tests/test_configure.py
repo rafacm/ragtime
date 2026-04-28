@@ -220,6 +220,77 @@ class ConfigureWizardTest(TestCase):
 
     @patch("core.management.commands._configure_helpers.getpass.getpass")
     @patch("builtins.input")
+    def test_shared_mode_anthropic_proposes_anthropic_default_suffix(
+        self, mock_input, mock_getpass
+    ):
+        """When the shared provider is anthropic, the Convention B model
+        default must be ``anthropic:<anthropic-default>``, not a stale
+        ``anthropic:gpt-4.1-mini`` left over from the openai default."""
+        mock_getpass.side_effect = [
+            "",               # DB password (keep default)
+            "sk-anthropic",   # Shared LLM API key
+            "",               # Transcription API key (keep default)
+            "",               # Embedding API key
+            "",               # Qdrant API key
+            "",               # Scott API key
+            "",               # MusicBrainz DB password
+            "",               # Recovery agent API key
+            "",               # Langfuse secret key
+            "",               # Langfuse public key
+        ]
+        mock_input.side_effect = [
+            "", "", "", "",   # DB
+            "Y",              # Share provider/key? Yes
+            "anthropic",      # Shared provider
+            # User presses Enter to accept the proposed default for
+            # Fetch Details — the wizard must have rebuilt it with an
+            # Anthropic-appropriate suffix, not left a stale openai one.
+            "",
+            "claude-sonnet-4-20250514",  # Summarization model
+            "claude-sonnet-4-20250514",  # Extraction
+            "claude-sonnet-4-20250514",  # Resolution
+            "claude-sonnet-4-20250514",  # Translation
+            "openai", "whisper-1",       # Transcription
+            "", "",                       # Embedding
+            "", "", "", "",               # Qdrant
+            "", "", "", "",               # Scott
+            "", "", "", "", "",           # MusicBrainz
+            "",                            # Pipeline
+            "", "", "", "", "",            # Wikidata
+            "", "", "",                    # Recovery agent
+            "", "", "",                    # OTel
+            "",                             # Langfuse host
+        ]
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".env", delete=False
+        ) as f:
+            env_path = Path(f.name)
+        try:
+            out = StringIO()
+            with patch(
+                "core.management.commands.configure.read_env"
+            ) as mock_read:
+                mock_read.return_value = ({}, [])
+                with patch(
+                    "core.management.commands.configure.write_env"
+                ) as mock_write:
+                    with override_settings(BASE_DIR=env_path.parent):
+                        call_command("configure", stdout=out)
+                values = mock_write.call_args[0][1]
+                # Critical assertion — the proposed default the user
+                # accepted must be a valid Anthropic model string.
+                self.assertEqual(
+                    values["RAGTIME_FETCH_DETAILS_MODEL"],
+                    "anthropic:claude-sonnet-4-20250514",
+                )
+                # No _PROVIDER for Convention B
+                self.assertNotIn("RAGTIME_FETCH_DETAILS_PROVIDER", values)
+        finally:
+            env_path.unlink(missing_ok=True)
+
+    @patch("core.management.commands._configure_helpers.getpass.getpass")
+    @patch("builtins.input")
     def test_shared_mode_wizard(self, mock_input, mock_getpass):
         """Test wizard with shared LLM provider/key."""
         mock_getpass.side_effect = [
