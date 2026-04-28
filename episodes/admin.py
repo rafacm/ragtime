@@ -4,9 +4,7 @@ from django.contrib import admin
 from django.db.models import Count
 from django.template.response import TemplateResponse
 from django.urls import reverse
-from django.utils import timezone
 from django.utils.html import format_html
-from dbos import DBOS
 
 from .models import (
     PIPELINE_STEPS,
@@ -15,10 +13,6 @@ from .models import (
     EntityMention,
     EntityType,
     Episode,
-    PipelineEvent,
-    ProcessingRun,
-    ProcessingStep,
-    RecoveryAttempt,
 )
 
 
@@ -75,53 +69,6 @@ class EntityMentionInlineForEntity(admin.TabularInline):
         return False
 
 
-class ProcessingRunInlineForEpisode(admin.TabularInline):
-    model = ProcessingRun
-    extra = 0
-    readonly_fields = ("status", "started_at", "finished_at", "resumed_from_step")
-    fields = ("status", "started_at", "finished_at", "resumed_from_step")
-    show_change_link = True
-
-    def has_add_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
-class PipelineEventInlineForEpisode(admin.TabularInline):
-    model = PipelineEvent
-    extra = 0
-    readonly_fields = ("event_type_display", "step_name", "error_type", "error_message", "created_at")
-    fields = ("event_type_display", "step_name", "error_type", "error_message", "created_at")
-    show_change_link = True
-
-    def has_add_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-    @admin.display(description="Event type")
-    def event_type_display(self, obj):
-        if obj.event_type == PipelineEvent.EventType.COMPLETED:
-            return format_html('<span style="color: green;">{}</span>', obj.event_type)
-        return format_html('<span style="color: red;">{}</span>', obj.event_type)
-
-
-class RecoveryAttemptInlineForEpisode(admin.TabularInline):
-    model = RecoveryAttempt
-    extra = 0
-    readonly_fields = ("strategy", "status", "success", "message", "created_at", "resolved_at", "resolved_by")
-    fields = ("strategy", "status", "success", "message", "created_at", "resolved_at", "resolved_by")
-
-    def has_add_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
 @admin.register(Episode)
 class EpisodeAdmin(admin.ModelAdmin):
     list_display = ("title", "url", "language", "formatted_duration", "status", "created_at", "updated_at")
@@ -151,28 +98,20 @@ class EpisodeAdmin(admin.ModelAdmin):
     def get_inlines(self, request, obj=None):
         if obj is None:
             return []
-        inlines = [ProcessingRunInlineForEpisode, PipelineEventInlineForEpisode]
-        if obj.recovery_attempts.exists():
-            inlines.append(RecoveryAttemptInlineForEpisode)
+        inlines = []
         if obj.chunks.exists():
-            inlines.insert(0, ChunkInlineForEpisode)
+            inlines.append(ChunkInlineForEpisode)
         if obj.entity_mentions.exists():
             inlines.append(EntityMentionInlineForEpisode)
         return inlines
-
-    def _awaiting_human(self, obj):
-        """True when the episode has an unresolved AWAITING_HUMAN recovery attempt."""
-        return obj.recovery_attempts.filter(
-            status=RecoveryAttempt.Status.AWAITING_HUMAN
-        ).exists()
 
     def get_readonly_fields(self, request, obj=None):
         readonly = list(super().get_readonly_fields(request, obj))
         if obj is None:
             # Creating a new episode — only url is editable
             readonly += list(self.METADATA_FIELDS) + ["status", "scraped_html"]
-        elif obj.status == Episode.Status.FAILED and self._awaiting_human(obj):
-            # Awaiting human — metadata editable so admin can fix and reprocess
+        elif obj.status == Episode.Status.FAILED:
+            # FAILED — metadata editable so admin can fix and reprocess
             readonly += ["status", "scraped_html"]
         else:
             # All other statuses — everything read-only except url
@@ -249,15 +188,12 @@ class EpisodeAdmin(admin.ModelAdmin):
         return self._show_reprocess_page(request, queryset)
 
     def _get_last_failed_step(self, episode):
-        last_run = episode.processing_runs.filter(
-            status=ProcessingRun.Status.FAILED
-        ).first()
-        if not last_run:
-            return None
-        failed_step = last_run.steps.filter(
-            status=ProcessingStep.Status.FAILED
-        ).first()
-        return failed_step.step_name if failed_step else None
+        # ProcessingRun/Step were dropped — we no longer record per-step
+        # status. Default the reprocess form to "fetching_details"; the
+        # admin can choose any pipeline step from the dropdown.
+        if episode.status == Episode.Status.FAILED:
+            return Episode.Status.FETCHING_DETAILS
+        return None
 
     def _show_reprocess_page(self, request, queryset):
         episodes = list(queryset)
@@ -288,10 +224,8 @@ class EpisodeAdmin(admin.ModelAdmin):
         )
 
     def _execute_reprocess(self, request, queryset):
-        from django.contrib import messages
         from dbos._error import DBOSException
 
-        from .models import ProcessingRun
         from .workflows import episode_queue, process_episode
 
         from_step = request.POST["from_step"]
@@ -299,48 +233,20 @@ class EpisodeAdmin(admin.ModelAdmin):
         episodes = Episode.objects.filter(pk__in=episode_ids)
 
         count = 0
-        skipped_titles = []
         for episode in episodes:
-            # Skip episodes that already have an active workflow. Without
-            # this guard, the second enqueue would create a workflow that
-            # later fails create_run() against the partial unique
-            # constraint — but only after we've already set status=QUEUED,
-            # confusingly overwriting the in-flight run's status.
-            if ProcessingRun.objects.filter(
-                episode=episode, status=ProcessingRun.Status.RUNNING
-            ).exists():
-                skipped_titles.append(episode.title or episode.url)
-                continue
-
-            # Resolve any AWAITING_HUMAN recovery attempts
-            episode.recovery_attempts.filter(
-                status=RecoveryAttempt.Status.AWAITING_HUMAN
-            ).update(
-                status=RecoveryAttempt.Status.RESOLVED,
-                resolved_at=timezone.now(),
-                resolved_by="human:admin",
-            )
-
             episode.status = Episode.Status.QUEUED
             episode.error_message = ""
             episode.save(update_fields=["status", "error_message", "updated_at"])
             try:
                 episode_queue.enqueue(process_episode, episode.pk, from_step)
             except DBOSException:
-                logger.debug(
+                import logging as _logging
+
+                _logging.getLogger(__name__).debug(
                     "DBOS not initialized; skipping enqueue for episode %s",
                     episode.pk,
                 )
             count += 1
-
-        if skipped_titles:
-            self.message_user(
-                request,
-                f"Skipped {len(skipped_titles)} episode(s) with an active "
-                f"processing run: {', '.join(skipped_titles[:5])}"
-                + (" …" if len(skipped_titles) > 5 else ""),
-                level=messages.WARNING,
-            )
 
         self.message_user(
             request,
@@ -682,93 +588,6 @@ class EntityMentionAdmin(admin.ModelAdmin):
         if len(obj.context) > 80:
             return format_html("{}&hellip;", obj.context[:80])
         return obj.context
-
-    def has_add_permission(self, request):
-        return False
-
-
-class ProcessingStepInline(admin.TabularInline):
-    model = ProcessingStep
-    extra = 0
-    readonly_fields = ("step_name", "status", "started_at", "finished_at", "error_message")
-
-    def has_add_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
-@admin.register(ProcessingRun)
-class ProcessingRunAdmin(admin.ModelAdmin):
-    list_display = ("episode_run", "status", "current_step", "started_at", "finished_at", "resumed_from_step")
-    list_filter = ("status",)
-    readonly_fields = (
-        "episode", "status", "started_at", "finished_at", "resumed_from_step",
-    )
-    inlines = [ProcessingStepInline]
-
-    @admin.display(description="Episode (Run)", ordering="episode__title")
-    def episode_run(self, obj):
-        return f"{obj.episode} ({obj.pk})"
-
-    @admin.display(description="Current step")
-    def current_step(self, obj):
-        step = obj.steps.filter(status=ProcessingStep.Status.RUNNING).first()
-        return step.step_name if step else "\u2014"
-
-    def has_add_permission(self, request):
-        return False
-
-
-class NeedsHumanActionFilter(admin.SimpleListFilter):
-    title = "needs human action"
-    parameter_name = "needs_human"
-
-    def lookups(self, request, model_admin):
-        return [("yes", "Yes")]
-
-    def queryset(self, request, queryset):
-        if self.value() == "yes":
-            return queryset.filter(status=RecoveryAttempt.Status.AWAITING_HUMAN)
-        return queryset
-
-
-@admin.register(PipelineEvent)
-class PipelineEventAdmin(admin.ModelAdmin):
-    list_display = ("episode", "event_type_display", "step_name", "error_type", "created_at")
-    list_filter = ("event_type", "step_name", "error_type")
-    readonly_fields = (
-        "episode", "processing_step", "event_type", "step_name",
-        "error_type", "error_message", "http_status", "exception_class",
-        "context", "created_at",
-    )
-
-    @admin.display(description="Event type")
-    def event_type_display(self, obj):
-        if obj.event_type == PipelineEvent.EventType.COMPLETED:
-            return format_html('<span style="color: green;">{}</span>', obj.event_type)
-        return format_html('<span style="color: red;">{}</span>', obj.event_type)
-
-    def has_add_permission(self, request):
-        return False
-
-
-@admin.register(RecoveryAttempt)
-class RecoveryAttemptAdmin(admin.ModelAdmin):
-    """Read-only audit view for legacy recovery attempts.
-
-    The recovery layer was removed; the model is still registered to
-    surface historical rows until the model itself is dropped in the
-    next commit.
-    """
-
-    list_display = ("episode", "strategy", "status", "success", "created_at", "resolved_at")
-    list_filter = (NeedsHumanActionFilter, "strategy", "status")
-    readonly_fields = (
-        "episode", "pipeline_event", "strategy", "status", "success",
-        "message", "created_at", "resolved_at", "resolved_by",
-    )
 
     def has_add_permission(self, request):
         return False

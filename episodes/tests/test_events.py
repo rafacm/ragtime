@@ -1,21 +1,30 @@
-"""Tests for pipeline event classification and building."""
+"""Tests for the ``classify_error`` helper.
+
+The ``PipelineEvent`` / ``ProcessingRun`` / ``ProcessingStep`` models
+were dropped along with the recovery layer; the persistence-side
+tests that lived here are gone with them. ``classify_error`` is
+still useful as a lightweight categorizer for log/telemetry strings,
+so its tests stay.
+"""
 
 import json
 import subprocess
-from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import SimpleTestCase
 
 from episodes.events import classify_error
-from episodes.models import Episode, PipelineEvent, ProcessingRun, ProcessingStep
 
 
-class ClassifyErrorTests(TestCase):
+class ClassifyErrorTests(SimpleTestCase):
     def test_http_status_error(self):
         import httpx
 
         response = httpx.Response(403)
-        exc = httpx.HTTPStatusError("Forbidden", request=httpx.Request("GET", "http://x"), response=response)
+        exc = httpx.HTTPStatusError(
+            "Forbidden",
+            request=httpx.Request("GET", "http://x"),
+            response=response,
+        )
         error_type, status = classify_error(exc)
         self.assertEqual(error_type, "http")
         self.assertEqual(status, 403)
@@ -60,57 +69,3 @@ class ClassifyErrorTests(TestCase):
         error_type, status = classify_error(RuntimeError("unknown"))
         self.assertEqual(error_type, "system")
         self.assertIsNone(status)
-
-
-class PipelineEventEmissionTests(TestCase):
-    """Test that complete_step and fail_step emit PipelineEvent records."""
-
-    @patch("episodes.signals.DBOS")
-    def test_complete_step_creates_event(self, _):
-        episode = Episode.objects.create(url="https://example.com/evt/1")
-        run = ProcessingRun.objects.create(episode=episode)
-        step = ProcessingStep.objects.create(
-            run=run, step_name="fetching_details", status=ProcessingStep.Status.RUNNING
-        )
-
-        from episodes.processing import complete_step
-
-        complete_step(episode, "fetching_details")
-
-        event = PipelineEvent.objects.get(episode=episode, step_name="fetching_details")
-        self.assertEqual(event.event_type, PipelineEvent.EventType.COMPLETED)
-        self.assertIn("duration_seconds", event.context)
-
-    @patch("episodes.signals.DBOS")
-    def test_fail_step_with_exc_creates_event(self, _):
-        episode = Episode.objects.create(url="https://example.com/evt/2")
-        run = ProcessingRun.objects.create(episode=episode)
-        step = ProcessingStep.objects.create(
-            run=run, step_name="downloading", status=ProcessingStep.Status.RUNNING
-        )
-
-        from episodes.processing import fail_step
-
-        exc = RuntimeError("download failed")
-        fail_step(episode, "downloading", str(exc), exc=exc)
-
-        event = PipelineEvent.objects.get(episode=episode, step_name="downloading")
-        self.assertEqual(event.event_type, PipelineEvent.EventType.FAILED)
-        self.assertEqual(event.error_type, "system")
-        self.assertIn("download failed", event.error_message)
-
-    @patch("episodes.signals.DBOS")
-    def test_fail_step_without_exc_creates_no_event(self, _):
-        episode = Episode.objects.create(url="https://example.com/evt/3")
-        run = ProcessingRun.objects.create(episode=episode)
-        step = ProcessingStep.objects.create(
-            run=run, step_name="fetching_details", status=ProcessingStep.Status.RUNNING
-        )
-
-        from episodes.processing import fail_step
-
-        fail_step(episode, "fetching_details", "some error")
-
-        self.assertFalse(
-            PipelineEvent.objects.filter(episode=episode).exists()
-        )

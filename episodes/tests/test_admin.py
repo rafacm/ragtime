@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from episodes.models import Entity, EntityType, Episode, ProcessingRun, ProcessingStep
+from episodes.models import Entity, EntityType, Episode
 
 
 class EpisodeAdminTests(TestCase):
@@ -85,78 +85,28 @@ class EpisodeAdminTests(TestCase):
         self.assertEqual(episode.status, Episode.Status.QUEUED)
 
     @patch("episodes.signals.DBOS")
-    def test_reprocess_skips_episode_with_active_run(self, mock_async):
-        """Reprocessing an episode that already has a RUNNING ProcessingRun
-        must skip it (not enqueue a duplicate workflow that would later
-        fail the partial unique constraint)."""
-        from episodes.models import ProcessingRun
-
-        episode = Episode.objects.create(
-            url="https://example.com/ep/admin-active",
-            status=Episode.Status.FETCHING_DETAILS,
-            title="Active Episode",
-        )
-        # An in-flight run.
-        ProcessingRun.objects.create(
-            episode=episode, status=ProcessingRun.Status.RUNNING
-        )
-
-        with patch("episodes.workflows.episode_queue") as mock_queue:
-            response = self.client.post(
-                "/admin/episodes/episode/",
-                {
-                    "action": "reprocess",
-                    "_selected_action": [episode.pk],
-                    "episode_ids": [episode.pk],
-                    "from_step": Episode.Status.FETCHING_DETAILS,
-                },
-                follow=True,
-            )
-
-        self.assertEqual(response.status_code, 200)
-        # Workflow was NOT enqueued.
-        mock_queue.enqueue.assert_not_called()
-        # Status was NOT overwritten — the in-flight run keeps its status.
-        episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.FETCHING_DETAILS)
-        # The user sees a warning naming the skipped episode.
-        self.assertContains(response, "Active Episode")
-
-    @patch("episodes.signals.DBOS")
-    def test_metadata_fields_readonly_when_failed(self, mock_async):
+    def test_metadata_fields_editable_when_failed(self, mock_async):
+        """When an episode is FAILED, the admin can edit metadata to fix and reprocess."""
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-3",
             status=Episode.Status.FAILED,
         )
         response = self.client.get(f"/admin/episodes/episode/{episode.pk}/change/")
         content = response.content.decode()
-        # title field should be readonly (no editable input)
-        self.assertNotIn('name="title"', content)
+        # title field should be editable when failed
+        self.assertIn('name="title"', content)
 
     @patch("episodes.signals.DBOS")
-    def test_metadata_fields_editable_when_awaiting_human(self, mock_async):
-        from episodes.models import PipelineEvent, ProcessingRun, ProcessingStep, RecoveryAttempt
-
+    def test_metadata_fields_readonly_when_running(self, mock_async):
+        """While an episode is mid-pipeline, metadata is read-only."""
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-4",
-            status=Episode.Status.FAILED,
-        )
-        run = ProcessingRun.objects.create(episode=episode, status=ProcessingRun.Status.FAILED)
-        step = ProcessingStep.objects.create(
-            run=run, step_name="fetching_details", status=ProcessingStep.Status.FAILED
-        )
-        pe = PipelineEvent.objects.create(
-            episode=episode, processing_step=step,
-            event_type=PipelineEvent.EventType.FAILED, step_name="fetching_details",
-        )
-        RecoveryAttempt.objects.create(
-            episode=episode, pipeline_event=pe,
-            strategy="human", status=RecoveryAttempt.Status.AWAITING_HUMAN,
+            status=Episode.Status.TRANSCRIBING,
         )
         response = self.client.get(f"/admin/episodes/episode/{episode.pk}/change/")
         content = response.content.decode()
-        # title field should be editable when awaiting human
-        self.assertIn('name="title"', content)
+        # title field should be readonly mid-pipeline
+        self.assertNotIn('name="title"', content)
 
 
 class EntityTypeAdminTests(TestCase):

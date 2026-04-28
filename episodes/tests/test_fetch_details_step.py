@@ -222,52 +222,6 @@ class FetchEpisodeDetailsTests(TestCase):
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
 
-    @patch("episodes.fetch_details_step.fetch_html")
-    def test_incomplete_metadata_does_not_overwrite_recovery_status(self, mock_fetch):
-        """When recovery changes status during fail_step, the step must not overwrite it.
-
-        Regression test: the step used to call fail_step() before episode.save(),
-        so synchronous recovery could set status=TRANSCRIBING, only for the step's
-        subsequent save() to overwrite it back to FAILED.
-        """
-        mock_fetch.return_value = self.SAMPLE_HTML
-
-        episode = self._create_episode(url="https://example.com/ep/recovery")
-
-        from episodes.processing import create_run
-
-        create_run(episode)
-
-        def fake_recovery(sender, event, pipeline_event, **kwargs):
-            ep = Episode.objects.get(pk=event.episode_id)
-            ep.status = Episode.Status.TRANSCRIBING
-            ep.error_message = ""
-            ep.save(update_fields=["status", "error_message", "updated_at"])
-
-        from episodes.signals import step_failed
-
-        step_failed.connect(fake_recovery)
-        try:
-            # Title omitted: with the relaxed REQUIRED_FIELDS=("title",)
-            # contract, this is the only way to force the incomplete path.
-            incomplete = EpisodeDetails(
-                title=None,
-                description="A great episode about jazz.",
-                language="en",
-                audio_url="https://example.com/ep1.mp3",
-            )
-            with self._override_agent(incomplete):
-                fetch_episode_details(episode.pk)
-        finally:
-            step_failed.disconnect(fake_recovery)
-
-        episode.refresh_from_db()
-        self.assertEqual(
-            episode.status,
-            Episode.Status.TRANSCRIBING,
-            "fetch_details_step save() must not overwrite recovery status back to FAILED",
-        )
-
     def test_nonexistent_episode(self):
         # Should not raise, just log error
         fetch_episode_details(99999)
