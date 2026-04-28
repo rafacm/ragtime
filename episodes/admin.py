@@ -3,7 +3,7 @@ from django.conf import settings
 from django.contrib import admin
 from django.db.models import Count
 from django.template.response import TemplateResponse
-from django.urls import reverse
+from django.urls import path, reverse
 from django.utils.html import format_html
 
 from .models import (
@@ -14,6 +14,56 @@ from .models import (
     EntityType,
     Episode,
 )
+
+
+def _dbos_workflow_steps(episode_id: int) -> list[dict]:
+    """Return DBOS step records for the most recent run of *episode_id*.
+
+    Discovers the workflow ID via ``DBOS.list_workflows`` (filters
+    by ``workflow_id`` prefix ``episode-<id>-``) and pulls the per-step
+    rows via ``DBOS.list_workflow_steps``. Returns ``[]`` when DBOS
+    isn't running, no workflow exists, or anything raises — admin
+    must keep loading even when the queue is offline.
+    """
+    try:
+        from dbos import DBOS
+    except ImportError:
+        return []
+
+    try:
+        workflows = DBOS.list_workflows() or []
+    except Exception:
+        return []
+
+    prefix = f"episode-{episode_id}-"
+    candidates = [
+        wf for wf in workflows
+        if getattr(wf, "workflow_id", "").startswith(prefix)
+    ]
+    if not candidates:
+        return []
+
+    candidates.sort(
+        key=lambda wf: getattr(wf, "created_at", 0) or 0,
+        reverse=True,
+    )
+    workflow = candidates[0]
+    workflow_id = getattr(workflow, "workflow_id", "")
+
+    try:
+        steps = DBOS.list_workflow_steps(workflow_id) or []
+    except Exception:
+        return []
+
+    rows = []
+    for step in steps:
+        rows.append({
+            "function_name": getattr(step, "function_name", ""),
+            "step_id": getattr(step, "function_id", None),
+            "output": getattr(step, "output", None),
+            "error": getattr(step, "error", None),
+        })
+    return rows
 
 
 class ChunkInlineForEpisode(admin.TabularInline):
@@ -83,6 +133,7 @@ class EpisodeAdmin(admin.ModelAdmin):
         "transcript_json",
         "summary_generated",
         "entities_json",
+        "dbos_steps_link",
     )
     actions = ["reprocess"]
 
@@ -121,7 +172,7 @@ class EpisodeAdmin(admin.ModelAdmin):
     def get_fieldsets(self, request, obj=None):
         if obj is None:
             return [(None, {"fields": ("url",)})]
-        main_fields = ["url", "status"]
+        main_fields = ["url", "status", "dbos_steps_link"]
         if obj.status == Episode.Status.FAILED and obj.error_message:
             main_fields.append("error_message")
         fieldsets = [
@@ -171,6 +222,13 @@ class EpisodeAdmin(admin.ModelAdmin):
         ]
         return fieldsets
 
+    @admin.display(description="DBOS workflow")
+    def dbos_steps_link(self, obj):
+        if not obj or not obj.pk:
+            return "—"
+        url = reverse("admin:episodes_episode_dbos_steps", args=[obj.pk])
+        return format_html('<a href="{}">View workflow steps</a>', url)
+
     @admin.display(description="Duration", ordering="duration")
     def formatted_duration(self, obj):
         if obj.duration is None:
@@ -180,6 +238,35 @@ class EpisodeAdmin(admin.ModelAdmin):
         if hours:
             return f"{hours}:{minutes:02d}:{seconds:02d}"
         return f"{minutes}:{seconds:02d}"
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom = [
+            path(
+                "<int:episode_id>/dbos-steps/",
+                self.admin_site.admin_view(self.dbos_steps_view),
+                name="episodes_episode_dbos_steps",
+            ),
+        ]
+        return custom + urls
+
+    def dbos_steps_view(self, request, episode_id: int):
+        """Render per-step DBOS workflow output/error for an episode.
+
+        Replaces the old ProcessingRun / PipelineEvent admin pages.
+        """
+        episode = Episode.objects.get(pk=episode_id)
+        steps = _dbos_workflow_steps(episode_id)
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"DBOS workflow steps \u2014 {episode}",
+            "episode": episode,
+            "steps": steps,
+            "opts": self.model._meta,
+        }
+        return TemplateResponse(
+            request, "admin/episodes/episode/dbos_steps.html", context,
+        )
 
     @admin.action(description="Reprocess selected episodes\u2026")
     def reprocess(self, request, queryset):

@@ -1,0 +1,60 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}DBOS workflow steps — {{ episode }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label='episodes' %}">Episodes</a>
+  &rsaquo; <a href="{% url 'admin:episodes_episode_changelist' %}">Episodes</a>
+  &rsaquo; <a href="{% url 'admin:episodes_episode_change' episode.pk %}">{{ episode }}</a>
+  &rsaquo; DBOS steps
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>DBOS workflow steps</h1>
+<p><strong>Episode:</strong> {{ episode.title|default:episode.url }} (status: {{ episode.get_status_display }})</p>
+
+{% if not steps %}
+<p><em>No DBOS workflow records found for this episode. The DBOS runtime may not be initialised, or the episode hasn't been processed yet.</em></p>
+{% else %}
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Step</th>
+      <th>Output</th>
+      <th>Error</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for step in steps %}
+    <tr>
+      <td>{{ step.step_id|default_if_none:"&mdash;" }}</td>
+      <td><code>{{ step.function_name }}</code></td>
+      <td>
+        {% if step.output is None %}
+        &mdash;
+        {% else %}
+        <pre style="white-space: pre-wrap; max-width: 600px;">{{ step.output }}</pre>
+        {% endif %}
+      </td>
+      <td>
+        {% if step.error %}
+        <pre style="white-space: pre-wrap; max-width: 600px; color: #b00;">{{ step.error }}</pre>
+        {% else %}
+        &mdash;
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<p style="margin-top: 1.5em;">
+  <a href="{% url 'admin:episodes_episode_change' episode.pk %}">&larr; Back to episode</a>
+</p>
+{% endblock %}
