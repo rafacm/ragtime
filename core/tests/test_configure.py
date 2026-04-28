@@ -234,7 +234,10 @@ class ConfigureWizardTest(TestCase):
             "",               # Qdrant API key
             "",               # Scott API key
             "",               # MusicBrainz DB password
-            "",               # Recovery agent API key
+            "",               # Download Agent API key
+            "",               # FYYD API key
+            "",               # PodcastIndex API key
+            "",               # PodcastIndex API secret
             "",               # Langfuse secret key
             "",               # Langfuse public key
         ]
@@ -257,7 +260,8 @@ class ConfigureWizardTest(TestCase):
             "", "", "", "", "",           # MusicBrainz
             "",                            # Pipeline
             "", "", "", "", "",            # Wikidata
-            "", "", "",                    # Recovery agent
+            "", "",                        # Download Agent (model, timeout)
+            "",                            # Podcast Indexes (PODCAST_INDEXES list)
             "", "", "",                    # OTel
             "",                             # Langfuse host
         ]
@@ -301,7 +305,10 @@ class ConfigureWizardTest(TestCase):
             "",               # Qdrant API key (keep default)
             "",               # Scott API key (keep default)
             "",               # MusicBrainz DB password (keep default)
-            "",               # Recovery agent API key (keep default)
+            "",               # Download Agent API key (keep default)
+            "",               # FYYD API key
+            "",               # PodcastIndex API key
+            "",               # PodcastIndex API secret
             "",               # Langfuse secret key (keep default)
             "",               # Langfuse public key (keep default)
         ]
@@ -340,9 +347,9 @@ class ConfigureWizardTest(TestCase):
             "",               # Wikidata cache TTL (keep default)
             "",               # Wikidata debounce ms (keep default)
             "",               # Wikidata min chars (keep default)
-            "",               # Recovery agent enabled (keep default)
-            "",               # Recovery agent model (keep default)
-            "",               # Recovery agent timeout (keep default)
+            "",               # Download Agent model (keep default)
+            "",               # Download Agent timeout (keep default)
+            "",               # Podcast Indexes (RAGTIME_PODCAST_INDEXES list)
             "",               # OTel collectors (keep default)
             "",               # OTel service name (keep default)
             "",               # OTel Jaeger endpoint (keep default)
@@ -435,7 +442,10 @@ class ConfigureWizardTest(TestCase):
             "",               # Qdrant API key (keep default)
             "",               # Scott API key (keep default)
             "",               # MusicBrainz DB password (keep default)
-            "",               # Recovery agent API key (keep default)
+            "",               # Download Agent API key (keep default)
+            "",               # FYYD API key
+            "",               # PodcastIndex API key
+            "",               # PodcastIndex API secret
             "",               # Langfuse secret key (keep default)
             "",               # Langfuse public key (keep default)
         ]
@@ -474,9 +484,9 @@ class ConfigureWizardTest(TestCase):
             "",               # Wikidata cache TTL (keep default)
             "",               # Wikidata debounce ms (keep default)
             "",               # Wikidata min chars (keep default)
-            "",               # Recovery agent enabled (keep default)
-            "",               # Recovery agent model (keep default)
-            "",               # Recovery agent timeout (keep default)
+            "",               # Download Agent model (keep default)
+            "",               # Download Agent timeout (keep default)
+            "",               # Podcast Indexes (RAGTIME_PODCAST_INDEXES list)
             "",               # OTel collectors (keep default)
             "",               # OTel service name (keep default)
             "",               # OTel Jaeger endpoint (keep default)
@@ -527,7 +537,10 @@ class ConfigureWizardTest(TestCase):
             "",               # Qdrant API key (keep default)
             "",               # Scott API key (keep default)
             "",               # MusicBrainz DB password (keep default)
-            "",               # Recovery agent API key (keep default)
+            "",               # Download Agent API key (keep default)
+            "",               # FYYD API key
+            "",               # PodcastIndex API key
+            "",               # PodcastIndex API secret
             "",               # Langfuse secret key (keep default)
             "",               # Langfuse public key (keep default)
         ]
@@ -555,7 +568,8 @@ class ConfigureWizardTest(TestCase):
             "", "", "", "", "", # MusicBrainz DB host/port/name/user + schema
             "",                 # Pipeline EPISODE_CONCURRENCY
             "", "", "", "", "",  # Wikidata (5 fields)
-            "", "", "",         # Recovery agent (3 fields)
+            "", "",             # Download Agent (model, timeout)
+            "",                 # Podcast Indexes (RAGTIME_PODCAST_INDEXES list)
             "", "", "",         # OTel (3 fields)
             "",                 # Langfuse host
         ]
