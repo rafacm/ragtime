@@ -1,4 +1,4 @@
-"""Dependencies and result model for the recovery agent."""
+"""Dependencies and result model for the download agent."""
 
 import dataclasses
 
@@ -7,25 +7,26 @@ from pydantic import BaseModel
 
 
 @dataclasses.dataclass
-class RecoveryDeps:
+class DownloadDeps:
     """Runtime dependencies injected into every tool call."""
 
     episode_id: int
     episode_url: str
     audio_url: str
+    title: str
+    show_name: str
+    guid: str
     language: str
-    step_name: str
-    error_message: str
-    http_status: int | None
     download_dir: str
     page: Page
     screenshots: list[bytes]
 
 
-class RecoveryAgentResult(BaseModel):
-    """Structured result returned by the recovery agent."""
+class DownloadAgentResult(BaseModel):
+    """Structured result returned by the download agent."""
 
     success: bool
     audio_url: str = ""
     downloaded_file: str = ""
+    source: str = ""  # "agent" | "fyyd" | "podcastindex"
     message: str = ""

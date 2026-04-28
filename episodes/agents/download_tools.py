@@ -1,21 +1,22 @@
-"""Playwright browser tools for the recovery agent."""
+"""Playwright browser tools + podcast-index lookup for the download agent."""
 
 import asyncio
 import logging
 import os
 
 from playwright.async_api import Error as PlaywrightError
+from pydantic import BaseModel
 from pydantic_ai import RunContext
 from pydantic_ai.messages import BinaryImage, ToolReturn
 
-from .recovery_deps import RecoveryDeps
+from .download_deps import DownloadDeps
 
 logger = logging.getLogger(__name__)
 
 MAX_PAGE_TEXT = 15_000
 
 
-async def navigate_to_url(ctx: RunContext[RecoveryDeps], url: str) -> str:
+async def navigate_to_url(ctx: RunContext[DownloadDeps], url: str) -> str:
     """Navigate the browser to *url* and return the page title + text snippet."""
     page = ctx.deps.page
     try:
@@ -28,7 +29,7 @@ async def navigate_to_url(ctx: RunContext[RecoveryDeps], url: str) -> str:
         return f"Navigation failed: {exc}"
 
 
-async def get_page_content(ctx: RunContext[RecoveryDeps]) -> str:
+async def get_page_content(ctx: RunContext[DownloadDeps]) -> str:
     """Return the current page's text content (truncated to 15k chars)."""
     page = ctx.deps.page
     try:
@@ -38,7 +39,7 @@ async def get_page_content(ctx: RunContext[RecoveryDeps]) -> str:
         return f"Failed to get page content: {exc}"
 
 
-async def find_audio_links(ctx: RunContext[RecoveryDeps]) -> str:
+async def find_audio_links(ctx: RunContext[DownloadDeps]) -> str:
     """Extract MP3 URLs from the current page.
 
     Looks in ``<audio>``, ``<source>``, ``<a>``, and ``<meta>`` tags for
@@ -88,7 +89,7 @@ async def find_audio_links(ctx: RunContext[RecoveryDeps]) -> str:
     return "MP3 links found:\n" + "\n".join(f"  - {url}" for url in links)
 
 
-async def click_element(ctx: RunContext[RecoveryDeps], selector: str) -> str:
+async def click_element(ctx: RunContext[DownloadDeps], selector: str) -> str:
     """Click the element matching *selector* and return the resulting page state.
 
     Use Playwright selector syntax. To match by text content use:
@@ -110,7 +111,7 @@ async def click_element(ctx: RunContext[RecoveryDeps], selector: str) -> str:
         return f"Click failed for '{selector}': {exc}"
 
 
-async def take_screenshot(ctx: RunContext[RecoveryDeps], label: str) -> str:
+async def take_screenshot(ctx: RunContext[DownloadDeps], label: str) -> str:
     """Take a screenshot and store it in deps.screenshots.
 
     Injects a small red CSS dot at the viewport center for visual debugging.
@@ -152,7 +153,7 @@ async def take_screenshot(ctx: RunContext[RecoveryDeps], label: str) -> str:
     return f"Screenshot saved: {label} ({len(png_bytes)} bytes, #{len(ctx.deps.screenshots)})"
 
 
-async def download_file(ctx: RunContext[RecoveryDeps], url: str) -> str:
+async def download_file(ctx: RunContext[DownloadDeps], url: str) -> str:
     """Download a file from *url* and save it to the download directory.
 
     Uses the browser's API request context, which shares cookies and
@@ -207,7 +208,7 @@ async def download_file(ctx: RunContext[RecoveryDeps], url: str) -> str:
 
 
 async def extract_text_by_selector(
-    ctx: RunContext[RecoveryDeps], selector: str
+    ctx: RunContext[DownloadDeps], selector: str
 ) -> str:
     """Get the text content of all elements matching *selector*."""
     page = ctx.deps.page
@@ -228,7 +229,7 @@ async def extract_text_by_selector(
     return "\n---\n".join(texts[:20])
 
 
-async def translate_text(ctx: RunContext[RecoveryDeps], text: str) -> str:
+async def translate_text(ctx: RunContext[DownloadDeps], text: str) -> str:
     """Translate *text* to the episode's language using the LLM provider."""
     from ..languages import ISO_639_LANGUAGE_NAMES, ISO_639_RE
     from ..providers.factory import get_translation_provider
@@ -278,7 +279,7 @@ async def translate_text(ctx: RunContext[RecoveryDeps], text: str) -> str:
     return result.get("translated_text", text)
 
 
-async def analyze_screenshot(ctx: RunContext[RecoveryDeps], label: str) -> ToolReturn:
+async def analyze_screenshot(ctx: RunContext[DownloadDeps], label: str) -> ToolReturn:
     """Take a screenshot and return it for visual analysis.
 
     Use this to visually inspect the page — for example, to find three-dot
@@ -316,7 +317,7 @@ async def analyze_screenshot(ctx: RunContext[RecoveryDeps], label: str) -> ToolR
 
 
 async def click_at_coordinates(
-    ctx: RunContext[RecoveryDeps], x: int, y: int
+    ctx: RunContext[DownloadDeps], x: int, y: int
 ) -> str:
     """Click at pixel coordinates (x, y) on the page.
 
@@ -337,7 +338,7 @@ async def click_at_coordinates(
 
 
 async def intercept_audio_requests(
-    ctx: RunContext[RecoveryDeps], action_selector: str
+    ctx: RunContext[DownloadDeps], action_selector: str
 ) -> str:
     """Click *action_selector* while intercepting network requests for audio.
 
@@ -407,3 +408,59 @@ async def intercept_audio_requests(
             unique.append(url)
 
     return "Intercepted audio URLs:\n" + "\n".join(f"  - {url}" for url in unique)
+
+
+class IndexCandidate(BaseModel):
+    """One candidate from a podcast index, surfaced to the agent."""
+
+    audio_url: str
+    title: str = ""
+    show_name: str = ""
+    duration_seconds: int | None = None
+    source_index: str = ""
+
+
+async def lookup_podcast_index(
+    ctx: RunContext[DownloadDeps],
+    title: str = "",
+    show_name: str = "",
+    guid: str = "",
+) -> list[IndexCandidate]:
+    """Query configured podcast indexes for episode candidates.
+
+    Fans out across every provider in ``RAGTIME_PODCAST_INDEXES``
+    (currently fyyd.de and podcastindex.org) using the supplied
+    title + show name + GUID hint. Results are merged and
+    deduplicated by ``audio_url``. When *title*/*show_name*/*guid*
+    are empty, falls back to the episode's own metadata pulled
+    from deps.
+
+    Use this BEFORE Playwright when an episode page hides its audio
+    URL behind interactive UI (3-dot menus, JS players, etc.) — the
+    indexes already carry the publisher's RSS-feed enclosure URL.
+
+    Returns up to 10 candidates. Returns an empty list when no
+    indexes are configured or when no candidates match.
+    """
+    from ..podcast_indexes import lookup_episode_candidates
+
+    effective_title = title or ctx.deps.title
+    effective_show = show_name or ctx.deps.show_name
+    effective_guid = guid or ctx.deps.guid
+
+    candidates = await asyncio.to_thread(
+        lookup_episode_candidates,
+        effective_title,
+        effective_show,
+        effective_guid,
+    )
+    return [
+        IndexCandidate(
+            audio_url=c.audio_url,
+            title=c.title,
+            show_name=c.show_name,
+            duration_seconds=c.duration_seconds,
+            source_index=c.source_index,
+        )
+        for c in candidates
+    ]

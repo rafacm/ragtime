@@ -756,48 +756,19 @@ class PipelineEventAdmin(admin.ModelAdmin):
 
 @admin.register(RecoveryAttempt)
 class RecoveryAttemptAdmin(admin.ModelAdmin):
+    """Read-only audit view for legacy recovery attempts.
+
+    The recovery layer was removed; the model is still registered to
+    surface historical rows until the model itself is dropped in the
+    next commit.
+    """
+
     list_display = ("episode", "strategy", "status", "success", "created_at", "resolved_at")
     list_filter = (NeedsHumanActionFilter, "strategy", "status")
     readonly_fields = (
         "episode", "pipeline_event", "strategy", "status", "success",
         "message", "created_at", "resolved_at", "resolved_by",
     )
-    actions = ["retry_agent_recovery"]
-
-    @admin.action(description="Retry with recovery agent")
-    def retry_agent_recovery(self, request, queryset):
-        awaiting = queryset.filter(status=RecoveryAttempt.Status.AWAITING_HUMAN)
-        if not awaiting.exists():
-            from django.contrib import messages
-
-            self.message_user(
-                request,
-                "No selected attempts are awaiting human action.",
-                level=messages.WARNING,
-            )
-            return
-
-        count = 0
-        for attempt in awaiting.select_related("pipeline_event", "episode"):
-            pe = attempt.pipeline_event
-            attempt.status = RecoveryAttempt.Status.RESOLVED
-            attempt.resolved_at = timezone.now()
-            attempt.resolved_by = "human:admin-retry"
-            attempt.save(update_fields=["status", "resolved_at", "resolved_by"])
-
-            from .workflows import run_agent_recovery
-
-            DBOS.start_workflow(
-                run_agent_recovery,
-                attempt.episode_id,
-                pe.pk,
-            )
-            count += 1
-
-        self.message_user(
-            request,
-            f"Queued agent recovery for {count} attempt(s).",
-        )
 
     def has_add_permission(self, request):
         return False

@@ -1,10 +1,10 @@
-"""Tests for recovery agent Playwright tool functions."""
+"""Tests for download agent Playwright tool functions."""
 
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from episodes.agents.recovery_deps import RecoveryDeps
-from episodes.agents.recovery_tools import (
+from episodes.agents.download_deps import DownloadDeps
+from episodes.agents.download_tools import (
     analyze_screenshot,
     click_at_coordinates,
     click_element,
@@ -20,7 +20,7 @@ from episodes.agents.recovery_tools import (
 
 
 def _make_deps(**overrides):
-    """Build a RecoveryDeps with mock Playwright page."""
+    """Build a DownloadDeps with mock Playwright page."""
     page = AsyncMock()
     page.url = "https://example.com/episode/1"
 
@@ -28,16 +28,16 @@ def _make_deps(**overrides):
         "episode_id": 1,
         "episode_url": "https://example.com/episode/1",
         "audio_url": "",
+        "title": "",
+        "show_name": "",
+        "guid": "",
         "language": "",
-        "step_name": "fetching_details",
-        "error_message": "403 Forbidden",
-        "http_status": 403,
         "download_dir": "/tmp/test-downloads",
         "page": page,
         "screenshots": [],
     }
     defaults.update(overrides)
-    return RecoveryDeps(**defaults)
+    return DownloadDeps(**defaults)
 
 
 def _make_ctx(deps=None):
