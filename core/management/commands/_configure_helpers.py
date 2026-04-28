@@ -2,6 +2,17 @@
 
 import getpass
 
+# Provider-specific default model suffixes for Convention B subsystems
+# (e.g. ``RAGTIME_FETCH_DETAILS_MODEL``) where the model string carries
+# the provider as a prefix. When the wizard's shared provider changes,
+# the suffix is replaced with the matching default so the user gets a
+# valid pair on Enter rather than e.g. ``anthropic:gpt-4.1-mini``.
+CONVENTION_B_PROVIDER_DEFAULTS = {
+    "openai": "gpt-4.1-mini",
+    "anthropic": "claude-sonnet-4-20250514",
+    "google": "gemini-2.5-pro",
+}
+
 SYSTEMS = [
     {
         "name": "Database",
