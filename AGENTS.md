@@ -41,7 +41,7 @@ Use `uv` for Python; `npm` (or compatible) for the `frontend/` workspace. Never 
 
 **10-step pipeline** (steps defined in `episodes/models.py:PIPELINE_STEPS`, orchestrated by `episodes/workflows.py`): submit → fetch_details → download → transcribe → summarize → chunk → extract → resolve → embed → ready. There is also a transient `queued` state between submission and `fetching_details` that reflects "waiting for a worker slot in the `episode_pipeline` DBOS queue". Each step updates the episode status. Failures set status to `failed`. Runs as a DBOS durable workflow with PostgreSQL-backed checkpointing.
 
-**Pipeline parallelism**: episodes are processed concurrently up to `RAGTIME_EPISODE_CONCURRENCY` (default 4) via the `episode_pipeline` DBOS queue. Beyond that limit, episodes sit in the `queued` state until a worker frees a slot — there is no fixed ceiling. The DB-level partial unique constraint `unique_running_run_per_episode` (`ProcessingRun(episode_id) WHERE status='running'`) enforces "at most one active run per episode" so duplicate workflows can't cross-pollute step bookkeeping.
+**Pipeline parallelism**: episodes are processed concurrently up to `RAGTIME_EPISODE_CONCURRENCY` (default 4) via the `episode_pipeline` DBOS queue. Beyond that limit, episodes sit in the `queued` state until a worker frees a slot — there is no fixed ceiling. Same-episode dedup is enforced via deterministic DBOS workflow IDs (`episode-<id>-run-<n>`) — DBOS rejects duplicate IDs, so a second enqueue on the same `(episode, run)` pair is a no-op rather than an error. DBOS owns workflow state (one `@DBOS.step()` per pipeline phase); `Episode.status` + `Episode.error_message` carry the user-facing summary.
 
 > **Keep in sync:** When adding, removing, or changing a pipeline step, update the summary table in `README.md` and the detailed step descriptions in `doc/README.md`. If the change affects a diagram (e.g., Excalidraw files in `doc/`), flag it explicitly — diagrams cannot be auto-updated and may be out of sync after the change.
 
@@ -61,7 +61,7 @@ Use `uv` for Python; `npm` (or compatible) for the `frontend/` workspace. Never 
 - No build-system in `pyproject.toml` (this is an app, not a library)
 - PostgreSQL for relational data (via Docker Compose); Qdrant for vector store
 - DBOS Transact for durable workflow execution (PostgreSQL-backed, no Redis needed)
-- Pydantic AI for agent logic (recovery agent + Scott); AG-UI protocol for the chat streaming contract
+- Pydantic AI for agent logic (fetch_details agent, download agent, Scott); AG-UI protocol for the chat streaming contract
 - Frontend for the chat UI: React 19 + assistant-ui + Tailwind 4 via Vite + `django-vite`. Other pages stay server-rendered Django templates.
 - `python-dotenv` for env vars (`.env` file, `RAGTIME_*` prefix)
 - ffmpeg required for audio downsampling (files > 25MB)
