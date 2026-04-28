@@ -31,6 +31,7 @@ class Episode(models.Model):
     image_url = models.URLField(max_length=2000, blank=True, default="")
     language = models.CharField(max_length=10, blank=True, default="")
     audio_url = models.URLField(max_length=2000, blank=True, default="")
+    guid = models.CharField(max_length=500, blank=True, default="")
 
     # Audio file (populated by downloader)
     audio_file = models.FileField(upload_to="episodes/", blank=True)
