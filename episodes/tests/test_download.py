@@ -70,12 +70,22 @@ class DownloadEpisodeTests(TestCase):
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.TRANSCRIBING)
 
+    @patch("episodes.agents.download.run_download_agent")
     @patch("episodes.downloader.subprocess.run")
-    def test_wget_error_sets_failed(self, mock_run):
-        """wget error → status failed with error_message."""
+    def test_wget_error_falls_through_to_agent(self, mock_run, mock_agent):
+        """wget failure → agent fallback → DownloadFailed when the agent also gives up.
+
+        Mocks ``run_download_agent`` so the test doesn't try to launch a real
+        Playwright browser (CI has no chromium installed).
+        """
+        from episodes.agents.download_deps import DownloadAgentResult
         from episodes.downloader import download_episode
 
         mock_run.side_effect = subprocess.CalledProcessError(8, "wget")
+        mock_agent.return_value = DownloadAgentResult(
+            success=False,
+            message="agent could not find audio",
+        )
 
         episode = self._create_episode(
             url="https://example.com/ep/dl-3",
@@ -86,9 +96,62 @@ class DownloadEpisodeTests(TestCase):
         with patch("episodes.signals.DBOS"):
             download_episode(episode.pk)
 
+        # Agent was invoked exactly once with the episode's context.
+        mock_agent.assert_called_once()
+
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
+        # Both tiers recorded in sources_tried; the original wget exit code
+        # is preserved in wget_error inside the DownloadFailed payload.
         self.assertIn("wget", episode.error_message)
+        self.assertIn("agent", episode.error_message)
+
+    @patch("episodes.agents.download.run_download_agent")
+    @patch("episodes.downloader.MP3")
+    @patch("episodes.downloader.subprocess.run")
+    def test_agent_recovers_after_wget_fails(self, mock_run, mock_mp3, mock_agent):
+        """wget failure → agent succeeds → status transcribing."""
+        import os
+        import tempfile
+
+        from episodes.agents.download_deps import DownloadAgentResult
+        from episodes.downloader import download_episode
+
+        mock_run.side_effect = subprocess.CalledProcessError(8, "wget")
+        mock_mp3.return_value.info.length = 1234.0
+
+        # Stage a fake downloaded file the orchestrator will attach.
+        fd, agent_file = tempfile.mkstemp(suffix=".mp3", prefix="ragtime-test-")
+        os.write(fd, b"fake-mp3-data" * 100)
+        os.close(fd)
+        try:
+            mock_agent.return_value = DownloadAgentResult(
+                success=True,
+                source="fyyd",
+                audio_url="https://cdn.example/ep4.mp3",
+                downloaded_file=agent_file,
+            )
+
+            episode = self._create_episode(
+                url="https://example.com/ep/dl-4",
+                audio_url="https://example.com/ep4.mp3",
+                status=Episode.Status.DOWNLOADING,
+            )
+
+            with patch("episodes.signals.DBOS"):
+                download_episode(episode.pk)
+
+            episode.refresh_from_db()
+            self.assertEqual(episode.status, Episode.Status.TRANSCRIBING)
+            self.assertTrue(episode.audio_file)
+            self.assertEqual(episode.duration, 1234)
+        finally:
+            # _save_audio moved the file out of agent_file; cleanup is a
+            # best-effort no-op once the orchestrator has attached it.
+            try:
+                os.unlink(agent_file)
+            except OSError:
+                pass
 
     def test_nonexistent_episode(self):
         """Non-existent episode ID → no crash."""
