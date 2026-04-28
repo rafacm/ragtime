@@ -8,7 +8,7 @@ from playwright.async_api import Error as PlaywrightError
 from pydantic_ai import RunContext
 from pydantic_ai.messages import BinaryImage, ToolReturn
 
-from .deps import RecoveryDeps
+from .recovery_deps import RecoveryDeps
 
 logger = logging.getLogger(__name__)
 

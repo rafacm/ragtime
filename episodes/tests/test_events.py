@@ -70,14 +70,14 @@ class PipelineEventEmissionTests(TestCase):
         episode = Episode.objects.create(url="https://example.com/evt/1")
         run = ProcessingRun.objects.create(episode=episode)
         step = ProcessingStep.objects.create(
-            run=run, step_name="scraping", status=ProcessingStep.Status.RUNNING
+            run=run, step_name="fetching_details", status=ProcessingStep.Status.RUNNING
         )
 
         from episodes.processing import complete_step
 
-        complete_step(episode, "scraping")
+        complete_step(episode, "fetching_details")
 
-        event = PipelineEvent.objects.get(episode=episode, step_name="scraping")
+        event = PipelineEvent.objects.get(episode=episode, step_name="fetching_details")
         self.assertEqual(event.event_type, PipelineEvent.EventType.COMPLETED)
         self.assertIn("duration_seconds", event.context)
 
@@ -104,12 +104,12 @@ class PipelineEventEmissionTests(TestCase):
         episode = Episode.objects.create(url="https://example.com/evt/3")
         run = ProcessingRun.objects.create(episode=episode)
         step = ProcessingStep.objects.create(
-            run=run, step_name="scraping", status=ProcessingStep.Status.RUNNING
+            run=run, step_name="fetching_details", status=ProcessingStep.Status.RUNNING
         )
 
         from episodes.processing import fail_step
 
-        fail_step(episode, "scraping", "some error")
+        fail_step(episode, "fetching_details", "some error")
 
         self.assertFalse(
             PipelineEvent.objects.filter(episode=episode).exists()

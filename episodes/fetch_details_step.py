@@ -1,3 +1,12 @@
+"""Fetch Details pipeline step (was: Scrape).
+
+Owns: status transitions, HTML fetch + clean, fast-path skip when required
+fields are pre-filled, empty-field-only merge of extracted metadata,
+completeness check, error handling. Delegates the LLM call to the
+``fetch_details`` Pydantic AI agent in ``episodes/agents/fetch_details.py``
+(introduced in commit 2 of this PR).
+"""
+
 import logging
 
 import httpx
@@ -23,7 +32,7 @@ TAGS_TO_STRIP = [
 
 MAX_HTML_LENGTH = 30_000
 
-SCRAPE_SYSTEM_PROMPT = """\
+FETCH_DETAILS_SYSTEM_PROMPT = """\
 You are a metadata extractor for podcast episode web pages.
 Given the cleaned HTML of a podcast episode page, extract the following fields.
 
@@ -39,7 +48,7 @@ then fall back to page content.
 - Return null for any field you cannot confidently determine.
 """
 
-SCRAPE_RESPONSE_SCHEMA = {
+FETCH_DETAILS_RESPONSE_SCHEMA = {
     "name": "episode_metadata",
     "strict": True,
     "schema": {
@@ -64,6 +73,8 @@ SCRAPE_RESPONSE_SCHEMA = {
     },
 }
 
+# Step's "ready to advance" contract — independent of the agent's output
+# contract. The step refuses to leave FETCHING_DETAILS without these fields.
 REQUIRED_FIELDS = ("title", "audio_url")
 
 
@@ -72,7 +83,7 @@ def fetch_html(url: str) -> str:
         url,
         follow_redirects=True,
         timeout=30,
-        headers={"User-Agent": "RAGtime/0.1 (podcast metadata scraper)"},
+        headers={"User-Agent": "RAGtime/0.1 (podcast metadata fetcher)"},
     )
     response.raise_for_status()
     return response.text
@@ -92,17 +103,17 @@ def _has_required_fields(episode: Episode) -> bool:
     return all(getattr(episode, f) for f in REQUIRED_FIELDS)
 
 
-@trace_step("scrape_episode")
-def scrape_episode(episode_id: int) -> None:
+@trace_step("fetch_episode_details")
+def fetch_episode_details(episode_id: int) -> None:
     try:
         episode = Episode.objects.get(pk=episode_id)
     except Episode.DoesNotExist:
         logger.error("Episode %s does not exist", episode_id)
         return
 
-    episode.status = Episode.Status.SCRAPING
+    episode.status = Episode.Status.FETCHING_DETAILS
     episode.save(update_fields=["status", "updated_at"])
-    start_step(episode, Episode.Status.SCRAPING)
+    start_step(episode, Episode.Status.FETCHING_DETAILS)
 
     try:
         # Fetch and clean HTML if not already stored
@@ -113,7 +124,7 @@ def scrape_episode(episode_id: int) -> None:
 
         # If user already filled all required fields (reprocess after needs_review)
         if _has_required_fields(episode):
-            complete_step(episode, Episode.Status.SCRAPING)
+            complete_step(episode, Episode.Status.FETCHING_DETAILS)
             episode.status = Episode.Status.DOWNLOADING
             episode.save(update_fields=["status", "updated_at"])
             return
@@ -121,9 +132,9 @@ def scrape_episode(episode_id: int) -> None:
         # Extract metadata via LLM
         provider = get_scraping_provider()
         result = provider.structured_extract(
-            system_prompt=SCRAPE_SYSTEM_PROMPT,
+            system_prompt=FETCH_DETAILS_SYSTEM_PROMPT,
             user_content=episode.scraped_html,
-            response_schema=SCRAPE_RESPONSE_SCHEMA,
+            response_schema=FETCH_DETAILS_RESPONSE_SCHEMA,
         )
 
         # Apply extracted fields (only update empty fields)
@@ -142,7 +153,7 @@ def scrape_episode(episode_id: int) -> None:
             "language", "audio_url", "published_at", "updated_at",
         ]
         if _has_required_fields(episode):
-            complete_step(episode, Episode.Status.SCRAPING)
+            complete_step(episode, Episode.Status.FETCHING_DETAILS)
             episode.status = Episode.Status.DOWNLOADING
             episode.save(update_fields=update_fields)
         else:
@@ -153,17 +164,17 @@ def scrape_episode(episode_id: int) -> None:
             # and may set a new status — saving after would overwrite it.
             episode.save(update_fields=update_fields)
             fail_step(
-                episode, Episode.Status.SCRAPING,
+                episode, Episode.Status.FETCHING_DETAILS,
                 str(incomplete_exc),
                 exc=incomplete_exc,
             )
             logger.warning(
-                "Episode %s: incomplete metadata after scraping", episode_id
+                "Episode %s: incomplete metadata after fetch_details", episode_id
             )
 
     except Exception as exc:
-        logger.exception("Failed to scrape episode %s", episode_id)
+        logger.exception("Failed to fetch details for episode %s", episode_id)
         episode.error_message = str(exc)
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
-        fail_step(episode, Episode.Status.SCRAPING, str(exc), exc=exc)
+        fail_step(episode, Episode.Status.FETCHING_DETAILS, str(exc), exc=exc)

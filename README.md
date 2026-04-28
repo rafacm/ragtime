@@ -27,7 +27,7 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 
 ## Features
 
-- 🎙️ **Episode Ingestion** — Add podcast episodes by URL. RAGtime scrapes metadata (title, description, date, image), downloads audio, and processes it through the pipeline.
+- 🎙️ **Episode Ingestion** — Add podcast episodes by URL. RAGtime fetches episode details (title, description, date, image), downloads audio, and processes it through the pipeline.
 - 📝 **Multilingual Transcription** — Transcribes episodes using configurable backends (Whisper API by default) with segment and word-level timestamps. Supports multiple languages (English, Spanish, German, Swedish, etc.).
 - 🔍 **Entity Extraction** — Identifies jazz entities: musicians, musical groups, albums, music venues, recording sessions, record labels, years. Entities are resolved against the local MusicBrainz database (foreground, sub-millisecond) and Wikidata (background, throttled singleton enrichment).
 - 📇 **Episode Indexing** — Splits transcripts into segments and generates multilingual embeddings stored in Qdrant. Enables cross-language semantic search so Scott can retrieve relevant content regardless of the question's language.
@@ -40,11 +40,11 @@ RAGtime is a Django application for ingesting jazz-related podcast episodes. It 
 
 ### What's already implemented
 
-- **Episode ingestion**: submit episodes by URL, metadata scraping, audio download, transcription, summarization, chunking, entity extraction with foreground resolution against a local [MusicBrainz](https://musicbrainz.org/) Postgres database and background [Wikidata](https://www.wikidata.org/) enrichment, and multilingual embeddings into [Qdrant](https://qdrant.tech/).
+- **Episode ingestion**: submit episodes by URL, episode-detail fetching, audio download, transcription, summarization, chunking, entity extraction with foreground resolution against a local [MusicBrainz](https://musicbrainz.org/) Postgres database and background [Wikidata](https://www.wikidata.org/) enrichment, and multilingual embeddings into [Qdrant](https://qdrant.tech/).
 - **Episode management UI**: Django admin interface to view episode status and metadata and browse extracted entities.
 - **Configuration wizard**: interactive `manage.py configure` command for all `RAGTIME_*` env vars.
 - **Telemetry**: [OpenTelemetry](https://opentelemetry.io/)-based tracing for pipeline steps and LLM calls with optional collectors: console, [Jaeger](https://www.jaegertracing.io/), and [Langfuse](https://langfuse.com).
-- **Agent-based recovery**: [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation recovers from scraping and downloading failures automatically.
+- **Agent-based recovery**: [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation recovers from fetch-details and download failures automatically.
 - **Scott chatbot**: strict-RAG conversational agent that answers questions only from ingested episode content, with citations and real-time streaming via [AG-UI](https://github.com/ag-ui-protocol/ag-ui). React frontend built with [assistant-ui](https://www.assistant-ui.com/) and conversation history persisted in Django.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full list of implemented features, fixes, implementation plans, feature documentation and session transcripts.
@@ -63,7 +63,7 @@ Each step updates the episode's `status` field. A `post_save` signal enqueues a 
 |---|------|--------|-------------|
 | 1 | 📥 Submit | `pending` | User submits an episode URL |
 | ⏸ | ⏳ Queue | `queued` | Waiting for a pipeline worker slot |
-| 2 | 🕷️ Scrape | `scraping` | Extract metadata and detect language |
+| 2 | 🕷️ Fetch Details | `fetching_details` | Extract metadata and detect language |
 | 3 | ⬇️ Download | `downloading` | Download audio and extract duration |
 | 4 | 🎙️ Transcribe | `transcribing` | Whisper API transcription with timestamps |
 | 5 | 📋 Summarize | `summarizing` | LLM-generated episode summary |

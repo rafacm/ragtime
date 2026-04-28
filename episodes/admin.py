@@ -262,7 +262,7 @@ class EpisodeAdmin(admin.ModelAdmin):
     def _show_reprocess_page(self, request, queryset):
         episodes = list(queryset)
         # Annotate each episode with its last failed step for display
-        default_step = Episode.Status.SCRAPING
+        default_step = Episode.Status.FETCHING_DETAILS
         for ep in episodes:
             ep.last_failed_step = self._get_last_failed_step(ep)
 

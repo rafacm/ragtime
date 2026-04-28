@@ -37,7 +37,7 @@ class RecoveryStrategy(ABC):
 
 
 class AgentStrategy(RecoveryStrategy):
-    """AI agent that uses Playwright to recover from scraping/downloading failures."""
+    """AI agent that uses Playwright to recover from fetch-details and downloading failures."""
 
     name = "agent"
 
@@ -45,7 +45,7 @@ class AgentStrategy(RecoveryStrategy):
         enabled = getattr(settings, "RAGTIME_RECOVERY_AGENT_ENABLED", False)
         if not enabled:
             return False
-        return event.step_name in ("scraping", "downloading")
+        return event.step_name in ("fetching_details", "downloading")
 
     def attempt(self, event: StepFailureEvent) -> RecoveryResult:
         try:
@@ -53,7 +53,7 @@ class AgentStrategy(RecoveryStrategy):
 
             result = run_recovery_agent(event)
             if result.success:
-                from .agents.resume import resume_pipeline
+                from .agents.recovery_resume import resume_pipeline
 
                 resumed = resume_pipeline(event, result)
                 if resumed:

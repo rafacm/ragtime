@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 from django.test import TestCase, override_settings
 
 from episodes.models import Episode
-from episodes.scraper import clean_html, scrape_episode
+from episodes.fetch_details_step import clean_html, fetch_episode_details
 
 
 class CleanHtmlTests(TestCase):
@@ -44,12 +44,11 @@ class CleanHtmlTests(TestCase):
 
 
 @override_settings(
-    RAGTIME_SCRAPING_PROVIDER="openai",
-    RAGTIME_SCRAPING_API_KEY="test-key",
-    RAGTIME_SCRAPING_MODEL="gpt-4.1-mini",
+    RAGTIME_FETCH_DETAILS_API_KEY="test-key",
+    RAGTIME_FETCH_DETAILS_MODEL="openai:gpt-4.1-mini",
 )
-class ScrapeEpisodeTests(TestCase):
-    """Tests for the scrape_episode task function with mocked HTTP and LLM."""
+class FetchEpisodeDetailsTests(TestCase):
+    """Tests for the fetch_episode_details task function with mocked HTTP and LLM."""
 
     SAMPLE_HTML = """
     <html>
@@ -87,8 +86,8 @@ class ScrapeEpisodeTests(TestCase):
         with patch("episodes.signals.DBOS"):
             return Episode.objects.create(**kwargs)
 
-    @patch("episodes.scraper.get_scraping_provider")
-    @patch("episodes.scraper.fetch_html")
+    @patch("episodes.fetch_details_step.get_scraping_provider")
+    @patch("episodes.fetch_details_step.fetch_html")
     def test_success_path(self, mock_fetch, mock_provider_factory):
         mock_fetch.return_value = self.SAMPLE_HTML
         mock_provider = MagicMock()
@@ -96,7 +95,7 @@ class ScrapeEpisodeTests(TestCase):
         mock_provider_factory.return_value = mock_provider
 
         episode = self._create_episode(url="https://example.com/ep/1")
-        scrape_episode(episode.pk)
+        fetch_episode_details(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
@@ -106,8 +105,8 @@ class ScrapeEpisodeTests(TestCase):
         self.assertEqual(episode.published_at, date(2026, 1, 15))
         self.assertNotEqual(episode.scraped_html, "")
 
-    @patch("episodes.scraper.get_scraping_provider")
-    @patch("episodes.scraper.fetch_html")
+    @patch("episodes.fetch_details_step.get_scraping_provider")
+    @patch("episodes.fetch_details_step.fetch_html")
     def test_incomplete_extraction_fails(self, mock_fetch, mock_provider_factory):
         mock_fetch.return_value = self.SAMPLE_HTML
         mock_provider = MagicMock()
@@ -115,7 +114,7 @@ class ScrapeEpisodeTests(TestCase):
         mock_provider_factory.return_value = mock_provider
 
         episode = self._create_episode(url="https://example.com/ep/2")
-        scrape_episode(episode.pk)
+        fetch_episode_details(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
@@ -123,17 +122,17 @@ class ScrapeEpisodeTests(TestCase):
         self.assertEqual(episode.audio_url, "")  # Was null in response
         self.assertIn("Incomplete metadata", episode.error_message)
 
-    @patch("episodes.scraper.fetch_html")
+    @patch("episodes.fetch_details_step.fetch_html")
     def test_http_error_sets_failed(self, mock_fetch):
         mock_fetch.side_effect = Exception("Connection refused")
 
         episode = self._create_episode(url="https://example.com/ep/3")
-        scrape_episode(episode.pk)
+        fetch_episode_details(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.FAILED)
 
-    @patch("episodes.scraper.get_scraping_provider")
+    @patch("episodes.fetch_details_step.get_scraping_provider")
     def test_reprocess_with_user_filled_fields(self, mock_provider_factory):
         """When user fills required fields and reprocesses, LLM is skipped."""
         episode = self._create_episode(
@@ -144,15 +143,15 @@ class ScrapeEpisodeTests(TestCase):
             status=Episode.Status.FAILED,
         )
 
-        scrape_episode(episode.pk)
+        fetch_episode_details(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
         # LLM should not have been called
         mock_provider_factory.assert_not_called()
 
-    @patch("episodes.scraper.get_scraping_provider")
-    @patch("episodes.scraper.fetch_html")
+    @patch("episodes.fetch_details_step.get_scraping_provider")
+    @patch("episodes.fetch_details_step.fetch_html")
     def test_uses_cached_html_on_reprocess(self, mock_fetch, mock_provider_factory):
         """When scraped_html is already stored, HTTP fetch is skipped."""
         mock_provider = MagicMock()
@@ -165,14 +164,14 @@ class ScrapeEpisodeTests(TestCase):
             status=Episode.Status.FAILED,
         )
 
-        scrape_episode(episode.pk)
+        fetch_episode_details(episode.pk)
 
         mock_fetch.assert_not_called()
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
 
-    @patch("episodes.scraper.get_scraping_provider")
-    @patch("episodes.scraper.fetch_html")
+    @patch("episodes.fetch_details_step.get_scraping_provider")
+    @patch("episodes.fetch_details_step.fetch_html")
     def test_success_sets_downloading_status(self, mock_fetch, mock_provider_factory):
         """LLM extraction path sets status to DOWNLOADING."""
         mock_fetch.return_value = self.SAMPLE_HTML
@@ -182,20 +181,20 @@ class ScrapeEpisodeTests(TestCase):
 
         episode = self._create_episode(url="https://example.com/ep/6")
 
-        scrape_episode(episode.pk)
+        fetch_episode_details(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
 
-    @patch("episodes.scraper.get_scraping_provider")
-    @patch("episodes.scraper.fetch_html")
+    @patch("episodes.fetch_details_step.get_scraping_provider")
+    @patch("episodes.fetch_details_step.fetch_html")
     def test_incomplete_metadata_does_not_overwrite_recovery_status(
         self, mock_fetch, mock_provider_factory
     ):
-        """When recovery changes the status during fail_step, the scraper must not overwrite it.
+        """When recovery changes status during fail_step, the step must not overwrite it.
 
-        Regression test: the scraper used to call fail_step() before episode.save(),
-        so synchronous recovery could set status=TRANSCRIBING, only for the scraper's
+        Regression test: the step used to call fail_step() before episode.save(),
+        so synchronous recovery could set status=TRANSCRIBING, only for the step's
         subsequent save() to overwrite it back to FAILED.
         """
         mock_fetch.return_value = self.SAMPLE_HTML
@@ -220,7 +219,7 @@ class ScrapeEpisodeTests(TestCase):
 
         step_failed.connect(fake_recovery)
         try:
-            scrape_episode(episode.pk)
+            fetch_episode_details(episode.pk)
         finally:
             step_failed.disconnect(fake_recovery)
 
@@ -228,9 +227,9 @@ class ScrapeEpisodeTests(TestCase):
         self.assertEqual(
             episode.status,
             Episode.Status.TRANSCRIBING,
-            "Scraper save() must not overwrite recovery status back to FAILED",
+            "fetch_details_step save() must not overwrite recovery status back to FAILED",
         )
 
     def test_nonexistent_episode(self):
         # Should not raise, just log error
-        scrape_episode(99999)
+        fetch_episode_details(99999)

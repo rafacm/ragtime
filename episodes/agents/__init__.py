@@ -1,9 +1,11 @@
-"""Agent recovery for pipeline failures.
+"""Pydantic AI agents used by the episodes pipeline.
 
-Uses Pydantic AI + Playwright to recover from scraping and downloading
-failures by browsing podcast pages to find audio URLs and download files.
+- ``recovery``-prefixed modules: transitional recovery agent (Playwright-driven
+  browser automation) that handles fetch-details and download failures.
+  Slated for deletion once ``fetch_details`` and ``download`` step-agents
+  absorb its capabilities.
 """
 
-from .agent import run_recovery_agent
+from .recovery import run_recovery_agent
 
 __all__ = ["run_recovery_agent"]

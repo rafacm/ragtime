@@ -162,10 +162,10 @@ STATICFILES_DIRS = [
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-# RAGtime provider configuration
-RAGTIME_SCRAPING_PROVIDER = os.getenv('RAGTIME_SCRAPING_PROVIDER', 'openai')
-RAGTIME_SCRAPING_API_KEY = os.getenv('RAGTIME_SCRAPING_API_KEY', '')
-RAGTIME_SCRAPING_MODEL = os.getenv('RAGTIME_SCRAPING_MODEL', 'gpt-4.1-mini')
+# Fetch Details step (Convention B: model string carries the provider prefix,
+# e.g. ``openai:gpt-4.1-mini``. No separate ``_PROVIDER`` env var.)
+RAGTIME_FETCH_DETAILS_API_KEY = os.getenv('RAGTIME_FETCH_DETAILS_API_KEY', '')
+RAGTIME_FETCH_DETAILS_MODEL = os.getenv('RAGTIME_FETCH_DETAILS_MODEL', 'openai:gpt-4.1-mini')
 
 # Audio processing
 RAGTIME_MAX_AUDIO_SIZE = 25 * 1024 * 1024  # 25MB — Whisper API limit

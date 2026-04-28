@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 ## Project
 
-RAGtime is a Django app for ingesting jazz podcast episodes — scraping metadata, transcribing audio, extracting jazz entities, and powering **Scott**, a strict RAG chatbot that answers questions only from ingested content. The project overview lives in `README.md`; detailed pipeline, Scott, and Langfuse documentation lives in `doc/README.md`.
+RAGtime is a Django app for ingesting jazz podcast episodes — fetching episode details, transcribing audio, extracting jazz entities, and powering **Scott**, a strict RAG chatbot that answers questions only from ingested content. The project overview lives in `README.md`; detailed pipeline, Scott, and Langfuse documentation lives in `doc/README.md`.
 
 ## Commands
 
@@ -39,7 +39,7 @@ Use `uv` for Python; `npm` (or compatible) for the `frontend/` workspace. Never 
 
 **Provider abstraction:** LLM, transcription, and embedding backends are pluggable via abstract base classes in `episodes/providers/base.py` with a factory in `episodes/providers/factory.py`. Configured through `RAGTIME_*` environment variables.
 
-**10-step pipeline** (steps defined in `episodes/models.py:PIPELINE_STEPS`, orchestrated by `episodes/workflows.py`): submit → scrape → download → transcribe → summarize → chunk → extract → resolve → embed → ready. There is also a transient `queued` state between submission and scraping that reflects "waiting for a worker slot in the `episode_pipeline` DBOS queue". Each step updates the episode status. Failures set status to `failed`. Runs as a DBOS durable workflow with PostgreSQL-backed checkpointing.
+**10-step pipeline** (steps defined in `episodes/models.py:PIPELINE_STEPS`, orchestrated by `episodes/workflows.py`): submit → fetch_details → download → transcribe → summarize → chunk → extract → resolve → embed → ready. There is also a transient `queued` state between submission and `fetching_details` that reflects "waiting for a worker slot in the `episode_pipeline` DBOS queue". Each step updates the episode status. Failures set status to `failed`. Runs as a DBOS durable workflow with PostgreSQL-backed checkpointing.
 
 **Pipeline parallelism**: episodes are processed concurrently up to `RAGTIME_EPISODE_CONCURRENCY` (default 4) via the `episode_pipeline` DBOS queue. Beyond that limit, episodes sit in the `queued` state until a worker frees a slot — there is no fixed ceiling. The DB-level partial unique constraint `unique_running_run_per_episode` (`ProcessingRun(episode_id) WHERE status='running'`) enforces "at most one active run per episode" so duplicate workflows can't cross-pollute step bookkeeping.
 

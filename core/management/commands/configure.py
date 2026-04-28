@@ -149,7 +149,12 @@ class Command(BaseCommand):
 
             # Apply shared provider/key to all subsystems, prompt per-model
             for subsystem in system["subsystems"]:
-                new_values[f"{subsystem['prefix']}_PROVIDER"] = shared_provider
+                field_suffixes = {f[0] for f in subsystem["fields"]}
+                # Convention B subsystems (e.g. RAGTIME_FETCH_DETAILS) encode
+                # the provider in the model string and don't define a PROVIDER
+                # field — skip writing one for them.
+                if "PROVIDER" in field_suffixes:
+                    new_values[f"{subsystem['prefix']}_PROVIDER"] = shared_provider
                 new_values[f"{subsystem['prefix']}_API_KEY"] = shared_api_key
 
                 # Prompt for model
