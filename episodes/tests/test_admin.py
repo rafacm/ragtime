@@ -365,7 +365,7 @@ class RecoveryAttemptAdminTests(TestCase):
 
 class RunAgentRecoveryTaskTests(TestCase):
     @patch("episodes.signals.DBOS")
-    @patch("episodes.agents.run_recovery_agent")
+    @patch("episodes.agents.recovery.run_recovery_agent")
     def test_success_creates_resolved_attempt_and_resumes(self, mock_agent, _):
         from episodes.agents.recovery_deps import RecoveryAgentResult
         from episodes.workflows import execute_agent_recovery
@@ -400,7 +400,7 @@ class RunAgentRecoveryTaskTests(TestCase):
         self.assertTrue(new_attempt.success)
 
     @patch("episodes.signals.DBOS")
-    @patch("episodes.agents.run_recovery_agent")
+    @patch("episodes.agents.recovery.run_recovery_agent")
     def test_failure_creates_awaiting_human_attempt(self, mock_agent, _):
         from episodes.agents.recovery_deps import RecoveryAgentResult
         from episodes.workflows import execute_agent_recovery
@@ -433,7 +433,7 @@ class RunAgentRecoveryTaskTests(TestCase):
         self.assertEqual(new_attempt.status, RecoveryAttempt.Status.AWAITING_HUMAN)
 
     @patch("episodes.signals.DBOS")
-    @patch("episodes.agents.run_recovery_agent", side_effect=RuntimeError("Crash"))
+    @patch("episodes.agents.recovery.run_recovery_agent", side_effect=RuntimeError("Crash"))
     def test_exception_creates_awaiting_human_attempt(self, _, __):
         from episodes.workflows import execute_agent_recovery
 

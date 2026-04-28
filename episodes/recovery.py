@@ -49,7 +49,7 @@ class AgentStrategy(RecoveryStrategy):
 
     def attempt(self, event: StepFailureEvent) -> RecoveryResult:
         try:
-            from .agents import run_recovery_agent
+            from .agents.recovery import run_recovery_agent
 
             result = run_recovery_agent(event)
             if result.success:

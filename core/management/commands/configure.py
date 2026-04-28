@@ -153,7 +153,8 @@ class Command(BaseCommand):
                 # Convention B subsystems (e.g. RAGTIME_FETCH_DETAILS) encode
                 # the provider in the model string and don't define a PROVIDER
                 # field — skip writing one for them.
-                if "PROVIDER" in field_suffixes:
+                conventionB = "PROVIDER" not in field_suffixes
+                if not conventionB:
                     new_values[f"{subsystem['prefix']}_PROVIDER"] = shared_provider
                 new_values[f"{subsystem['prefix']}_API_KEY"] = shared_api_key
 
@@ -162,6 +163,16 @@ class Command(BaseCommand):
                     if suffix == "MODEL":
                         env_key = f"{subsystem['prefix']}_{suffix}"
                         current = existing.get(env_key, default)
+                        # For Convention B subsystems, sync the model prefix
+                        # to the shared provider so picking ``anthropic`` here
+                        # doesn't leave a stale ``openai:`` prefix on the
+                        # model default. Idempotent across re-runs.
+                        if conventionB:
+                            if ":" in current:
+                                _, _, model_part = current.partition(":")
+                            else:
+                                model_part = current
+                            current = f"{shared_provider}:{model_part}"
                         new_values[env_key] = prompt_value(
                             f"{subsystem['label']} model", current, False
                         )

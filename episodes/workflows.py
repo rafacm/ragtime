@@ -210,7 +210,7 @@ def execute_agent_recovery(episode_id: int, pipeline_event_id: int) -> None:
     )
 
     try:
-        from .agents import run_recovery_agent
+        from .agents.recovery import run_recovery_agent
         from .agents.recovery_resume import resume_pipeline
 
         result = run_recovery_agent(event)
