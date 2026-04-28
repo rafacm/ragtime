@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-04-28
+
+### Changed
+
+- **BREAKING** — Rename pipeline step `Scrape` → `Fetch Details` and migrate it to a Pydantic AI agent. Status enum value `scraping` → `fetching_details` (data migration `0021_rename_scraping_to_fetching_details` rewrites every persisted literal in `Episode.status`, `ProcessingStep.step_name`, `PipelineEvent.step_name`, `ProcessingRun.resumed_from_step`). Files renamed: `episodes/scraper.py` → `episodes/fetch_details_step.py` (function `scrape_episode` → `fetch_episode_details`), `episodes/agents/{agent,browser,deps,tools,resume}.py` → `recovery_*.py` (recovery agent files marked transitional ahead of deletion in a future PR). New `episodes/agents/fetch_details.py` (Pydantic AI agent with `EpisodeDetails` output model, ISO-639-1 + date validators) and `episodes/agents/_model.py` (shared `build_model(model_string, api_key)` helper used by both fetch_details and the recovery agent). Step orchestrator delegates the LLM call to the agent via `asyncio.run`; preserves fast-path skip when required fields are pre-filled, empty-field-only merge, save-before-fail-step ordering. `get_scraping_provider` deleted from `episodes/providers/factory.py`. Convention B env vars: `RAGTIME_SCRAPING_PROVIDER` removed, `RAGTIME_SCRAPING_MODEL` → `RAGTIME_FETCH_DETAILS_MODEL=openai:gpt-4.1-mini` (provider encoded in model string prefix), `RAGTIME_SCRAPING_API_KEY` → `RAGTIME_FETCH_DETAILS_API_KEY`. Configure wizard skips writing `_PROVIDER` for Convention B subsystems while continuing to share the API key across the LLM group. README, AGENTS.md, doc/README.md updated. Excalidraw diagrams in `doc/architecture/` flagged for manual update — [plan](doc/plans/2026-04-28-fetch-details-agent.md), [feature](doc/features/2026-04-28-fetch-details-agent.md), [planning session](doc/sessions/2026-04-28-fetch-details-agent-planning-session.md), [implementation session](doc/sessions/2026-04-28-fetch-details-agent-implementation-session.md)
+
 ## 2026-04-27
 
 ### Changed

@@ -3,19 +3,19 @@
 Owns: status transitions, HTML fetch + clean, fast-path skip when required
 fields are pre-filled, empty-field-only merge of extracted metadata,
 completeness check, error handling. Delegates the LLM call to the
-``fetch_details`` Pydantic AI agent in ``episodes/agents/fetch_details.py``
-(introduced in commit 2 of this PR).
+``fetch_details`` Pydantic AI agent in ``episodes/agents/fetch_details.py``.
 """
 
+import asyncio
 import logging
 
 import httpx
 from bs4 import BeautifulSoup
 
+from .agents import fetch_details as fetch_details_agent
 from .models import Episode
-from .telemetry import trace_step
 from .processing import complete_step, fail_step, start_step
-from .providers.factory import get_scraping_provider
+from .telemetry import trace_step
 
 logger = logging.getLogger(__name__)
 
@@ -31,47 +31,6 @@ TAGS_TO_STRIP = [
 ]
 
 MAX_HTML_LENGTH = 30_000
-
-FETCH_DETAILS_SYSTEM_PROMPT = """\
-You are a metadata extractor for podcast episode web pages.
-Given the cleaned HTML of a podcast episode page, extract the following fields.
-
-Rules:
-- For URLs (image_url, audio_url): return absolute URLs. If the HTML contains \
-relative URLs, you cannot resolve them, so return them as-is.
-- For audio_url: look for links to .mp3 files in <audio>, <source>, or <a> tags. \
-Also check <meta> tags and embedded player markup.
-- For published_at: return in YYYY-MM-DD format.
-- For language: return an ISO 639-1 code (e.g. "en", "es", "de", "sv").
-- Check <meta> tags (og:title, og:description, og:image, etc.) first, \
-then fall back to page content.
-- Return null for any field you cannot confidently determine.
-"""
-
-FETCH_DETAILS_RESPONSE_SCHEMA = {
-    "name": "episode_metadata",
-    "strict": True,
-    "schema": {
-        "type": "object",
-        "properties": {
-            "title": {"type": ["string", "null"]},
-            "description": {"type": ["string", "null"]},
-            "published_at": {"type": ["string", "null"]},
-            "image_url": {"type": ["string", "null"]},
-            "language": {"type": ["string", "null"]},
-            "audio_url": {"type": ["string", "null"]},
-        },
-        "required": [
-            "title",
-            "description",
-            "published_at",
-            "image_url",
-            "language",
-            "audio_url",
-        ],
-        "additionalProperties": False,
-    },
-}
 
 # Step's "ready to advance" contract — independent of the agent's output
 # contract. The step refuses to leave FETCHING_DETAILS without these fields.
@@ -103,6 +62,16 @@ def _has_required_fields(episode: Episode) -> bool:
     return all(getattr(episode, f) for f in REQUIRED_FIELDS)
 
 
+def _run_agent_sync(html: str) -> fetch_details_agent.EpisodeDetails:
+    """Run the async fetch_details agent from sync DBOS step context.
+
+    DBOS step bodies are sync. ``asyncio.run`` is fine here — each step
+    body is its own short-lived call, and Pydantic AI's ``Agent.run``
+    creates HTTP clients lazily per call.
+    """
+    return asyncio.run(fetch_details_agent.run(html))
+
+
 @trace_step("fetch_episode_details")
 def fetch_episode_details(episode_id: int) -> None:
     try:
@@ -129,22 +98,17 @@ def fetch_episode_details(episode_id: int) -> None:
             episode.save(update_fields=["status", "updated_at"])
             return
 
-        # Extract metadata via LLM
-        provider = get_scraping_provider()
-        result = provider.structured_extract(
-            system_prompt=FETCH_DETAILS_SYSTEM_PROMPT,
-            user_content=episode.scraped_html,
-            response_schema=FETCH_DETAILS_RESPONSE_SCHEMA,
-        )
+        # Extract metadata via the fetch_details agent
+        details = _run_agent_sync(episode.scraped_html)
 
         # Apply extracted fields (only update empty fields)
         for field in ("title", "description", "image_url", "language", "audio_url"):
-            value = result.get(field)
+            value = getattr(details, field)
             if value and not getattr(episode, field):
                 setattr(episode, field, value)
 
-        if result.get("published_at") and not episode.published_at:
-            episode.published_at = result["published_at"]
+        if details.published_at and not episode.published_at:
+            episode.published_at = details.published_at
 
         # Check completeness
         update_fields = [
