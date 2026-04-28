@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
-from episodes.agents.deps import RecoveryAgentResult
-from episodes.agents.resume import resume_pipeline
+from episodes.agents.recovery_deps import RecoveryAgentResult
+from episodes.agents.recovery_resume import resume_pipeline
 
 from episodes.events import StepFailureEvent
 from episodes.models import Episode
@@ -18,7 +18,7 @@ def _make_failure_event(**overrides):
 
     defaults = {
         "episode_id": 1,
-        "step_name": "scraping",
+        "step_name": "fetching_details",
         "processing_run_id": 1,
         "processing_step_id": 1,
         "error_type": "http",
@@ -33,7 +33,7 @@ def _make_failure_event(**overrides):
     return StepFailureEvent(**defaults)
 
 
-class ResumePipelineScrapingTests(TestCase):
+class ResumePipelineFetchingDetailsTests(TestCase):
     @patch("episodes.signals.DBOS")
     def test_sets_audio_url_and_marks_episode_for_downloading(self, _):
         episode = Episode.objects.create(
@@ -41,7 +41,7 @@ class ResumePipelineScrapingTests(TestCase):
             status=Episode.Status.FAILED,
         )
         event = _make_failure_event(
-            episode_id=episode.pk, step_name="scraping"
+            episode_id=episode.pk, step_name="fetching_details"
         )
         result = RecoveryAgentResult(
             success=True,
@@ -57,9 +57,9 @@ class ResumePipelineScrapingTests(TestCase):
         self.assertEqual(episode.error_message, "")
 
     @patch("episodes.signals.DBOS")
-    @patch("episodes.agents.resume.MP3")
+    @patch("episodes.agents.recovery_resume.MP3")
     def test_skips_download_when_file_already_downloaded(self, mock_mp3, _):
-        """When scraping recovery also downloaded the file, skip to transcribing."""
+        """When fetch-details recovery also downloaded the file, skip to transcribing."""
         episode = Episode.objects.create(
             url="https://example.com/pod/skip-dl",
             status=Episode.Status.FAILED,
@@ -74,7 +74,7 @@ class ResumePipelineScrapingTests(TestCase):
             tmp.close()
 
             event = _make_failure_event(
-                episode_id=episode.pk, step_name="scraping"
+                episode_id=episode.pk, step_name="fetching_details"
             )
             result = RecoveryAgentResult(
                 success=True,
@@ -104,7 +104,7 @@ class ResumePipelineScrapingTests(TestCase):
 
 class ResumePipelineDownloadingTests(TestCase):
     @patch("episodes.signals.DBOS")
-    @patch("episodes.agents.resume.MP3")
+    @patch("episodes.agents.recovery_resume.MP3")
     def test_saves_file_and_marks_episode_for_transcribing(self, mock_mp3, _):
         episode = Episode.objects.create(
             url="https://example.com/pod/2",

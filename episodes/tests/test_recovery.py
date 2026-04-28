@@ -20,7 +20,7 @@ def _make_failure_event(**overrides):
 
     defaults = {
         "episode_id": 1,
-        "step_name": "scraping",
+        "step_name": "fetching_details",
         "processing_run_id": 1,
         "processing_step_id": 1,
         "error_type": "http",
@@ -39,13 +39,13 @@ class AgentStrategyTests(TestCase):
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=False)
     def test_disabled_by_default(self):
         strategy = AgentStrategy()
-        event = _make_failure_event(step_name="scraping")
+        event = _make_failure_event(step_name="fetching_details")
         self.assertFalse(strategy.can_handle(event))
 
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
-    def test_handles_scraping(self):
+    def test_handles_fetching_details(self):
         strategy = AgentStrategy()
-        event = _make_failure_event(step_name="scraping")
+        event = _make_failure_event(step_name="fetching_details")
         self.assertTrue(strategy.can_handle(event))
 
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
@@ -65,7 +65,7 @@ class AgentStrategyTests(TestCase):
     @patch("episodes.agents.run_recovery_agent")
     def test_agent_success_calls_resume(self, mock_agent):
         """Successful agent recovery calls resume_pipeline."""
-        from episodes.agents.deps import RecoveryAgentResult
+        from episodes.agents.recovery_deps import RecoveryAgentResult
 
         mock_agent.return_value = RecoveryAgentResult(
             success=True,
@@ -73,9 +73,9 @@ class AgentStrategyTests(TestCase):
             message="Found it",
         )
         strategy = AgentStrategy()
-        event = _make_failure_event(step_name="scraping")
+        event = _make_failure_event(step_name="fetching_details")
 
-        with patch("episodes.agents.resume.resume_pipeline") as mock_resume:
+        with patch("episodes.agents.recovery_resume.resume_pipeline") as mock_resume:
             result = strategy.attempt(event)
 
         self.assertTrue(result.success)
@@ -87,14 +87,14 @@ class AgentStrategyTests(TestCase):
     @patch("episodes.agents.run_recovery_agent")
     def test_agent_failure_escalates(self, mock_agent):
         """When the agent fails, it escalates to the next strategy."""
-        from episodes.agents.deps import RecoveryAgentResult
+        from episodes.agents.recovery_deps import RecoveryAgentResult
 
         mock_agent.return_value = RecoveryAgentResult(
             success=False,
             message="Could not find audio URL",
         )
         strategy = AgentStrategy()
-        event = _make_failure_event(step_name="scraping")
+        event = _make_failure_event(step_name="fetching_details")
         result = strategy.attempt(event)
 
         self.assertFalse(result.success)
@@ -106,7 +106,7 @@ class AgentStrategyTests(TestCase):
     def test_agent_exception_escalates(self, _mock_agent):
         """When the agent raises, it escalates with error message."""
         strategy = AgentStrategy()
-        event = _make_failure_event(step_name="scraping")
+        event = _make_failure_event(step_name="fetching_details")
         result = strategy.attempt(event)
 
         self.assertFalse(result.success)
@@ -123,7 +123,7 @@ class HumanEscalationStrategyTests(TestCase):
 
     def test_does_not_escalate(self):
         strategy = HumanEscalationStrategy()
-        event = _make_failure_event(step_name="scraping")
+        event = _make_failure_event(step_name="fetching_details")
         result = strategy.attempt(event)
         self.assertFalse(result.success)
         self.assertFalse(result.should_escalate)
@@ -152,13 +152,13 @@ class HandleStepFailureTests(TestCase):
         episode = Episode.objects.create(url="https://example.com/rec/1")
         run = ProcessingRun.objects.create(episode=episode)
         step = ProcessingStep.objects.create(
-            run=run, step_name="scraping", status=ProcessingStep.Status.FAILED
+            run=run, step_name="fetching_details", status=ProcessingStep.Status.FAILED
         )
         pipeline_event = PipelineEvent.objects.create(
             episode=episode,
             processing_step=step,
             event_type=PipelineEvent.EventType.FAILED,
-            step_name="scraping",
+            step_name="fetching_details",
             error_type="http",
             error_message="403 Forbidden",
         )
@@ -177,7 +177,7 @@ class HandleStepFailureTests(TestCase):
     @override_settings(RAGTIME_RECOVERY_AGENT_ENABLED=True)
     def test_agent_escalates_to_human(self, mock_agent, _):
         """When agent is enabled but fails, it escalates to human."""
-        from episodes.agents.deps import RecoveryAgentResult
+        from episodes.agents.recovery_deps import RecoveryAgentResult
 
         mock_agent.return_value = RecoveryAgentResult(
             success=False, message="Could not find audio"
@@ -186,13 +186,13 @@ class HandleStepFailureTests(TestCase):
         episode = Episode.objects.create(url="https://example.com/rec/2")
         run = ProcessingRun.objects.create(episode=episode)
         step = ProcessingStep.objects.create(
-            run=run, step_name="scraping", status=ProcessingStep.Status.FAILED
+            run=run, step_name="fetching_details", status=ProcessingStep.Status.FAILED
         )
         pipeline_event = PipelineEvent.objects.create(
             episode=episode,
             processing_step=step,
             event_type=PipelineEvent.EventType.FAILED,
-            step_name="scraping",
+            step_name="fetching_details",
             error_type="http",
             error_message="403 Forbidden",
         )
@@ -212,13 +212,13 @@ class HandleStepFailureTests(TestCase):
         episode = Episode.objects.create(url="https://example.com/rec/3")
         run = ProcessingRun.objects.create(episode=episode)
         step = ProcessingStep.objects.create(
-            run=run, step_name="scraping", status=ProcessingStep.Status.FAILED
+            run=run, step_name="fetching_details", status=ProcessingStep.Status.FAILED
         )
         pipeline_event = PipelineEvent.objects.create(
             episode=episode,
             processing_step=step,
             event_type=PipelineEvent.EventType.FAILED,
-            step_name="scraping",
+            step_name="fetching_details",
         )
 
         # Create 5 existing attempts (the max)
@@ -247,13 +247,13 @@ class IntegrationTests(TestCase):
         episode = Episode.objects.create(url="https://example.com/int/1")
         run = ProcessingRun.objects.create(episode=episode)
         ProcessingStep.objects.create(
-            run=run, step_name="scraping", status=ProcessingStep.Status.RUNNING
+            run=run, step_name="fetching_details", status=ProcessingStep.Status.RUNNING
         )
 
         from episodes.processing import fail_step
 
         exc = RuntimeError("scrape failed")
-        fail_step(episode, "scraping", str(exc), exc=exc)
+        fail_step(episode, "fetching_details", str(exc), exc=exc)
 
         # Should have a PipelineEvent and a RecoveryAttempt
         self.assertTrue(PipelineEvent.objects.filter(episode=episode).exists())

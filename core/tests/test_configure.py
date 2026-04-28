@@ -111,20 +111,20 @@ class WriteEnvTest(TestCase):
         self.assertEqual(values["NEW"], "value")
 
     def test_preserves_non_ragtime_lines(self):
-        original = ["DEBUG=true\n", "RAGTIME_SCRAPING_PROVIDER=openai\n"]
+        original = ["DEBUG=true\n", "RAGTIME_SUMMARIZATION_PROVIDER=openai\n"]
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".env", delete=False
         ) as f:
             path = f.name
         write_env(
             path,
-            {"DEBUG": "true", "RAGTIME_SCRAPING_PROVIDER": "anthropic"},
+            {"DEBUG": "true", "RAGTIME_SUMMARIZATION_PROVIDER": "anthropic"},
             original,
         )
         values, _ = read_env(path)
         os.unlink(path)
         self.assertEqual(values["DEBUG"], "true")
-        self.assertEqual(values["RAGTIME_SCRAPING_PROVIDER"], "anthropic")
+        self.assertEqual(values["RAGTIME_SUMMARIZATION_PROVIDER"], "anthropic")
 
 
 class MaskSecretTest(TestCase):
@@ -173,9 +173,8 @@ class ConfigureShowTest(TestCase):
 
     def test_show_with_existing_values(self):
         env_content = (
-            "RAGTIME_SCRAPING_PROVIDER=openai\n"
-            "RAGTIME_SCRAPING_API_KEY=sk-test1234567890\n"
-            "RAGTIME_SCRAPING_MODEL=gpt-4.1-mini\n"
+            "RAGTIME_FETCH_DETAILS_API_KEY=sk-test1234567890\n"
+            "RAGTIME_FETCH_DETAILS_MODEL=openai:gpt-4.1-mini\n"
         )
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".env", delete=False, dir="."
@@ -192,20 +191,18 @@ class ConfigureShowTest(TestCase):
                 ) as mock_read:
                     mock_read.return_value = (
                         {
-                            "RAGTIME_SCRAPING_PROVIDER": "openai",
-                            "RAGTIME_SCRAPING_API_KEY": "sk-test1234567890",
-                            "RAGTIME_SCRAPING_MODEL": "gpt-4.1-mini",
+                            "RAGTIME_FETCH_DETAILS_API_KEY": "sk-test1234567890",
+                            "RAGTIME_FETCH_DETAILS_MODEL": "openai:gpt-4.1-mini",
                         },
                         [],
                     )
                     call_command("configure", "--show", stdout=out)
 
             output = out.getvalue()
-            self.assertIn("RAGTIME_SCRAPING_PROVIDER=openai", output)
             # API key should be masked
             self.assertIn("***7890", output)
             self.assertNotIn("sk-test1234567890", output)
-            self.assertIn("RAGTIME_SCRAPING_MODEL=gpt-4.1-mini", output)
+            self.assertIn("RAGTIME_FETCH_DETAILS_MODEL=openai:gpt-4.1-mini", output)
         finally:
             env_path.unlink(missing_ok=True)
 
@@ -244,7 +241,7 @@ class ConfigureWizardTest(TestCase):
             "",               # DB port (keep default)
             "Y",              # Share provider/key? Yes
             "openai",         # Provider
-            "gpt-4.1-mini",  # Scraping model
+            "openai:gpt-4.1-mini",  # Fetch Details model (Convention B)
             "gpt-4.1-mini",  # Summarization model
             "gpt-4.1-mini",  # Extraction model
             "gpt-4.1-mini",  # Resolution model
@@ -302,11 +299,18 @@ class ConfigureWizardTest(TestCase):
                     call_args = mock_write.call_args
                     values = call_args[0][1]
 
+                    # Fetch Details follows Convention B — no _PROVIDER var
+                    self.assertNotIn("RAGTIME_FETCH_DETAILS_PROVIDER", values)
                     self.assertEqual(
-                        values["RAGTIME_SCRAPING_PROVIDER"], "openai"
+                        values["RAGTIME_FETCH_DETAILS_MODEL"],
+                        "openai:gpt-4.1-mini",
                     )
                     self.assertEqual(
-                        values["RAGTIME_SCRAPING_API_KEY"], "sk-newkey123"
+                        values["RAGTIME_FETCH_DETAILS_API_KEY"], "sk-newkey123"
+                    )
+                    # Other LLM subsystems still keep the old PROVIDER convention
+                    self.assertEqual(
+                        values["RAGTIME_SUMMARIZATION_PROVIDER"], "openai"
                     )
                     self.assertEqual(
                         values["RAGTIME_SUMMARIZATION_API_KEY"], "sk-newkey123"
@@ -371,7 +375,7 @@ class ConfigureWizardTest(TestCase):
             "",               # DB port (keep default)
             "Y",              # Share provider/key? Yes
             "openai",         # Provider
-            "gpt-4.1-mini",  # Scraping model
+            "openai:gpt-4.1-mini",  # Fetch Details model (Convention B)
             "gpt-4.1-mini",  # Summarization model
             "gpt-4.1-mini",  # Extraction model
             "gpt-4.1-mini",  # Resolution model
@@ -408,7 +412,7 @@ class ConfigureWizardTest(TestCase):
             "",               # Langfuse host (keep default)
         ]
 
-        original_lines = ["# My config\n", "DEBUG=true\n", "RAGTIME_SCRAPING_PROVIDER=openai\n"]
+        original_lines = ["# My config\n", "DEBUG=true\n", "RAGTIME_SUMMARIZATION_PROVIDER=openai\n"]
 
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".env", delete=False
@@ -423,7 +427,7 @@ class ConfigureWizardTest(TestCase):
                 mock_read.return_value = (
                     {
                         "DEBUG": "true",
-                        "RAGTIME_SCRAPING_PROVIDER": "openai",
+                        "RAGTIME_SUMMARIZATION_PROVIDER": "openai",
                     },
                     original_lines,
                 )
@@ -463,7 +467,7 @@ class ConfigureWizardTest(TestCase):
             "",               # DB port (keep default)
             "Y",              # Share provider/key? Yes
             "openai",         # Provider
-            "gpt-4.1-mini",
+            "openai:gpt-4.1-mini",  # Fetch Details (Convention B)
             "gpt-4.1-mini",
             "gpt-4.1-mini",
             "gpt-4.1-mini",

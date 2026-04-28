@@ -23,7 +23,7 @@ episode_queue = Queue(
 )
 
 STEP_FUNCTIONS = {
-    Episode.Status.SCRAPING: "episodes.scraper.scrape_episode",
+    Episode.Status.FETCHING_DETAILS: "episodes.fetch_details_step.fetch_episode_details",
     Episode.Status.DOWNLOADING: "episodes.downloader.download_episode",
     Episode.Status.TRANSCRIBING: "episodes.transcriber.transcribe_episode",
     Episode.Status.SUMMARIZING: "episodes.summarizer.summarize_episode",
@@ -211,7 +211,7 @@ def execute_agent_recovery(episode_id: int, pipeline_event_id: int) -> None:
 
     try:
         from .agents import run_recovery_agent
-        from .agents.resume import resume_pipeline
+        from .agents.recovery_resume import resume_pipeline
 
         result = run_recovery_agent(event)
         if result.success:

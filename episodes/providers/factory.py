@@ -4,19 +4,32 @@ from .base import EmbeddingProvider, LLMProvider, TranscriptionProvider
 
 
 def get_scraping_provider() -> LLMProvider:
-    provider_name = settings.RAGTIME_SCRAPING_PROVIDER
-    api_key = settings.RAGTIME_SCRAPING_API_KEY
-    model = settings.RAGTIME_SCRAPING_MODEL
+    """Provider factory for the Fetch Details step.
+
+    Transitional during the agent migration. Reads the new
+    ``RAGTIME_FETCH_DETAILS_*`` env vars (Convention B model string) and
+    splits the ``provider:model`` prefix back into the legacy
+    ``OpenAILLMProvider`` constructor. Slated for deletion in the
+    follow-up commit that replaces the call site with a Pydantic AI
+    agent.
+    """
+    api_key = settings.RAGTIME_FETCH_DETAILS_API_KEY
+    model_string = settings.RAGTIME_FETCH_DETAILS_MODEL
 
     if not api_key:
-        raise ValueError("RAGTIME_SCRAPING_API_KEY is not set")
+        raise ValueError("RAGTIME_FETCH_DETAILS_API_KEY is not set")
+
+    if ":" in model_string:
+        provider_name, _, model = model_string.partition(":")
+    else:
+        provider_name, model = "openai", model_string
 
     if provider_name == "openai":
         from .openai import OpenAILLMProvider
 
         return OpenAILLMProvider(api_key=api_key, model=model)
 
-    raise ValueError(f"Unknown scraping provider: {provider_name}")
+    raise ValueError(f"Unknown fetch_details provider: {provider_name}")
 
 
 def get_transcription_provider() -> TranscriptionProvider:

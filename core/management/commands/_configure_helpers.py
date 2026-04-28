@@ -23,16 +23,17 @@ SYSTEMS = [
     },
     {
         "name": "LLM",
-        "description": "Scraping, summarization, extraction, resolution, and translation",
+        "description": "Fetch Details, summarization, extraction, resolution, and translation",
         "shareable": True,
         "subsystems": [
             {
-                "prefix": "RAGTIME_SCRAPING",
-                "label": "Scraping",
+                "prefix": "RAGTIME_FETCH_DETAILS",
+                "label": "Fetch Details",
+                # Convention B: provider is encoded in the model string prefix,
+                # e.g. ``openai:gpt-4.1-mini``. No separate PROVIDER field.
                 "fields": [
-                    ("PROVIDER", "openai", False),
                     ("API_KEY", "", True),
-                    ("MODEL", "gpt-4.1-mini", False),
+                    ("MODEL", "openai:gpt-4.1-mini", False),
                 ],
             },
             {

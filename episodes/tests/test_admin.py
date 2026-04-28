@@ -68,7 +68,7 @@ class EpisodeAdminTests(TestCase):
                     "action": "reprocess",
                     "_selected_action": [episode.pk],
                     "episode_ids": [episode.pk],
-                    "from_step": Episode.Status.SCRAPING,
+                    "from_step": Episode.Status.FETCHING_DETAILS,
                 },
                 follow=True,
             )
@@ -76,7 +76,7 @@ class EpisodeAdminTests(TestCase):
             from episodes.workflows import process_episode
 
             mock_queue.enqueue.assert_called_once_with(
-                process_episode, episode.pk, Episode.Status.SCRAPING
+                process_episode, episode.pk, Episode.Status.FETCHING_DETAILS
             )
 
         # Reprocess sets status to QUEUED — the workflow's create_run_step
@@ -93,7 +93,7 @@ class EpisodeAdminTests(TestCase):
 
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-active",
-            status=Episode.Status.SCRAPING,
+            status=Episode.Status.FETCHING_DETAILS,
             title="Active Episode",
         )
         # An in-flight run.
@@ -108,7 +108,7 @@ class EpisodeAdminTests(TestCase):
                     "action": "reprocess",
                     "_selected_action": [episode.pk],
                     "episode_ids": [episode.pk],
-                    "from_step": Episode.Status.SCRAPING,
+                    "from_step": Episode.Status.FETCHING_DETAILS,
                 },
                 follow=True,
             )
@@ -118,7 +118,7 @@ class EpisodeAdminTests(TestCase):
         mock_queue.enqueue.assert_not_called()
         # Status was NOT overwritten — the in-flight run keeps its status.
         episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.SCRAPING)
+        self.assertEqual(episode.status, Episode.Status.FETCHING_DETAILS)
         # The user sees a warning naming the skipped episode.
         self.assertContains(response, "Active Episode")
 
@@ -143,11 +143,11 @@ class EpisodeAdminTests(TestCase):
         )
         run = ProcessingRun.objects.create(episode=episode, status=ProcessingRun.Status.FAILED)
         step = ProcessingStep.objects.create(
-            run=run, step_name="scraping", status=ProcessingStep.Status.FAILED
+            run=run, step_name="fetching_details", status=ProcessingStep.Status.FAILED
         )
         pe = PipelineEvent.objects.create(
             episode=episode, processing_step=step,
-            event_type=PipelineEvent.EventType.FAILED, step_name="scraping",
+            event_type=PipelineEvent.EventType.FAILED, step_name="fetching_details",
         )
         RecoveryAttempt.objects.create(
             episode=episode, pipeline_event=pe,
@@ -300,11 +300,11 @@ class RecoveryAttemptAdminTests(TestCase):
         episode = Episode.objects.create(url=episode_url, status=Episode.Status.FAILED)
         run = ProcessingRun.objects.create(episode=episode, status=ProcessingRun.Status.FAILED)
         step = ProcessingStep.objects.create(
-            run=run, step_name="scraping", status=ProcessingStep.Status.FAILED
+            run=run, step_name="fetching_details", status=ProcessingStep.Status.FAILED
         )
         pe = PipelineEvent.objects.create(
             episode=episode, processing_step=step,
-            event_type=PipelineEvent.EventType.FAILED, step_name="scraping",
+            event_type=PipelineEvent.EventType.FAILED, step_name="fetching_details",
             error_type="http", error_message="403 Forbidden", http_status=403,
             exception_class="httpx.HTTPStatusError",
         )
@@ -367,7 +367,7 @@ class RunAgentRecoveryTaskTests(TestCase):
     @patch("episodes.signals.DBOS")
     @patch("episodes.agents.run_recovery_agent")
     def test_success_creates_resolved_attempt_and_resumes(self, mock_agent, _):
-        from episodes.agents.deps import RecoveryAgentResult
+        from episodes.agents.recovery_deps import RecoveryAgentResult
         from episodes.workflows import execute_agent_recovery
 
         mock_agent.return_value = RecoveryAgentResult(
@@ -381,15 +381,15 @@ class RunAgentRecoveryTaskTests(TestCase):
         )
         run = ProcessingRun.objects.create(episode=episode, status=ProcessingRun.Status.FAILED)
         step = ProcessingStep.objects.create(
-            run=run, step_name="scraping", status=ProcessingStep.Status.FAILED
+            run=run, step_name="fetching_details", status=ProcessingStep.Status.FAILED
         )
         pe = PipelineEvent.objects.create(
             episode=episode, processing_step=step,
-            event_type=PipelineEvent.EventType.FAILED, step_name="scraping",
+            event_type=PipelineEvent.EventType.FAILED, step_name="fetching_details",
             error_type="http", error_message="403 Forbidden",
         )
 
-        with patch("episodes.agents.resume.resume_pipeline") as mock_resume:
+        with patch("episodes.agents.recovery_resume.resume_pipeline") as mock_resume:
             execute_agent_recovery(episode.pk, pe.pk)
 
         mock_resume.assert_called_once()
@@ -402,7 +402,7 @@ class RunAgentRecoveryTaskTests(TestCase):
     @patch("episodes.signals.DBOS")
     @patch("episodes.agents.run_recovery_agent")
     def test_failure_creates_awaiting_human_attempt(self, mock_agent, _):
-        from episodes.agents.deps import RecoveryAgentResult
+        from episodes.agents.recovery_deps import RecoveryAgentResult
         from episodes.workflows import execute_agent_recovery
 
         mock_agent.return_value = RecoveryAgentResult(
@@ -415,11 +415,11 @@ class RunAgentRecoveryTaskTests(TestCase):
         )
         run = ProcessingRun.objects.create(episode=episode, status=ProcessingRun.Status.FAILED)
         step = ProcessingStep.objects.create(
-            run=run, step_name="scraping", status=ProcessingStep.Status.FAILED
+            run=run, step_name="fetching_details", status=ProcessingStep.Status.FAILED
         )
         pe = PipelineEvent.objects.create(
             episode=episode, processing_step=step,
-            event_type=PipelineEvent.EventType.FAILED, step_name="scraping",
+            event_type=PipelineEvent.EventType.FAILED, step_name="fetching_details",
             error_type="http", error_message="403 Forbidden",
         )
 
@@ -442,11 +442,11 @@ class RunAgentRecoveryTaskTests(TestCase):
         )
         run = ProcessingRun.objects.create(episode=episode, status=ProcessingRun.Status.FAILED)
         step = ProcessingStep.objects.create(
-            run=run, step_name="scraping", status=ProcessingStep.Status.FAILED
+            run=run, step_name="fetching_details", status=ProcessingStep.Status.FAILED
         )
         pe = PipelineEvent.objects.create(
             episode=episode, processing_step=step,
-            event_type=PipelineEvent.EventType.FAILED, step_name="scraping",
+            event_type=PipelineEvent.EventType.FAILED, step_name="fetching_details",
             error_type="http", error_message="403 Forbidden",
         )
 

@@ -26,7 +26,7 @@ class EpisodeModelTests(TestCase):
         self.assertEqual(str(episode), "https://example.com/ep/1")
 
     def test_new_statuses_exist(self, mock_async):
-        self.assertEqual(Episode.Status.SCRAPING, "scraping")
+        self.assertEqual(Episode.Status.FETCHING_DETAILS, "fetching_details")
         self.assertEqual(Episode.Status.DOWNLOADING, "downloading")
 
     def test_metadata_fields_blank_by_default(self, mock_async):

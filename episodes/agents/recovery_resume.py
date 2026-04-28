@@ -16,7 +16,7 @@ from mutagen.mp3 import MP3
 
 from ..events import StepFailureEvent
 from ..models import Episode
-from .deps import RecoveryAgentResult
+from .recovery_deps import RecoveryAgentResult
 
 logger = logging.getLogger(__name__)
 
@@ -24,16 +24,16 @@ logger = logging.getLogger(__name__)
 def resume_pipeline(event: StepFailureEvent, result: RecoveryAgentResult) -> bool:
     """Resume the pipeline after a successful recovery.
 
-    For scraping recovery: sets the audio URL and resumes from downloading,
-    or from transcribing if the agent also downloaded the file.
+    For fetch-details recovery: sets the audio URL and resumes from
+    downloading, or from transcribing if the agent also downloaded the file.
     For download recovery: saves the file, extracts duration, resumes from transcribing.
 
     Returns True if the pipeline was actually resumed, False otherwise.
     """
     episode = Episode.objects.get(pk=event.episode_id)
 
-    if event.step_name == "scraping":
-        return _resume_from_scraping(episode, result)
+    if event.step_name == "fetching_details":
+        return _resume_from_fetching_details(episode, result)
     elif event.step_name == "downloading":
         return _resume_from_downloading(episode, result)
     else:
@@ -51,11 +51,11 @@ def _save_audio_file(episode: Episode, filepath: str) -> None:
     episode.duration = int(audio.info.length)
 
 
-def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult) -> bool:
+def _resume_from_fetching_details(episode: Episode, result: RecoveryAgentResult) -> bool:
     """Set audio URL and restart pipeline from downloading (or transcribing)."""
     if not result.audio_url:
         logger.error(
-            "Scraping recovery for episode %s returned empty audio_url", episode.pk
+            "Fetch-details recovery for episode %s returned empty audio_url", episode.pk
         )
         return False
 
@@ -77,7 +77,7 @@ def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult) -> bool
             )
 
             logger.info(
-                "Scraping recovery succeeded for episode %s — audio_url=%s, "
+                "Fetch-details recovery succeeded for episode %s — audio_url=%s, "
                 "file already downloaded, resuming from transcribing",
                 episode.pk,
                 result.audio_url,
@@ -101,7 +101,7 @@ def _resume_from_scraping(episode: Episode, result: RecoveryAgentResult) -> bool
     episode.save(update_fields=["audio_url", "status", "error_message", "updated_at"])
 
     logger.info(
-        "Scraping recovery succeeded for episode %s — audio_url=%s, resuming from downloading",
+        "Fetch-details recovery succeeded for episode %s — audio_url=%s, resuming from downloading",
         episode.pk,
         result.audio_url,
     )

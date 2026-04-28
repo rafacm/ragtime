@@ -1,4 +1,4 @@
-"""Pydantic AI agent for recovering from scraping and downloading failures."""
+"""Pydantic AI agent for recovering from fetch-details and downloading failures."""
 
 import asyncio
 import logging
@@ -10,9 +10,9 @@ from pydantic_ai.usage import UsageLimits
 
 from ..events import StepFailureEvent
 from ..models import Episode
-from . import tools
-from .browser import recovery_browser
-from .deps import RecoveryAgentResult, RecoveryDeps
+from . import recovery_tools as tools
+from .recovery_browser import recovery_browser
+from .recovery_deps import RecoveryAgentResult, RecoveryDeps
 
 logger = logging.getLogger(__name__)
 

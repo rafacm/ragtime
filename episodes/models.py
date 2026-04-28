@@ -6,7 +6,7 @@ class Episode(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending"
         QUEUED = "queued"
-        SCRAPING = "scraping"
+        FETCHING_DETAILS = "fetching_details"
         DOWNLOADING = "downloading"
         TRANSCRIBING = "transcribing"
         SUMMARIZING = "summarizing"
@@ -24,7 +24,7 @@ class Episode(models.Model):
         default=Status.PENDING,
     )
 
-    # Metadata fields (populated by scraper)
+    # Metadata fields (populated by fetch_details step)
     title = models.CharField(max_length=500, blank=True, default="")
     description = models.TextField(blank=True, default="")
     published_at = models.DateField(null=True, blank=True)
@@ -203,7 +203,7 @@ class Chunk(models.Model):
 
 
 PIPELINE_STEPS = [
-    Episode.Status.SCRAPING,
+    Episode.Status.FETCHING_DETAILS,
     Episode.Status.DOWNLOADING,
     Episode.Status.TRANSCRIBING,
     Episode.Status.SUMMARIZING,

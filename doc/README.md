@@ -17,7 +17,7 @@
 
 [![Processing Pipeline](architecture/ragtime-processing-pipeline.svg)](https://app.excalidraw.com/s/3Cob4pHK6Ge/3zFsvWxbOWQ)
 
-Each step is implemented by a dedicated function in the `episodes` package (e.g., [`scraper.scrape_episode`](../episodes/scraper.py), [`downloader.download_episode`](../episodes/downloader.py), [`transcriber.transcribe_episode`](../episodes/transcriber.py)) that updates the episode's `status` field when it completes. A [DBOS durable workflow](../episodes/workflows.py) sequences all steps with PostgreSQL-backed checkpointing — on crash or restart, the workflow resumes from the last completed step. A [`post_save` signal](../episodes/signals.py) starts the workflow when a new episode is created. Any failure sets `status` to `failed`, emits a structured `step_failed` signal, and triggers the [recovery layer](#recovery) which walks a configurable strategy chain (agent → human escalation).
+Each step is implemented by a dedicated function in the `episodes` package (e.g., [`fetch_details_step.fetch_episode_details`](../episodes/fetch_details_step.py), [`downloader.download_episode`](../episodes/downloader.py), [`transcriber.transcribe_episode`](../episodes/transcriber.py)) that updates the episode's `status` field when it completes. A [DBOS durable workflow](../episodes/workflows.py) sequences all steps with PostgreSQL-backed checkpointing — on crash or restart, the workflow resumes from the last completed step. A [`post_save` signal](../episodes/signals.py) starts the workflow when a new episode is created. Any failure sets `status` to `failed`, emits a structured `step_failed` signal, and triggers the [recovery layer](#recovery) which walks a configurable strategy chain (agent → human escalation).
 
 ### Steps
 
@@ -25,9 +25,16 @@ Each step is implemented by a dedicated function in the `episodes` package (e.g.
 
 User submits an episode page URL. Duplicate URLs are rejected.
 
-#### 2. 🕷️ Scrape (status: `scraping`)
+#### 2. 🕷️ Fetch Details (status: `fetching_details`)
 
-Extract metadata (title, description, date, image, audio URL) and detect language via LLM-based structured extraction. Episodes with missing required fields (title or audio URL) are marked `failed` and escalated to the recovery layer for human review.
+Extract metadata (title, description, date, image, audio URL) and detect language via a [Pydantic AI](https://ai.pydantic.dev/) agent ([`episodes/agents/fetch_details.py`](../episodes/agents/fetch_details.py)) calling the configured LLM with structured output. The step orchestrator ([`episodes/fetch_details_step.py`](../episodes/fetch_details_step.py)) owns HTML fetch + clean, the fast-path skip when required fields are pre-filled (admin reprocess after `needs_review`), the empty-field-only merge that never overwrites human-edited fields, and the completeness check. Episodes with missing required fields (title or audio URL) are marked `failed` and escalated to the recovery layer for human review.
+
+Configure via the wizard or `.env` — Convention B encodes the provider in the model string prefix:
+
+```
+RAGTIME_FETCH_DETAILS_API_KEY=sk-your-key
+RAGTIME_FETCH_DETAILS_MODEL=openai:gpt-4.1-mini    # or anthropic:claude-sonnet-4-20250514, etc.
+```
 
 #### 3. ⬇️ Download (status: `downloading`)
 
@@ -183,7 +190,7 @@ When any pipeline step fails, the [`step_failed` handler](../episodes/recovery.p
 
 [![Recovery Layer diagram](architecture/ragtime-recovery.svg)](https://app.excalidraw.com/s/3Cob4pHK6Ge/Az6udDWhj7T)
 
-1. **Agent (steps 2–3 only)** — a [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation navigates the podcast page, finds audio URLs behind JavaScript players or CloudFlare blocks, and downloads files through a real browser. The agent visits the episode page first to establish cookies and session state, then attempts the audio URL directly. When the episode language is known, the agent receives language context and can use a `translate_text` tool to translate UI labels (e.g. "Information", "Download") that may appear in the page's language. On success it resumes the pipeline from the next step automatically. When recovering from a scraping failure, if the agent both finds the audio URL and downloads the MP3 file (using browser cookies), it skips the download step entirely and resumes directly from transcribing — this avoids a redundant `wget` download that would fail without the browser's session cookies. Only applies to scraping and downloading failures. The agent takes a screenshot after every action for full observability.
+1. **Agent (steps 2–3 only)** — a [Pydantic AI](https://ai.pydantic.dev/) agent with [Playwright](https://playwright.dev/) browser automation navigates the podcast page, finds audio URLs behind JavaScript players or CloudFlare blocks, and downloads files through a real browser. The agent visits the episode page first to establish cookies and session state, then attempts the audio URL directly. When the episode language is known, the agent receives language context and can use a `translate_text` tool to translate UI labels (e.g. "Information", "Download") that may appear in the page's language. On success it resumes the pipeline from the next step automatically. When recovering from a fetch-details failure, if the agent both finds the audio URL and downloads the MP3 file (using browser cookies), it skips the download step entirely and resumes directly from transcribing — this avoids a redundant `wget` download that would fail without the browser's session cookies. Only applies to `fetching_details` and `downloading` failures. The agent takes a screenshot after every action for full observability.
 2. **Human escalation** — for all other failures, or when the agent fails or is disabled, the failure is marked `awaiting_human` for manual resolution in Django admin.
 
 The agent strategy is **off by default**. To enable it, install the Playwright browser and configure:
@@ -212,9 +219,9 @@ RAGTIME_TRANSLATION_API_KEY=sk-your-key
 RAGTIME_TRANSLATION_MODEL=gpt-4.1-mini
 ```
 
-The agent runs as a single [`agent.run()`](https://ai.pydantic.dev/agents/#running-agents) call. Pydantic AI automatically maintains the full conversation history (tool calls, results, LLM responses) across all iterations within that run — the agent sees what it has already tried and adapts its strategy accordingly. No external memory or state management is needed; each recovery attempt is self-contained. The [system prompt](../episodes/agents/agent.py) defines a multi-step strategy and the LLM reasons about which step to try next based on prior tool results within the same run.
+The agent runs as a single [`agent.run()`](https://ai.pydantic.dev/agents/#running-agents) call. Pydantic AI automatically maintains the full conversation history (tool calls, results, LLM responses) across all iterations within that run — the agent sees what it has already tried and adapts its strategy accordingly. No external memory or state management is needed; each recovery attempt is self-contained. The [system prompt](../episodes/agents/recovery.py) defines a multi-step strategy and the LLM reasons about which step to try next based on prior tool results within the same run.
 
-The chain order is configured in [`settings.py`](../ragtime/settings.py), and the maximum retry count (default: 5) is controlled by the `MAX_RECOVERY_ATTEMPTS` constant in [`episodes/recovery.py`](../episodes/recovery.py). The system prompt and tool registration are in [`episodes/agents/agent.py`](../episodes/agents/agent.py). The agent tools — `navigate_to_url`, `find_audio_links`, `click_element`, `download_file`, `translate_text`, `analyze_screenshot`, `click_at_coordinates`, `intercept_audio_requests`, and others — are defined in [`episodes/agents/tools.py`](../episodes/agents/tools.py).
+The chain order is configured in [`settings.py`](../ragtime/settings.py), and the maximum retry count (default: 5) is controlled by the `MAX_RECOVERY_ATTEMPTS` constant in [`episodes/recovery.py`](../episodes/recovery.py). The system prompt and tool registration are in [`episodes/agents/recovery.py`](../episodes/agents/recovery.py). The agent tools — `navigate_to_url`, `find_audio_links`, `click_element`, `download_file`, `translate_text`, `analyze_screenshot`, `click_at_coordinates`, `intercept_audio_requests`, and others — are defined in [`episodes/agents/recovery_tools.py`](../episodes/agents/recovery_tools.py).
 
 ## How Scott Works
 
@@ -279,7 +286,7 @@ RAGtime uses [OpenTelemetry](https://opentelemetry.io/) to trace pipeline steps 
 
 | Pipeline step | Function | LLM calls |
 |---|---|---|
-| Scrape | `scrape_episode` | Structured metadata extraction |
+| Fetch Details | `fetch_episode_details` | Structured metadata extraction |
 | Transcribe | `transcribe_episode` | Whisper API transcription |
 | Summarize | `summarize_episode` | Summary generation |
 | Extract | `extract_entities` | Per-chunk entity extraction |

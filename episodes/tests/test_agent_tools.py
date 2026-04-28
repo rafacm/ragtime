@@ -3,8 +3,8 @@
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from episodes.agents.deps import RecoveryDeps
-from episodes.agents.tools import (
+from episodes.agents.recovery_deps import RecoveryDeps
+from episodes.agents.recovery_tools import (
     analyze_screenshot,
     click_at_coordinates,
     click_element,
@@ -29,7 +29,7 @@ def _make_deps(**overrides):
         "episode_url": "https://example.com/episode/1",
         "audio_url": "",
         "language": "",
-        "step_name": "scraping",
+        "step_name": "fetching_details",
         "error_message": "403 Forbidden",
         "http_status": 403,
         "download_dir": "/tmp/test-downloads",
