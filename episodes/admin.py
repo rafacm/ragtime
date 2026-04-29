@@ -16,6 +16,19 @@ from .models import (
 )
 
 
+def _dbos_field(record, name, default=None):
+    """Read *name* from a DBOS record (TypedDict or attribute object).
+
+    DBOS's Python SDK returns ``list_workflows`` / ``list_workflow_steps``
+    rows as dicts (TypedDicts) — ``getattr`` silently fails on those.
+    Fall back to attribute access for forward compatibility in case a
+    future DBOS version switches to dataclasses.
+    """
+    if isinstance(record, dict):
+        return record.get(name, default)
+    return getattr(record, name, default)
+
+
 def _dbos_workflow_steps(episode_id: int) -> list[dict]:
     """Return DBOS step records for the most recent run of *episode_id*.
 
@@ -38,17 +51,17 @@ def _dbos_workflow_steps(episode_id: int) -> list[dict]:
     prefix = f"episode-{episode_id}-"
     candidates = [
         wf for wf in workflows
-        if getattr(wf, "workflow_id", "").startswith(prefix)
+        if (_dbos_field(wf, "workflow_id", "") or "").startswith(prefix)
     ]
     if not candidates:
         return []
 
     candidates.sort(
-        key=lambda wf: getattr(wf, "created_at", 0) or 0,
+        key=lambda wf: _dbos_field(wf, "created_at", 0) or 0,
         reverse=True,
     )
     workflow = candidates[0]
-    workflow_id = getattr(workflow, "workflow_id", "")
+    workflow_id = _dbos_field(workflow, "workflow_id", "")
 
     try:
         steps = DBOS.list_workflow_steps(workflow_id) or []
@@ -58,10 +71,10 @@ def _dbos_workflow_steps(episode_id: int) -> list[dict]:
     rows = []
     for step in steps:
         rows.append({
-            "function_name": getattr(step, "function_name", ""),
-            "step_id": getattr(step, "function_id", None),
-            "output": getattr(step, "output", None),
-            "error": getattr(step, "error", None),
+            "function_name": _dbos_field(step, "function_name", ""),
+            "step_id": _dbos_field(step, "function_id", None),
+            "output": _dbos_field(step, "output", None),
+            "error": _dbos_field(step, "error", None),
         })
     return rows
 

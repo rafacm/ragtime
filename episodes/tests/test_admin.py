@@ -62,6 +62,63 @@ class EpisodeAdminTests(TestCase):
         self.assertContains(response, "DownloadFailed")
 
     @patch("episodes.signals.DBOS")
+    @patch("dbos.DBOS")
+    def test_dbos_workflow_steps_handles_dict_records(self, mock_dbos, _signals):
+        """``DBOS.list_workflows`` / ``list_workflow_steps`` return TypedDicts.
+
+        Regression: an earlier version used ``getattr(record, ...)`` which
+        silently returned the default for dicts, so the prefix filter never
+        matched and the helper returned [] even when the workflow existed.
+        """
+        from episodes.admin import _dbos_workflow_steps
+
+        episode = Episode.objects.create(url="https://example.com/ep/admin-dbos-3")
+
+        mock_dbos.list_workflows.return_value = [
+            {
+                "workflow_id": f"episode-{episode.pk}-run-1",
+                "created_at": 1_700_000_000_000,
+                "status": "ERROR",
+            },
+            {  # Older deterministic-ID run for the same episode — shouldn't be picked.
+                "workflow_id": f"episode-{episode.pk}-run-0",
+                "created_at": 1_600_000_000_000,
+                "status": "SUCCESS",
+            },
+            {  # Different episode — must be filtered out.
+                "workflow_id": "episode-999-run-1",
+                "created_at": 1_800_000_000_000,
+                "status": "SUCCESS",
+            },
+        ]
+        mock_dbos.list_workflow_steps.return_value = [
+            {
+                "function_id": 1,
+                "function_name": "_bootstrap_status",
+                "output": "ok",
+                "error": None,
+            },
+            {
+                "function_id": 2,
+                "function_name": "download_step",
+                "output": None,
+                "error": "DownloadStepFailed: …",
+            },
+        ]
+
+        rows = _dbos_workflow_steps(episode.pk)
+
+        # Most-recent matching workflow chosen, steps unwrapped from dicts.
+        mock_dbos.list_workflow_steps.assert_called_once_with(
+            f"episode-{episode.pk}-run-1"
+        )
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["function_name"], "_bootstrap_status")
+        self.assertEqual(rows[0]["step_id"], 1)
+        self.assertEqual(rows[1]["function_name"], "download_step")
+        self.assertIn("DownloadStepFailed", rows[1]["error"])
+
+    @patch("episodes.signals.DBOS")
     def test_reprocess_action_shows_intermediate_page(self, mock_async):
         episode = Episode.objects.create(
             url="https://example.com/ep/admin-2",
