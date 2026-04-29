@@ -178,10 +178,18 @@ def download_episode(episode_id: int) -> None:
                 _cleanup(tmp_path)
                 tmp_path = ""
 
-            if agent_result.audio_url and not episode.audio_url:
+            # Save the agent-discovered URL whenever it differs from the
+            # currently-stored one — including overwriting a stale URL that
+            # wget couldn't fetch. Without this, the next reprocess would
+            # retry the bad URL and waste a wget hop before the agent runs.
+            agent_audio_url_changed = bool(
+                agent_result.audio_url
+                and agent_result.audio_url != episode.audio_url
+            )
+            if agent_audio_url_changed:
                 episode.audio_url = agent_result.audio_url
 
-            _complete(episode, agent_audio_url=bool(agent_result.audio_url))
+            _complete(episode, agent_audio_url=agent_audio_url_changed)
             logger.info(
                 "Downloaded episode %s via agent (source=%s, %d bytes)",
                 episode_id,

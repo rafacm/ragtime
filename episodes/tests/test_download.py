@@ -145,6 +145,9 @@ class DownloadEpisodeTests(TestCase):
             self.assertEqual(episode.status, Episode.Status.TRANSCRIBING)
             self.assertTrue(episode.audio_file)
             self.assertEqual(episode.duration, 1234)
+            # Stale URL was overwritten with the agent-discovered enclosure
+            # so a future reprocess won't waste a wget hop on the bad URL.
+            self.assertEqual(episode.audio_url, "https://cdn.example/ep4.mp3")
         finally:
             # _save_audio moved the file out of agent_file; cleanup is a
             # best-effort no-op once the orchestrator has attached it.
