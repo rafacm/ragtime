@@ -61,6 +61,35 @@ class EpisodeAdminTests(TestCase):
         self.assertContains(response, "download_step")
         self.assertContains(response, "DownloadFailed")
 
+    def test_decode_dbos_payload_unpickles_step_output(self):
+        """Pickled+b64-encoded payloads (DBOS wire format) are rendered as str()."""
+        import base64
+        import pickle
+
+        from episodes.admin import _decode_dbos_payload
+        from episodes.workflows import DownloadStepFailed, StepOutput
+
+        out = StepOutput(episode_id=2, step_name="fetching_details")
+        encoded = base64.b64encode(pickle.dumps(out)).decode("ascii")
+        self.assertEqual(_decode_dbos_payload(encoded), str(out))
+
+        # And for errors.
+        err = DownloadStepFailed(episode_id=2, error_message="boom")
+        encoded = base64.b64encode(pickle.dumps(err)).decode("ascii")
+        decoded = _decode_dbos_payload(encoded)
+        self.assertIn("downloading failed for episode 2", decoded)
+        self.assertIn("boom", decoded)
+
+    def test_decode_dbos_payload_passthrough_for_plain_values(self):
+        from episodes.admin import _decode_dbos_payload
+
+        self.assertIsNone(_decode_dbos_payload(None))
+        self.assertEqual(_decode_dbos_payload(""), "")
+        # Already-readable string — left alone.
+        self.assertEqual(_decode_dbos_payload("hello"), "hello")
+        # Looks pickle-ish but not valid b64/pickle — fall back to raw.
+        self.assertEqual(_decode_dbos_payload("gASnotpickle"), "gASnotpickle")
+
     @patch("episodes.signals.DBOS")
     @patch("dbos.DBOS")
     def test_dbos_workflow_steps_handles_dict_records(self, mock_dbos, _signals):
