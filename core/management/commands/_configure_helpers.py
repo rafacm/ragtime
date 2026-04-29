@@ -228,15 +228,15 @@ SYSTEMS = [
         ],
     },
     {
-        "name": "Podcast Indexes",
-        "description": "Optional fallback sources for the download agent (fyyd, podcastindex)",
+        "name": "Podcast Aggregators",
+        "description": "Optional fallback sources for the download agent (apple_podcasts, fyyd, podcastindex)",
         "shareable": False,
         "subsystems": [
             {
                 "prefix": "RAGTIME",
-                "label": "Indexes (comma-separated, e.g. podcastindex,fyyd)",
+                "label": "Aggregators (comma-separated, e.g. apple_podcasts,fyyd)",
                 "fields": [
-                    ("PODCAST_INDEXES", "", False),
+                    ("PODCAST_AGGREGATORS", "", False),
                     ("FYYD_API_KEY", "", True),
                     ("PODCASTINDEX_API_KEY", "", True),
                     ("PODCASTINDEX_API_SECRET", "", True),

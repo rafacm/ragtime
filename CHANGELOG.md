@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-04-29
+
+### Added
+
+- **BREAKING** — Fetch Details investigator agent with cross-linking tools, outcome taxonomy, and per-run history. The Fetch Details step is now a Pydantic AI agent loop with three keyless tools — `fetch_url` (httpx + BeautifulSoup), `search_apple_podcasts` (iTunes Search API), `search_fyyd` (fyyd.de) — that classify the submitted URL as canonical / aggregator / unknown and cross-link between publisher canonical pages and aggregator entries when extraction is incomplete. The agent emits a wrapped `FetchDetailsOutput { details, report, concise }`: `details` covers all episode-level facts including new `audio_format`, `country`, `canonical_url`, `source_kind`, `aggregator_provider`; `report` carries `attempted_sources`, discovery / cross-link booleans, `extraction_confidence`, free-text `narrative`, and `hints_for_next_step`; `concise` carries the 5-value `outcome` enum (`ok | partial | not_a_podcast_episode | unreachable | extraction_failed`) and a ≤140-char summary. New `FetchDetailsRun` table persists every run's full structured output, auto-captured tool-call trace, Pydantic AI usage dict, and DBOS workflow ID — `run_index` increments per episode on re-run. `Episode` gains `canonical_url`, `source_kind` (TextChoices), `aggregator_provider`, `audio_format`, `country`; `scraped_html` is dropped (HTML now lives per-tool-call on the run rows). Single migration `0024_fetch_details_cross_linking`. New `EpisodeAdmin` "Source" fieldset + latest-run summary block + inline runs table; new `FetchDetailsRunAdmin` with collapsible Concise / Report / Details / Tool calls / Raw payloads sections — [plan](doc/plans/2026-04-29-fetch-details-cross-linking.md), [feature](doc/features/2026-04-29-fetch-details-cross-linking.md), [planning session](doc/sessions/2026-04-29-fetch-details-cross-linking-planning-session.md), [implementation session](doc/sessions/2026-04-29-fetch-details-cross-linking-implementation-session.md)
+
+### Changed
+
+- **BREAKING** — Renamed `episodes/podcast_indexes/` → `episodes/podcast_aggregators/` with `PodcastIndex` ABC → `PodcastAggregator`. New `ItunesAggregator` (Apple Podcasts via the keyless iTunes Search API) joins fyyd and podcastindex.org. Env var `RAGTIME_PODCAST_INDEXES` → `RAGTIME_PODCAST_AGGREGATORS`; `apple_podcasts` (alias `itunes`) joins `fyyd` and `podcastindex` as recognized providers. The Download agent's `lookup_podcast_index` tool now consults the renamed package. `.env.sample` and `core/management/commands/configure.py` updated. Pre-prod, no fallback. `EpisodeCandidate.source_index` field name preserved to minimize churn.
+- **BREAKING** — Fetch Details orchestrator rewritten. Agent output is authoritative — Episode columns are overwritten directly, no more empty-field-only merge or fast-path skip. The 30 KB HTML fetch + clean now lives inside the `fetch_url` tool rather than the orchestrator. The 5-outcome enum on `FetchDetailsRun` discriminates failure modes; only `Episode.Status.FAILED` is reused — no new Status values. `processing.py` shim calls dropped from the new step (module untouched — other steps still use it). The `@DBOS.step()` wrapper reads `DBOS.workflow_id` and passes it into the orchestrator so the agent module stays DBOS-import-free; `_raise_if_failed` typed-exception pattern preserved.
+- `README.md` and `doc/README.md` updated: pipeline-summary cell for Fetch Details rewritten, Fetch Details section in `doc/README.md` rewritten with the agent / tools / output schema / outcome table, podcast-aggregators section renamed.
+
+### Removed
+
+- **BREAKING** — Dropped `Episode.scraped_html`. Per-tool-call HTML excerpts (capped ~5 KB) now live in `FetchDetailsRun.tool_calls_json`.
+
 ## 2026-04-28
 
 ### Added

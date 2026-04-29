@@ -26,18 +26,35 @@ User submits an episode page URL. Duplicate URLs are rejected.
 
 #### 2. 🕷️ Fetch Details (status: `fetching_details`)
 
-Extract episode metadata via a [Pydantic AI](https://ai.pydantic.dev/) agent ([`episodes/agents/fetch_details.py`](../episodes/agents/fetch_details.py)) calling the configured LLM with structured output.
+A [Pydantic AI](https://ai.pydantic.dev/) **investigator agent** ([`episodes/agents/fetch_details.py`](../episodes/agents/fetch_details.py)) classifies the submitted URL (canonical publisher page vs aggregator page) and cross-links between them when extraction from the submitted URL alone is incomplete. The agent decides — within a single `agent.run()` loop — when to fetch additional URLs, when to query Apple Podcasts / fyyd, and what to commit to.
 
-The agent's `EpisodeDetails` schema covers `title`, `description`, `published_at` (ISO date), `image_url`, `language` (ISO 639-1), `audio_url`, and `guid` (RSS-feed-style identifier — `urn:` URIs, `itunes:episodeGuid`, `<guid>` tags, `data-guid` attributes; used as a hint by the Download step's `lookup_podcast_index` tool). Pydantic validators normalise dates and reject non-ISO-639-1 language codes.
+Three keyless tools live in [`episodes/agents/fetch_details_tools.py`](../episodes/agents/fetch_details_tools.py):
 
-The step orchestrator ([`episodes/fetch_details_step.py`](../episodes/fetch_details_step.py)) owns:
+- `fetch_url(url)` — `httpx` + `BeautifulSoup`, returns cleaned HTML capped at 30 KB.
+- `search_apple_podcasts(show, episode_title)` — iTunes Search API, keyless.
+- `search_fyyd(show, episode_title)` — fyyd.de, keyless.
 
-- HTML fetch + clean (strips `<script>`/`<style>`/`<nav>`/`<footer>`/etc., truncates to 30 000 chars).
-- A fast-path skip when required fields are already populated — used when an admin reprocesses an episode after editing metadata in the change form.
-- An empty-field-only merge that never overwrites human-edited fields.
-- A completeness check against `REQUIRED_FIELDS = ("title",)`. `audio_url` is intentionally **not** required: the Download step (step 3) owns audio-URL discovery for cases where the page didn't expose one.
+The agent emits a wrapped `FetchDetailsOutput { details, report, concise }`:
 
-Episodes that fail to extract even a title are marked `failed`; the admin can edit metadata and reprocess.
+- `details` — episode-level facts: `title`, `description`, `published_at`, `image_url`, `audio_url`, `audio_format` (closed `Literal`), `language` (ISO 639-1), `country` (ISO 3166-1 alpha-2), `guid`, `canonical_url`, `source_kind` (`canonical | aggregator | unknown`), `aggregator_provider`.
+- `report` — structured trace: `attempted_sources`, `discovered_canonical_url`, `discovered_audio_url`, `cross_linked`, `extraction_confidence` (`high | medium | low`), `narrative` (2–4 sentences), `hints_for_next_step` (carried into the Download step).
+- `concise` — `outcome` (5-value enum) + `summary` (≤140 chars).
+
+Five outcomes drive the step's status transitions:
+
+| outcome | `Episode.Status` | Meaning |
+|---|---|---|
+| `ok` | `DOWNLOADING` | required fields filled, `audio_url` known, confidence high |
+| `partial` | `DOWNLOADING` | required fields filled, `audio_url` missing or low confidence (report fed forward to download) |
+| `not_a_podcast_episode` | `FAILED` | terminal — page is a homepage / article / non-episode |
+| `unreachable` | `FAILED` | network or HTTP fetch failed |
+| `extraction_failed` | `FAILED` | page loaded, plausibly an episode, but title couldn't be extracted |
+
+Discrimination among the three terminal outcomes happens on `FetchDetailsRun.outcome` — only one `Episode.Status.FAILED` value is used.
+
+Every run persists a `FetchDetailsRun` row carrying the structured output, the auto-captured tool-call trace (input / output excerpts / `ok` flag), the Pydantic AI usage dict, and the DBOS workflow ID. `Episode` columns are overwritten directly by the agent's authoritative output (no empty-field-only merge); a re-run via the admin `reprocess` action increments `run_index` and overwrites again.
+
+The step orchestrator ([`episodes/fetch_details_step.py`](../episodes/fetch_details_step.py)) is DBOS-agnostic: the `@DBOS.step()` wrapper in `episodes/workflows.py` reads `DBOS.workflow_id` and passes it in. The orchestrator records it onto `FetchDetailsRun.dbos_workflow_id` for cross-reference forensics.
 
 Configure via the wizard or `.env` — Convention B encodes the provider in the model string prefix:
 
@@ -80,19 +97,22 @@ RAGTIME_TRANSLATION_API_KEY=sk-your-key
 RAGTIME_TRANSLATION_MODEL=gpt-4.1-mini
 ```
 
-##### Configuring podcast indexes
+##### Configuring podcast aggregators
 
-`RAGTIME_PODCAST_INDEXES` is an ordered, comma-separated list of providers. Empty disables index lookup entirely (the agent falls back to browsing). Supported names:
+`RAGTIME_PODCAST_AGGREGATORS` is an ordered, comma-separated list of providers used by the download agent's `lookup_podcast_index` tool. Empty disables aggregator lookup entirely (the agent falls back to browsing). Supported names:
 
+- `apple_podcasts` (alias `itunes`) — iTunes Search API, keyless.
 - `fyyd` — fyyd.de's read API is open. `RAGTIME_FYYD_API_KEY` is optional and only raises rate limits.
 - `podcastindex` — podcastindex.org. Requires `RAGTIME_PODCASTINDEX_API_KEY` and `RAGTIME_PODCASTINDEX_API_SECRET`. Tries GUID lookup first when one is available (extracted by fetch-details), falls back to title + show search.
 
 Example:
 ```
-RAGTIME_PODCAST_INDEXES=podcastindex,fyyd
+RAGTIME_PODCAST_AGGREGATORS=apple_podcasts,fyyd
 RAGTIME_PODCASTINDEX_API_KEY=…
 RAGTIME_PODCASTINDEX_API_SECRET=…
 ```
+
+Independently, the Fetch Details agent always has access to keyless `search_apple_podcasts` and `search_fyyd` tools for cross-linking — these are not gated on `RAGTIME_PODCAST_AGGREGATORS`.
 
 #### 4. 🎙️ Transcribe (status: `transcribing`)
 

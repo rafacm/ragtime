@@ -1,48 +1,71 @@
+"""Tests for the ``fetch_details_step`` orchestrator.
+
+The orchestrator persists a ``FetchDetailsRun`` per execution, applies
+the agent's authoritative output to the Episode row, and maps the
+agent's ``concise.outcome`` onto pipeline status. We exercise each of
+the five outcome paths plus the agent-crash path.
+"""
+
 from datetime import date
 from unittest.mock import patch
 
 from django.test import TestCase, override_settings
-from pydantic_ai.models.test import TestModel
 
-from episodes.agents.fetch_details import EpisodeDetails, get_agent
-from episodes.fetch_details_step import clean_html, fetch_episode_details
-from episodes.models import Episode
+from episodes.agents.fetch_details import (
+    ConciseMessage,
+    EpisodeDetails,
+    FetchDetailsOutput,
+    FetchDetailsReport,
+    get_agent,
+)
+from episodes.agents.fetch_details_deps import FetchDetailsDeps
+from episodes.fetch_details_step import fetch_episode_details
+from episodes.models import Episode, FetchDetailsRun
 
 
-class CleanHtmlTests(TestCase):
-    def test_strips_script_tags(self):
-        html = "<html><body><script>alert('x')</script><p>Hello</p></body></html>"
-        result = clean_html(html)
-        self.assertNotIn("script", result)
-        self.assertIn("Hello", result)
-
-    def test_strips_style_tags(self):
-        html = "<html><body><style>body{color:red}</style><p>Hello</p></body></html>"
-        result = clean_html(html)
-        self.assertNotIn("style", result)
-        self.assertIn("Hello", result)
-
-    def test_strips_nav_and_footer(self):
-        html = "<html><body><nav>Menu</nav><p>Content</p><footer>Foot</footer></body></html>"
-        result = clean_html(html)
-        self.assertNotIn("Menu", result)
-        self.assertNotIn("Foot", result)
-        self.assertIn("Content", result)
-
-    def test_preserves_meta_tags(self):
-        html = '<html><head><meta property="og:title" content="Ep 1"></head><body></body></html>'
-        result = clean_html(html)
-        self.assertIn("og:title", result)
-
-    def test_preserves_audio_tags(self):
-        html = '<html><body><audio><source src="episode.mp3"></audio></body></html>'
-        result = clean_html(html)
-        self.assertIn("episode.mp3", result)
-
-    def test_truncates_long_html(self):
-        html = "<p>" + "x" * 40_000 + "</p>"
-        result = clean_html(html)
-        self.assertLessEqual(len(result), 30_000)
+def _output(
+    *,
+    outcome: str = "ok",
+    summary: str = "Canonical page extracted cleanly.",
+    title: str | None = "Jazz Episode 1",
+    audio_url: str | None = "https://example.com/ep1.mp3",
+    audio_format: str | None = "mp3",
+    canonical_url: str | None = "https://example.com/ep/1",
+    source_kind: str = "canonical",
+    aggregator_provider: str | None = None,
+    language: str | None = "en",
+    country: str | None = "us",
+    published_at: date | None = date(2026, 1, 15),
+    confidence: str = "high",
+    cross_linked: bool = False,
+) -> FetchDetailsOutput:
+    """Build a deterministic ``FetchDetailsOutput`` for a target outcome."""
+    return FetchDetailsOutput(
+        details=EpisodeDetails(
+            title=title,
+            description="A great episode about jazz.",
+            published_at=published_at,
+            image_url="https://example.com/image.jpg",
+            audio_url=audio_url,
+            audio_format=audio_format,
+            language=language,
+            country=country,
+            guid="urn:example:abc",
+            canonical_url=canonical_url,
+            source_kind=source_kind,
+            aggregator_provider=aggregator_provider,
+        ),
+        report=FetchDetailsReport(
+            attempted_sources=[],
+            discovered_canonical_url=bool(canonical_url),
+            discovered_audio_url=bool(audio_url),
+            cross_linked=cross_linked,
+            extraction_confidence=confidence,
+            narrative="…",
+            hints_for_next_step="",
+        ),
+        concise=ConciseMessage(outcome=outcome, summary=summary),
+    )
 
 
 @override_settings(
@@ -50,203 +73,175 @@ class CleanHtmlTests(TestCase):
     RAGTIME_FETCH_DETAILS_MODEL="openai:gpt-4.1-mini",
 )
 class FetchEpisodeDetailsTests(TestCase):
-    """Tests for ``fetch_episode_details`` with the agent's model overridden.
-
-    Uses ``Agent.override(model=TestModel())`` from Pydantic AI's testing
-    utilities — ``TestModel`` returns a deterministic structured payload
-    matching the agent's ``output_type`` schema, so we exercise the full
-    code path (validators, step orchestrator, save logic) without an LLM.
-    """
-
-    SAMPLE_HTML = """
-    <html>
-    <head>
-        <meta property="og:title" content="Jazz Episode 1">
-    </head>
-    <body>
-        <h1>Jazz Episode 1</h1>
-        <p>A great episode about jazz.</p>
-        <audio><source src="https://example.com/ep1.mp3"></audio>
-    </body>
-    </html>
-    """
-
     def setUp(self):
-        # Reset memoized agent instance — settings change per test class
-        # via override_settings, but get_agent caches the first one.
         get_agent.cache_clear()
 
     def _create_episode(self, **kwargs):
-        """Create episode without triggering post_save signal."""
         with patch("episodes.signals.DBOS"):
             return Episode.objects.create(**kwargs)
 
-    def _override_agent(self, output: EpisodeDetails | None = None):
-        """Return an Agent.override() context manager that returns *output*.
+    def _patch_run(self, output: FetchDetailsOutput, *, tool_calls=None, usage=None):
+        """Patch the agent runner to return *output* without invoking an LLM."""
+        deps = FetchDetailsDeps(submitted_url="")
+        if tool_calls:
+            deps.tool_calls.extend(tool_calls)
 
-        ``TestModel(custom_output_args=...)`` short-circuits the LLM call
-        and feeds the structured payload straight to the validator, so
-        the agent returns the desired ``EpisodeDetails`` instance.
-        """
-        if output is None:
-            output = EpisodeDetails(
-                title="Jazz Episode 1",
-                description="A great episode about jazz.",
-                published_at=date(2026, 1, 15),
-                image_url="https://example.com/image.jpg",
-                language="en",
-                audio_url="https://example.com/ep1.mp3",
-            )
-        agent = get_agent()
-        return agent.override(
-            model=TestModel(custom_output_args=output.model_dump(mode="json"))
-        )
+        async def _fake_run(submitted_url):
+            deps.submitted_url = submitted_url
+            return output, deps, usage
 
-    @patch("episodes.fetch_details_step.fetch_html")
-    def test_success_path(self, mock_fetch):
-        mock_fetch.return_value = self.SAMPLE_HTML
+        return patch("episodes.fetch_details_step.fetch_details_agent.run", _fake_run)
 
+    def test_ok_outcome_advances_to_downloading(self):
         episode = self._create_episode(url="https://example.com/ep/1")
-        with self._override_agent():
-            fetch_episode_details(episode.pk)
+        with self._patch_run(_output()):
+            fetch_episode_details(episode.pk, dbos_workflow_id="wf-1")
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
         self.assertEqual(episode.title, "Jazz Episode 1")
         self.assertEqual(episode.audio_url, "https://example.com/ep1.mp3")
-        self.assertEqual(episode.language, "en")
-        self.assertEqual(episode.published_at, date(2026, 1, 15))
-        self.assertNotEqual(episode.scraped_html, "")
+        self.assertEqual(episode.audio_format, "mp3")
+        self.assertEqual(episode.country, "us")
+        self.assertEqual(episode.canonical_url, "https://example.com/ep/1")
+        self.assertEqual(episode.source_kind, Episode.SourceKind.CANONICAL)
+        self.assertEqual(episode.error_message, "")
 
-    @patch("episodes.fetch_details_step.fetch_html")
-    def test_title_only_advances_to_downloading(self, mock_fetch):
-        """audio_url is no longer required — download owns URL discovery."""
-        mock_fetch.return_value = self.SAMPLE_HTML
+        run = episode.fetch_details_runs.get()
+        self.assertEqual(run.run_index, 1)
+        self.assertEqual(run.outcome, FetchDetailsRun.Outcome.OK)
+        self.assertEqual(run.dbos_workflow_id, "wf-1")
+        self.assertEqual(run.model, "openai:gpt-4.1-mini")
+        self.assertIsNotNone(run.output_json)
+        self.assertIn("details", run.output_json)
 
+    def test_partial_outcome_advances_to_downloading(self):
         episode = self._create_episode(url="https://example.com/ep/2")
-        title_only = EpisodeDetails(
-            title="Jazz Episode 1",
-            description="A great episode about jazz.",
-            language="en",
+        out = _output(
+            outcome="partial",
+            summary="Title found but audio is hidden.",
             audio_url=None,
+            audio_format=None,
+            confidence="medium",
         )
-        with self._override_agent(title_only):
+        with self._patch_run(out):
             fetch_episode_details(episode.pk)
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
+        self.assertEqual(episode.audio_url, "")
+        run = episode.fetch_details_runs.get()
+        self.assertEqual(run.outcome, FetchDetailsRun.Outcome.PARTIAL)
+
+    def test_not_a_podcast_episode_fails(self):
+        episode = self._create_episode(url="https://example.com/home")
+        out = _output(
+            outcome="not_a_podcast_episode",
+            summary="Page is the show's homepage.",
+            title=None, audio_url=None, audio_format=None,
+            canonical_url=None, source_kind="unknown",
+        )
+        with self._patch_run(out):
+            fetch_episode_details(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.FAILED)
+        self.assertIn("homepage", episode.error_message)
+        run = episode.fetch_details_runs.get()
+        self.assertEqual(
+            run.outcome, FetchDetailsRun.Outcome.NOT_A_PODCAST_EPISODE,
+        )
+
+    def test_unreachable_fails(self):
+        episode = self._create_episode(url="https://example.com/down")
+        out = _output(
+            outcome="unreachable",
+            summary="503 from the host.",
+            title=None, audio_url=None, audio_format=None,
+            canonical_url=None, source_kind="unknown",
+        )
+        with self._patch_run(out):
+            fetch_episode_details(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.FAILED)
+        run = episode.fetch_details_runs.get()
+        self.assertEqual(run.outcome, FetchDetailsRun.Outcome.UNREACHABLE)
+
+    def test_extraction_failed_fails(self):
+        episode = self._create_episode(url="https://example.com/dyn")
+        out = _output(
+            outcome="extraction_failed",
+            summary="Title buried in dynamic markup.",
+            title=None, audio_url=None, audio_format=None,
+            canonical_url=None, source_kind="unknown",
+        )
+        with self._patch_run(out):
+            fetch_episode_details(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.FAILED)
+        run = episode.fetch_details_runs.get()
+        self.assertEqual(run.outcome, FetchDetailsRun.Outcome.EXTRACTION_FAILED)
+
+    def test_agent_crash_records_run_with_error(self):
+        episode = self._create_episode(url="https://example.com/boom")
+
+        async def _boom(_url):
+            raise RuntimeError("kaboom")
+
+        with patch("episodes.fetch_details_step.fetch_details_agent.run", _boom):
+            fetch_episode_details(episode.pk, dbos_workflow_id="wf-crash")
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.status, Episode.Status.FAILED)
+        self.assertIn("kaboom", episode.error_message)
+
+        run = episode.fetch_details_runs.get()
+        self.assertEqual(run.outcome, "")
+        self.assertIn("kaboom", run.error_message)
+        self.assertEqual(run.dbos_workflow_id, "wf-crash")
+
+    def test_run_index_increments_on_re_run(self):
+        episode = self._create_episode(url="https://example.com/ep/repeat")
+        with self._patch_run(_output()):
+            fetch_episode_details(episode.pk)
+            fetch_episode_details(episode.pk)
+
+        indexes = list(
+            episode.fetch_details_runs.order_by("run_index")
+            .values_list("run_index", flat=True)
+        )
+        self.assertEqual(indexes, [1, 2])
+
+    def test_authoritative_overwrite(self):
+        """Agent output overwrites previously-stored Episode fields."""
+        episode = self._create_episode(
+            url="https://example.com/ep/overwrite",
+            title="Stale title",
+            audio_url="https://stale.example/old.mp3",
+        )
+        with self._patch_run(_output()):
+            fetch_episode_details(episode.pk)
+
+        episode.refresh_from_db()
         self.assertEqual(episode.title, "Jazz Episode 1")
-        self.assertEqual(episode.audio_url, "")  # Was null in response
+        self.assertEqual(episode.audio_url, "https://example.com/ep1.mp3")
 
-    @patch("episodes.fetch_details_step.fetch_html")
-    def test_missing_title_fails(self, mock_fetch):
-        """title is the only required field — extraction without it fails."""
-        mock_fetch.return_value = self.SAMPLE_HTML
-
-        episode = self._create_episode(url="https://example.com/ep/2-no-title")
-        incomplete = EpisodeDetails(
-            title=None,
-            description="A great episode about jazz.",
-            language="en",
-            audio_url="https://example.com/ep1.mp3",
-        )
-        with self._override_agent(incomplete):
+    def test_tool_calls_persisted(self):
+        episode = self._create_episode(url="https://example.com/ep/tools")
+        traces = [
+            {"tool": "fetch_url", "input": {"url": "https://example.com/ep/tools"}, "ok": True, "output_excerpt": "<html>…</html>"},
+            {"tool": "search_apple_podcasts", "input": {"show": "Show", "episode_title": "Ep"}, "ok": True, "result_count": 0, "output_excerpt": []},
+        ]
+        with self._patch_run(_output(), tool_calls=traces):
             fetch_episode_details(episode.pk)
 
-        episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.FAILED)
-        self.assertEqual(episode.title, "")
-        self.assertIn("Incomplete metadata", episode.error_message)
+        run = episode.fetch_details_runs.get()
+        self.assertEqual(len(run.tool_calls_json), 2)
+        self.assertEqual(run.tool_calls_json[0]["tool"], "fetch_url")
 
-    @patch("episodes.fetch_details_step.fetch_html")
-    def test_extracts_guid(self, mock_fetch):
-        """The agent's guid output flows into Episode.guid."""
-        mock_fetch.return_value = self.SAMPLE_HTML
-
-        episode = self._create_episode(url="https://example.com/ep/guid")
-        with_guid = EpisodeDetails(
-            title="Jazz Episode 1",
-            description="A great episode about jazz.",
-            language="en",
-            audio_url="https://example.com/ep1.mp3",
-            guid="urn:example:episode:abc123",
-        )
-        with self._override_agent(with_guid):
-            fetch_episode_details(episode.pk)
-
-        episode.refresh_from_db()
-        self.assertEqual(episode.guid, "urn:example:episode:abc123")
-
-    @patch("episodes.fetch_details_step.fetch_html")
-    def test_http_error_sets_failed(self, mock_fetch):
-        mock_fetch.side_effect = Exception("Connection refused")
-
-        episode = self._create_episode(url="https://example.com/ep/3")
-        fetch_episode_details(episode.pk)
-
-        episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.FAILED)
-
-    def test_reprocess_with_user_filled_fields(self):
-        """When user fills required fields and reprocesses, agent is skipped."""
-        episode = self._create_episode(
-            url="https://example.com/ep/4",
-            title="Filled by user",
-            audio_url="https://example.com/audio.mp3",
-            scraped_html="<html>cached</html>",
-            status=Episode.Status.FAILED,
-        )
-
-        # Override to a model that would raise if called — fast-path skip
-        # must short-circuit before reaching the agent.
-        with patch("episodes.fetch_details_step._run_agent_sync") as mock_run:
-            fetch_episode_details(episode.pk)
-            mock_run.assert_not_called()
-
-        episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
-
-    @patch("episodes.fetch_details_step.fetch_html")
-    def test_uses_cached_html_on_reprocess(self, mock_fetch):
-        """When scraped_html is already stored, HTTP fetch is skipped."""
-        episode = self._create_episode(
-            url="https://example.com/ep/5",
-            scraped_html="<html>cached</html>",
-            status=Episode.Status.FAILED,
-        )
-
-        with self._override_agent():
-            fetch_episode_details(episode.pk)
-
-        mock_fetch.assert_not_called()
-        episode.refresh_from_db()
-        self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
-
-    def test_nonexistent_episode(self):
-        # Should not raise, just log error
-        fetch_episode_details(99999)
-
-
-class EpisodeDetailsValidatorTests(TestCase):
-    """Pure-Pydantic tests — no Django ORM, no agent run."""
-
-    def test_parses_iso_date(self):
-        d = EpisodeDetails(published_at="2026-01-15")
-        self.assertEqual(d.published_at, date(2026, 1, 15))
-
-    def test_invalid_date_becomes_none(self):
-        d = EpisodeDetails(published_at="January 15, 2026")
-        self.assertIsNone(d.published_at)
-
-    def test_empty_date_becomes_none(self):
-        self.assertIsNone(EpisodeDetails(published_at="").published_at)
-        self.assertIsNone(EpisodeDetails(published_at=None).published_at)
-
-    def test_iso_639_language_kept(self):
-        self.assertEqual(EpisodeDetails(language="en").language, "en")
-        self.assertEqual(EpisodeDetails(language="sv").language, "sv")
-
-    def test_invalid_language_becomes_none(self):
-        self.assertIsNone(EpisodeDetails(language="english").language)
-        self.assertIsNone(EpisodeDetails(language="EN").language)
-        self.assertIsNone(EpisodeDetails(language="").language)
+    def test_nonexistent_episode_silent(self):
+        # No Episode row, no FetchDetailsRun, no exception.
+        fetch_episode_details(99_999)
+        self.assertEqual(FetchDetailsRun.objects.count(), 0)

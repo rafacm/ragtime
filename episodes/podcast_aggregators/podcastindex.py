@@ -15,16 +15,16 @@ from typing import Any
 
 import httpx
 
-from .base import EpisodeCandidate, PodcastIndex
+from .base import EpisodeCandidate, PodcastAggregator
 
 logger = logging.getLogger(__name__)
 
 API_BASE = "https://api.podcastindex.org/api/1.0"
 TIMEOUT = 10.0
-USER_AGENT = "RAGtime/0.1 (podcast index lookup)"
+USER_AGENT = "RAGtime/0.1 (podcast aggregator lookup)"
 
 
-class PodcastIndexOrg(PodcastIndex):
+class PodcastIndexOrg(PodcastAggregator):
     name = "podcastindex"
 
     def __init__(self, api_key: str, api_secret: str):
