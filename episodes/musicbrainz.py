@@ -67,6 +67,15 @@ def _get_pool() -> ConnectionPool:
 
 
 # Per-table query config. Keyed by EntityType.musicbrainz_table.
+#
+# MusicBrainz names its entity-relationship tables ``l_<a>_<b>`` with
+# the two entity types in **alphabetical order**. The ``entity0`` /
+# ``entity1`` columns follow that same alphabetical order. For most
+# entity types ``<entity> < url`` (e.g. ``artist`` < ``url``), so the
+# table is ``l_<entity>_url`` with ``entity0=<entity>``, ``entity1=url``.
+# But ``url < work`` — so MB stores work-URL links in ``l_url_work``
+# with ``entity0=url``, ``entity1=work``. ``link_main_col`` and
+# ``link_url_col`` make the join direction explicit per type.
 _TABLE_CONFIG: dict[str, dict[str, Any]] = {
     "artist": {
         "main": "artist",
@@ -74,6 +83,8 @@ _TABLE_CONFIG: dict[str, dict[str, Any]] = {
         "type_table": "artist_type",
         "type_fk": "type",
         "link_table": "l_artist_url",
+        "link_main_col": "entity0",
+        "link_url_col": "entity1",
     },
     "release_group": {
         "main": "release_group",
@@ -81,6 +92,8 @@ _TABLE_CONFIG: dict[str, dict[str, Any]] = {
         "type_table": "release_group_primary_type",
         "type_fk": "type",
         "link_table": "l_release_group_url",
+        "link_main_col": "entity0",
+        "link_url_col": "entity1",
     },
     "label": {
         "main": "label",
@@ -88,6 +101,8 @@ _TABLE_CONFIG: dict[str, dict[str, Any]] = {
         "type_table": "label_type",
         "type_fk": "type",
         "link_table": "l_label_url",
+        "link_main_col": "entity0",
+        "link_url_col": "entity1",
     },
     "place": {
         "main": "place",
@@ -95,13 +110,19 @@ _TABLE_CONFIG: dict[str, dict[str, Any]] = {
         "type_table": "place_type",
         "type_fk": "type",
         "link_table": "l_place_url",
+        "link_main_col": "entity0",
+        "link_url_col": "entity1",
     },
     "work": {
         "main": "work",
         "alias": "work_alias",
         "type_table": "work_type",
         "type_fk": "type",
-        "link_table": "l_work_url",
+        # url < work alphabetically — MB names this ``l_url_work`` and
+        # puts the work id in ``entity1``, the url id in ``entity0``.
+        "link_table": "l_url_work",
+        "link_main_col": "entity1",
+        "link_url_col": "entity0",
     },
     "area": {
         "main": "area",
@@ -109,6 +130,8 @@ _TABLE_CONFIG: dict[str, dict[str, Any]] = {
         "type_table": "area_type",
         "type_fk": "type",
         "link_table": "l_area_url",
+        "link_main_col": "entity0",
+        "link_url_col": "entity1",
     },
 }
 
@@ -250,18 +273,20 @@ def get_wikidata_qid(mbid: str, entity_type) -> str | None:
 
     main_t = sql.Identifier(cfg["main"])
     link_t = sql.Identifier(cfg["link_table"])
+    link_main = sql.Identifier(cfg.get("link_main_col", "entity0"))
+    link_url = sql.Identifier(cfg.get("link_url_col", "entity1"))
 
     query = sql.SQL(
         """
         SELECT u.url
         FROM {main} m
-        JOIN {link} lau ON lau.entity0 = m.id
-        JOIN url u ON u.id = lau.entity1
+        JOIN {link} lau ON lau.{main_col} = m.id
+        JOIN url u ON u.id = lau.{url_col}
         WHERE m.gid = %s::uuid
           AND u.url ~ '^https?://(www\\.)?wikidata\\.org/(wiki|entity)/Q[0-9]+'
         LIMIT 1
         """
-    ).format(main=main_t, link=link_t)
+    ).format(main=main_t, link=link_t, main_col=link_main, url_col=link_url)
 
     pool = _get_pool()
     try:
