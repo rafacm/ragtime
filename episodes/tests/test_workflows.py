@@ -16,9 +16,12 @@ from episodes.workflows import (
     EmbedFailed,
     ExtractFailed,
     FetchDetailsFailed,
+    ResolveStepOutput,
     StepFailed,
+    StepOutput,
     _raise_if_failed,
     next_attempt,
+    resolve_step,
     workflow_id_for,
 )
 
@@ -89,3 +92,42 @@ class RaiseIfFailedTests(TestCase):
         self.assertEqual(EmbedFailed.step_name, "embedding")
         # All inherit StepFailed.
         self.assertTrue(issubclass(FetchDetailsFailed, StepFailed))
+
+
+class ResolveStepReturnsEnrichmentIdsTests(TestCase):
+    """``resolve_step`` must hand the entity IDs up to the workflow.
+
+    Calling ``Queue.enqueue`` from inside a step is silently deduped
+    against the step's ``function_id``: only the first enqueue per
+    ``(step, target_func)`` pair runs, regardless of how many times
+    we call it. Wikidata enrichment therefore has to be enqueued from
+    workflow context (``process_episode``), not from inside
+    ``resolve_step`` itself. This test pins the contract.
+    """
+
+    def _create_episode(self, **kwargs):
+        with patch("episodes.signals.DBOS"):
+            return Episode.objects.create(**kwargs)
+
+    @patch("episodes.workflows.resolver.resolve_entities", return_value=[7, 11, 13])
+    def test_returns_resolve_step_output_with_entity_ids(self, mock_resolver):
+        episode = self._create_episode(
+            url="https://example.com/wf/resolve-1",
+            status=Episode.Status.RESOLVING,
+        )
+        result = resolve_step.__wrapped__(episode.pk)  # bypass DBOS decorator
+        self.assertIsInstance(result, ResolveStepOutput)
+        self.assertEqual(result.entity_ids_to_enrich, (7, 11, 13))
+        # ResolveStepOutput is a StepOutput subclass — the workflow's
+        # generic step-handling continues to work.
+        self.assertIsInstance(result, StepOutput)
+        mock_resolver.assert_called_once_with(episode.pk)
+
+    @patch("episodes.workflows.resolver.resolve_entities", return_value=[])
+    def test_empty_resolve_returns_empty_tuple(self, _mock):
+        episode = self._create_episode(
+            url="https://example.com/wf/resolve-2",
+            status=Episode.Status.RESOLVING,
+        )
+        result = resolve_step.__wrapped__(episode.pk)
+        self.assertEqual(result.entity_ids_to_enrich, ())

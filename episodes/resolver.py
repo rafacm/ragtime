@@ -221,31 +221,35 @@ def _get_or_create_entity(entity_type, name, mbid: str = ""):
     return entity, created
 
 
-def _enqueue_enrichment(entity_ids) -> None:
-    if not entity_ids:
-        return
-    try:
-        from .enrichment import enqueue_entities
-
-        enqueue_entities(entity_ids)
-    except Exception:
-        logger.exception("Failed to enqueue Wikidata enrichment")
 
 
 @trace_step("resolve_entities")
-def resolve_entities(episode_id: int) -> None:
+def resolve_entities(episode_id: int) -> list[int]:
+    """Resolve every entity in *episode_id*'s chunks.
+
+    Returns the list of entity IDs that should be enqueued for
+    background Wikidata enrichment. The caller (the DBOS step
+    wrapper) is responsible for handing those IDs back to the
+    workflow, which in turn enqueues them — calling
+    ``Queue.enqueue`` from inside a step is a silent no-op past the
+    first call because DBOS keys the operation log on the step's
+    function_id and replays the same handle.
+
+    Returns ``[]`` when the episode is missing, in the wrong status,
+    has no entities to resolve, or the step itself raises.
+    """
     try:
         episode = Episode.objects.get(pk=episode_id)
     except Episode.DoesNotExist:
         logger.error("Episode %s does not exist", episode_id)
-        return
+        return []
 
     if episode.status != Episode.Status.RESOLVING:
         logger.warning(
             "Episode %s has status '%s', expected 'resolving'",
             episode_id, episode.status,
         )
-        return
+        return []
 
     start_step(episode, Episode.Status.RESOLVING)
 
@@ -257,7 +261,7 @@ def resolve_entities(episode_id: int) -> None:
         complete_step(episode, Episode.Status.RESOLVING)
         episode.status = Episode.Status.EMBEDDING
         episode.save(update_fields=["status", "updated_at"])
-        return
+        return []
 
     # Entities to enqueue for background Wikidata enrichment after the
     # transaction commits. Includes:
@@ -433,7 +437,6 @@ def resolve_entities(episode_id: int) -> None:
         episode.status = Episode.Status.FAILED
         episode.save(update_fields=["status", "error_message", "updated_at"])
         fail_step(episode, Episode.Status.RESOLVING, str(exc), exc=exc)
-        return
+        return []
 
-    # Outside the transaction so DBOS only sees committed entities.
-    _enqueue_enrichment(sorted(entities_to_enrich))
+    return sorted(entities_to_enrich)
