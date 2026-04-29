@@ -11,7 +11,19 @@ class SignalTests(TestCase):
         episode = Episode.objects.create(url="https://example.com/ep/signal-1")
         from episodes.workflows import process_episode
 
-        mock_queue.enqueue.assert_called_once_with(process_episode, episode.pk)
+        # enqueue_episode always forwards an empty from_step on initial submit
+        # so the workflow starts at the first pipeline phase.
+        mock_queue.enqueue.assert_called_once_with(process_episode, episode.pk, "")
+
+    @patch("episodes.workflows.SetWorkflowID")
+    @patch("episodes.workflows.next_attempt", return_value=1)
+    @patch("episodes.workflows.episode_queue")
+    def test_creating_episode_uses_deterministic_workflow_id(
+        self, mock_queue, _next, mock_setid
+    ):
+        """Initial enqueue should set workflow_id = ``episode-<id>-run-1``."""
+        episode = Episode.objects.create(url="https://example.com/ep/signal-id")
+        mock_setid.assert_called_once_with(f"episode-{episode.pk}-run-1")
 
     @patch("episodes.workflows.episode_queue")
     def test_creating_episode_marks_queued(self, mock_queue):
