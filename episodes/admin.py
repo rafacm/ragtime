@@ -66,14 +66,55 @@ def _decode_dbos_payload(value):
     return str(obj)
 
 
-def _dbos_workflow_steps(episode_id: int) -> list[dict]:
-    """Return DBOS step records for the most recent run of *episode_id*.
+def _epoch_ms_to_datetime(value):
+    """Convert a DBOS epoch-ms timestamp into a ``datetime`` (or ``None``)."""
+    if value is None:
+        return None
+    try:
+        from datetime import datetime, timezone
 
-    Discovers the workflow ID via ``DBOS.list_workflows`` (filters
-    by ``workflow_id`` prefix ``episode-<id>-``) and pulls the per-step
-    rows via ``DBOS.list_workflow_steps``. Returns ``[]`` when DBOS
-    isn't running, no workflow exists, or anything raises — admin
-    must keep loading even when the queue is offline.
+        return datetime.fromtimestamp(int(value) / 1000, tz=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def _step_rows_for_workflow(workflow_id: str) -> list[dict]:
+    """Return the per-step rows for a single workflow, or ``[]`` on error."""
+    try:
+        from dbos import DBOS
+
+        steps = DBOS.list_workflow_steps(workflow_id) or []
+    except Exception:
+        return []
+
+    rows = []
+    for step in steps:
+        rows.append({
+            "function_name": _dbos_field(step, "function_name", ""),
+            "step_id": _dbos_field(step, "function_id", None),
+            "output": _decode_dbos_payload(_dbos_field(step, "output", None)),
+            "error": _decode_dbos_payload(_dbos_field(step, "error", None)),
+            "started_at": _epoch_ms_to_datetime(
+                _dbos_field(step, "started_at_epoch_ms")
+            ),
+            "completed_at": _epoch_ms_to_datetime(
+                _dbos_field(step, "completed_at_epoch_ms")
+            ),
+        })
+    return rows
+
+
+def _dbos_workflow_runs(episode_id: int) -> list[dict]:
+    """Return every DBOS workflow recorded for *episode_id*, newest first.
+
+    Each entry includes the workflow's ID, status, timestamps, and the
+    full list of steps under that run. Mirrors the old
+    ``ProcessingRunInlineForEpisode`` + ``ProcessingStepInline`` UX so
+    the admin can see *every* attempt instead of only the most recent.
+
+    Returns ``[]`` when DBOS isn't running, no workflow exists, or
+    anything raises — admin must keep loading even when the queue is
+    offline.
     """
     try:
         from dbos import DBOS
@@ -97,23 +138,34 @@ def _dbos_workflow_steps(episode_id: int) -> list[dict]:
         key=lambda wf: _dbos_field(wf, "created_at", 0) or 0,
         reverse=True,
     )
-    workflow = candidates[0]
-    workflow_id = _dbos_field(workflow, "workflow_id", "")
 
-    try:
-        steps = DBOS.list_workflow_steps(workflow_id) or []
-    except Exception:
-        return []
-
-    rows = []
-    for step in steps:
-        rows.append({
-            "function_name": _dbos_field(step, "function_name", ""),
-            "step_id": _dbos_field(step, "function_id", None),
-            "output": _decode_dbos_payload(_dbos_field(step, "output", None)),
-            "error": _decode_dbos_payload(_dbos_field(step, "error", None)),
+    runs = []
+    for wf in candidates:
+        workflow_id = _dbos_field(wf, "workflow_id", "")
+        runs.append({
+            "workflow_id": workflow_id,
+            "status": _dbos_field(wf, "status", ""),
+            "name": _dbos_field(wf, "name", ""),
+            "queue_name": _dbos_field(wf, "queue_name", ""),
+            "recovery_attempts": _dbos_field(wf, "recovery_attempts", 0),
+            "created_at": _epoch_ms_to_datetime(_dbos_field(wf, "created_at")),
+            "updated_at": _epoch_ms_to_datetime(_dbos_field(wf, "updated_at")),
+            "steps": _step_rows_for_workflow(workflow_id),
         })
-    return rows
+    return runs
+
+
+def _dbos_workflow_steps(episode_id: int) -> list[dict]:
+    """Return per-step rows for the most recent workflow of *episode_id*.
+
+    Kept as a thin convenience wrapper over ``_dbos_workflow_runs``
+    for any caller that only wants the latest run's steps. Returns
+    ``[]`` when there are no workflows.
+    """
+    runs = _dbos_workflow_runs(episode_id)
+    if not runs:
+        return []
+    return runs[0]["steps"]
 
 
 class ChunkInlineForEpisode(admin.TabularInline):
@@ -272,12 +324,12 @@ class EpisodeAdmin(admin.ModelAdmin):
         ]
         return fieldsets
 
-    @admin.display(description="DBOS workflow")
+    @admin.display(description="DBOS workflows")
     def dbos_steps_link(self, obj):
         if not obj or not obj.pk:
             return "—"
         url = reverse("admin:episodes_episode_dbos_steps", args=[obj.pk])
-        return format_html('<a href="{}">View workflow steps</a>', url)
+        return format_html('<a href="{}">View workflow runs</a>', url)
 
     @admin.display(description="Duration", ordering="duration")
     def formatted_duration(self, obj):
@@ -301,17 +353,19 @@ class EpisodeAdmin(admin.ModelAdmin):
         return custom + urls
 
     def dbos_steps_view(self, request, episode_id: int):
-        """Render per-step DBOS workflow output/error for an episode.
+        """Render every DBOS workflow run for *episode_id* with its steps.
 
-        Replaces the old ProcessingRun / PipelineEvent admin pages.
+        Replaces the old ProcessingRun / PipelineEvent admin pages \u2014
+        each ``episode-<id>-run-<n>`` workflow is shown as its own
+        section with a per-step table, newest run first.
         """
         episode = Episode.objects.get(pk=episode_id)
-        steps = _dbos_workflow_steps(episode_id)
+        runs = _dbos_workflow_runs(episode_id)
         context = {
             **self.admin_site.each_context(request),
-            "title": f"DBOS workflow steps \u2014 {episode}",
+            "title": f"DBOS workflow runs \u2014 {episode}",
             "episode": episode,
-            "steps": steps,
+            "runs": runs,
             "opts": self.model._meta,
         }
         return TemplateResponse(

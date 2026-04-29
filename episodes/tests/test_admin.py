@@ -31,35 +31,80 @@ class EpisodeAdminTests(TestCase):
         episode = Episode.objects.create(url="https://example.com/ep/admin-1")
         response = self.client.get(f"/admin/episodes/episode/{episode.pk}/change/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "View workflow steps")
+        self.assertContains(response, "View workflow runs")
 
     @patch("episodes.signals.DBOS")
     def test_dbos_steps_view_renders_when_dbos_unavailable(self, mock_async):
         """The DBOS-backed steps view must render even when DBOS is offline."""
         episode = Episode.objects.create(url="https://example.com/ep/admin-dbos-1")
-        with patch("episodes.admin._dbos_workflow_steps", return_value=[]):
+        with patch("episodes.admin._dbos_workflow_runs", return_value=[]):
             response = self.client.get(
                 f"/admin/episodes/episode/{episode.pk}/dbos-steps/"
             )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "DBOS workflow steps")
+        self.assertContains(response, "DBOS workflow runs")
         self.assertContains(response, "No DBOS workflow records")
 
     @patch("episodes.signals.DBOS")
-    def test_dbos_steps_view_renders_step_rows(self, mock_async):
+    def test_dbos_steps_view_renders_runs_with_their_steps(self, mock_async):
+        """Each ``episode-<id>-run-<n>`` workflow renders as its own section."""
         episode = Episode.objects.create(url="https://example.com/ep/admin-dbos-2")
-        steps = [
-            {"function_name": "fetch_details_step_", "step_id": 1, "output": {"step_name": "fetching_details"}, "error": None},
-            {"function_name": "download_step", "step_id": 2, "output": None, "error": "DownloadFailed: …"},
+        runs = [
+            {
+                "workflow_id": f"episode-{episode.pk}-run-2",
+                "status": "ERROR",
+                "name": "process_episode",
+                "queue_name": "episode_pipeline",
+                "recovery_attempts": 1,
+                "created_at": None,
+                "updated_at": None,
+                "steps": [
+                    {
+                        "function_name": "fetch_details_step_",
+                        "step_id": 1,
+                        "output": "StepOutput(step_name='fetching_details')",
+                        "error": None,
+                        "started_at": None,
+                        "completed_at": None,
+                    },
+                    {
+                        "function_name": "download_step",
+                        "step_id": 2,
+                        "output": None,
+                        "error": "DownloadStepFailed: boom",
+                        "started_at": None,
+                        "completed_at": None,
+                    },
+                ],
+            },
+            {
+                "workflow_id": f"episode-{episode.pk}-run-1",
+                "status": "SUCCESS",
+                "name": "process_episode",
+                "queue_name": "episode_pipeline",
+                "recovery_attempts": 0,
+                "created_at": None,
+                "updated_at": None,
+                "steps": [],
+            },
         ]
-        with patch("episodes.admin._dbos_workflow_steps", return_value=steps):
+        with patch("episodes.admin._dbos_workflow_runs", return_value=runs):
             response = self.client.get(
                 f"/admin/episodes/episode/{episode.pk}/dbos-steps/"
             )
         self.assertEqual(response.status_code, 200)
+        # Both runs surfaced.
+        self.assertContains(response, f"episode-{episode.pk}-run-1")
+        self.assertContains(response, f"episode-{episode.pk}-run-2")
+        # Status pills present.
+        self.assertContains(response, "ERROR")
+        self.assertContains(response, "SUCCESS")
+        # Steps under run-2 rendered.
         self.assertContains(response, "fetch_details_step_")
         self.assertContains(response, "download_step")
-        self.assertContains(response, "DownloadFailed")
+        self.assertContains(response, "DownloadStepFailed")
+        # Pluralisation in the header.
+        self.assertContains(response, "2 runs recorded")
 
     def test_decode_dbos_payload_unpickles_step_output(self):
         """Pickled+b64-encoded payloads (DBOS wire format) are rendered as str()."""
@@ -92,60 +137,93 @@ class EpisodeAdminTests(TestCase):
 
     @patch("episodes.signals.DBOS")
     @patch("dbos.DBOS")
-    def test_dbos_workflow_steps_handles_dict_records(self, mock_dbos, _signals):
-        """``DBOS.list_workflows`` / ``list_workflow_steps`` return TypedDicts.
+    def test_dbos_workflow_runs_returns_every_run_for_episode(
+        self, mock_dbos, _signals
+    ):
+        """``_dbos_workflow_runs`` lists every ``episode-<id>-run-<n>`` workflow.
 
-        Regression: an earlier version used ``getattr(record, ...)`` which
-        silently returned the default for dicts, so the prefix filter never
-        matched and the helper returned [] even when the workflow existed.
+        Regression coverage:
+        * dict records (TypedDicts) work via _dbos_field — earlier
+          versions used ``getattr`` which silently returned the default;
+        * other-episode workflows are filtered out;
+        * the result is sorted newest-first;
+        * each run carries its own ``steps`` list (not just the latest).
         """
-        from episodes.admin import _dbos_workflow_steps
+        from episodes.admin import _dbos_workflow_runs
 
         episode = Episode.objects.create(url="https://example.com/ep/admin-dbos-3")
 
         mock_dbos.list_workflows.return_value = [
             {
-                "workflow_id": f"episode-{episode.pk}-run-1",
+                "workflow_id": f"episode-{episode.pk}-run-2",
                 "created_at": 1_700_000_000_000,
                 "status": "ERROR",
+                "name": "process_episode",
+                "queue_name": "episode_pipeline",
+                "recovery_attempts": 0,
+                "updated_at": 1_700_000_001_000,
             },
-            {  # Older deterministic-ID run for the same episode — shouldn't be picked.
-                "workflow_id": f"episode-{episode.pk}-run-0",
+            {
+                "workflow_id": f"episode-{episode.pk}-run-1",
                 "created_at": 1_600_000_000_000,
                 "status": "SUCCESS",
+                "name": "process_episode",
+                "queue_name": "episode_pipeline",
+                "recovery_attempts": 0,
+                "updated_at": 1_600_000_001_000,
             },
             {  # Different episode — must be filtered out.
                 "workflow_id": "episode-999-run-1",
                 "created_at": 1_800_000_000_000,
                 "status": "SUCCESS",
+                "name": "process_episode",
+                "queue_name": "episode_pipeline",
+                "recovery_attempts": 0,
+                "updated_at": 1_800_000_001_000,
             },
         ]
-        mock_dbos.list_workflow_steps.return_value = [
-            {
-                "function_id": 1,
-                "function_name": "_bootstrap_status",
-                "output": "ok",
-                "error": None,
-            },
-            {
-                "function_id": 2,
-                "function_name": "download_step",
-                "output": None,
-                "error": "DownloadStepFailed: …",
-            },
-        ]
+        # Per-workflow step lookup — return a different list per workflow_id.
+        def _steps(workflow_id):
+            if workflow_id.endswith("-run-2"):
+                return [
+                    {
+                        "function_id": 1,
+                        "function_name": "_bootstrap_status",
+                        "output": "ok",
+                        "error": None,
+                    },
+                    {
+                        "function_id": 2,
+                        "function_name": "download_step",
+                        "output": None,
+                        "error": "DownloadStepFailed: …",
+                    },
+                ]
+            if workflow_id.endswith("-run-1"):
+                return [
+                    {
+                        "function_id": 1,
+                        "function_name": "_bootstrap_status",
+                        "output": "ok",
+                        "error": None,
+                    },
+                ]
+            return []
 
-        rows = _dbos_workflow_steps(episode.pk)
+        mock_dbos.list_workflow_steps.side_effect = _steps
 
-        # Most-recent matching workflow chosen, steps unwrapped from dicts.
-        mock_dbos.list_workflow_steps.assert_called_once_with(
-            f"episode-{episode.pk}-run-1"
-        )
-        self.assertEqual(len(rows), 2)
-        self.assertEqual(rows[0]["function_name"], "_bootstrap_status")
-        self.assertEqual(rows[0]["step_id"], 1)
-        self.assertEqual(rows[1]["function_name"], "download_step")
-        self.assertIn("DownloadStepFailed", rows[1]["error"])
+        runs = _dbos_workflow_runs(episode.pk)
+
+        # Two runs for this episode; the run-999 workflow filtered out.
+        self.assertEqual(len(runs), 2)
+        # Newest-first ordering.
+        self.assertEqual(runs[0]["workflow_id"], f"episode-{episode.pk}-run-2")
+        self.assertEqual(runs[1]["workflow_id"], f"episode-{episode.pk}-run-1")
+        # Per-run step lookup.
+        self.assertEqual(len(runs[0]["steps"]), 2)
+        self.assertEqual(runs[0]["steps"][1]["function_name"], "download_step")
+        self.assertEqual(len(runs[1]["steps"]), 1)
+        self.assertEqual(runs[1]["status"], "SUCCESS")
 
     @patch("episodes.signals.DBOS")
     def test_reprocess_action_shows_intermediate_page(self, mock_async):
