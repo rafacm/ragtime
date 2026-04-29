@@ -106,6 +106,7 @@ class SearchApplePodcastsTests(SimpleTestCase):
                 show_name="Show",
                 duration_seconds=1800,
                 source_index="apple_podcasts",
+                episode_page_url="https://podcasts.apple.com/us/podcast/show/id1?i=1",
             ),
             EpisodeCandidate(
                 audio_url="https://cdn.example/two.mp3",
@@ -124,6 +125,13 @@ class SearchApplePodcastsTests(SimpleTestCase):
         self.assertEqual(len(results), 2)
         self.assertEqual(results[0].audio_url, "https://cdn.example/one.mp3")
         self.assertEqual(results[0].duration_seconds, 1800)
+        # The Apple Podcasts page URL must reach the agent so it can
+        # call ``fetch_url`` on it for cross-linking confirmation.
+        self.assertEqual(
+            results[0].episode_page_url,
+            "https://podcasts.apple.com/us/podcast/show/id1?i=1",
+        )
+        self.assertEqual(results[1].episode_page_url, "")
         self.assertEqual(len(deps.tool_calls), 1)
         trace = deps.tool_calls[0]
         self.assertEqual(trace["tool"], "search_apple_podcasts")

@@ -77,6 +77,7 @@ class ItunesAggregatorTests(SimpleTestCase):
                     "collectionName": "Show",
                     "episodeUrl": "https://cdn.example/one.mp3",
                     "trackTimeMillis": 1_800_000,
+                    "trackViewUrl": "https://podcasts.apple.com/us/podcast/show/id1?i=1",
                 },
                 {
                     "trackName": "No URL",
@@ -94,6 +95,10 @@ class ItunesAggregatorTests(SimpleTestCase):
         self.assertEqual(c.show_name, "Show")
         self.assertEqual(c.duration_seconds, 1800)
         self.assertEqual(c.source_index, "apple_podcasts")
+        self.assertEqual(
+            c.episode_page_url,
+            "https://podcasts.apple.com/us/podcast/show/id1?i=1",
+        )
 
     def test_empty_term_returns_empty(self):
         self.assertEqual(ItunesAggregator().search(title="", show_name=""), [])

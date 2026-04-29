@@ -22,6 +22,11 @@ class EpisodeCandidate:
     show_name: str = ""
     duration_seconds: int | None = None
     source_index: str = ""
+    # Aggregator-side episode page URL (e.g. iTunes ``trackViewUrl``) —
+    # the link the user would visit on the aggregator. Used by the
+    # Fetch Details agent's cross-linking flow; ignored by the
+    # Download cascade. Empty when the aggregator doesn't expose one.
+    episode_page_url: str = ""
 
 
 class PodcastAggregator(ABC):
