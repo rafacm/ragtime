@@ -72,6 +72,16 @@ class StepFailed(Exception):
             f"{error_message}"
         )
 
+    def __reduce__(self):
+        # Default Exception.__reduce__ unpickles via ``cls(*self.args)``
+        # which doesn't match this class's two-arg ``__init__`` signature
+        # (``self.args`` only carries the formatted message). Return the
+        # constructor inputs verbatim so DBOS-stored exceptions can be
+        # round-tripped — necessary for the admin step-trace view to
+        # render the human-readable error_message instead of the raw
+        # b64-encoded pickle wire format.
+        return (self.__class__, (self.episode_id, self.error_message))
+
 
 class FetchDetailsFailed(StepFailed):
     step_name = "fetching_details"

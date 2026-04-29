@@ -29,6 +29,43 @@ def _dbos_field(record, name, default=None):
     return getattr(record, name, default)
 
 
+def _decode_dbos_payload(value):
+    """Render a DBOS step output / error payload as a readable string.
+
+    DBOS stores per-step ``output`` and ``error`` as pickle bytes,
+    base64-encoded for transport. The Python API leaves them in
+    that wire form when the listing call reads from the system DB
+    rather than reconstructing the objects.
+
+    This helper:
+    1. Returns ``None`` / ``""`` for empty values unchanged.
+    2. Tries ``base64 → pickle.loads`` when the string looks like a
+       pickle stream (starts with ``gAS`` — the b64 prefix for the
+       pickle protocol 4 magic ``\\x80\\x04\\x95``).
+    3. Falls back to the raw string when decoding fails (so a
+       future DBOS version that already returns native objects
+       still renders).
+
+    Pickle is unsafe on untrusted input; here the bytes were
+    written by this same process into a database we own — same
+    trust boundary as DBOS itself.
+    """
+    import base64
+    import pickle
+
+    if value in (None, ""):
+        return value
+    if not isinstance(value, str):
+        return str(value)
+    if not value.startswith("gAS"):
+        return value
+    try:
+        obj = pickle.loads(base64.b64decode(value))
+    except Exception:
+        return value
+    return str(obj)
+
+
 def _dbos_workflow_steps(episode_id: int) -> list[dict]:
     """Return DBOS step records for the most recent run of *episode_id*.
 
@@ -73,8 +110,8 @@ def _dbos_workflow_steps(episode_id: int) -> list[dict]:
         rows.append({
             "function_name": _dbos_field(step, "function_name", ""),
             "step_id": _dbos_field(step, "function_id", None),
-            "output": _dbos_field(step, "output", None),
-            "error": _dbos_field(step, "error", None),
+            "output": _decode_dbos_payload(_dbos_field(step, "output", None)),
+            "error": _decode_dbos_payload(_dbos_field(step, "error", None)),
         })
     return rows
 
