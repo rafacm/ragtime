@@ -1,7 +1,7 @@
 {% extends "admin/base_site.html" %}
 {% load i18n %}
 
-{% block title %}DBOS workflow steps — {{ episode }}{% endblock %}
+{% block title %}DBOS workflow runs — {{ episode }}{% endblock %}
 
 {% block breadcrumbs %}
 <div class="breadcrumbs">
@@ -9,49 +9,81 @@
   &rsaquo; <a href="{% url 'admin:app_list' app_label='episodes' %}">Episodes</a>
   &rsaquo; <a href="{% url 'admin:episodes_episode_changelist' %}">Episodes</a>
   &rsaquo; <a href="{% url 'admin:episodes_episode_change' episode.pk %}">{{ episode }}</a>
-  &rsaquo; DBOS steps
+  &rsaquo; DBOS workflows
 </div>
 {% endblock %}
 
 {% block content %}
-<h1>DBOS workflow steps</h1>
+<h1>DBOS workflow runs</h1>
 <p><strong>Episode:</strong> {{ episode.title|default:episode.url }} (status: {{ episode.get_status_display }})</p>
 
-{% if not steps %}
+{% if not runs %}
 <p><em>No DBOS workflow records found for this episode. The DBOS runtime may not be initialised, or the episode hasn't been processed yet.</em></p>
 {% else %}
-<table>
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Step</th>
-      <th>Output</th>
-      <th>Error</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for step in steps %}
-    <tr>
-      <td>{{ step.step_id|default_if_none:"&mdash;" }}</td>
-      <td><code>{{ step.function_name }}</code></td>
-      <td>
-        {% if step.output is None %}
-        &mdash;
-        {% else %}
-        <pre style="white-space: pre-wrap; max-width: 600px;">{{ step.output }}</pre>
-        {% endif %}
-      </td>
-      <td>
-        {% if step.error %}
-        <pre style="white-space: pre-wrap; max-width: 600px; color: #b00;">{{ step.error }}</pre>
-        {% else %}
-        &mdash;
-        {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<p>{{ runs|length }} run{{ runs|length|pluralize }} recorded — newest first.</p>
+
+{% for run in runs %}
+<section style="margin-top: 2em; padding: 1em; border: 1px solid #ccc; border-radius: 4px;">
+  <h2 style="margin-top: 0;">
+    <code>{{ run.workflow_id }}</code>
+    <span style="font-weight: normal; font-size: 0.9em; margin-left: 1em; padding: 2px 8px; border-radius: 3px;
+      {% if run.status == 'SUCCESS' %}background: #d4edda; color: #155724;{% endif %}
+      {% if run.status == 'ERROR' or run.status == 'MAX_RECOVERY_ATTEMPTS_EXCEEDED' %}background: #f8d7da; color: #721c24;{% endif %}
+      {% if run.status == 'PENDING' or run.status == 'ENQUEUED' %}background: #fff3cd; color: #856404;{% endif %}
+      {% if run.status == 'CANCELLED' %}background: #e2e3e5; color: #383d41;{% endif %}
+    ">
+      {{ run.status }}
+    </span>
+  </h2>
+  <table style="margin-bottom: 1em; font-size: 0.9em;">
+    <tr><th style="text-align: left; padding-right: 1em;">Started</th><td>{{ run.created_at|default:"—" }}</td></tr>
+    <tr><th style="text-align: left; padding-right: 1em;">Updated</th><td>{{ run.updated_at|default:"—" }}</td></tr>
+    <tr><th style="text-align: left; padding-right: 1em;">Queue</th><td>{{ run.queue_name|default:"—" }}</td></tr>
+    {% if run.recovery_attempts %}
+    <tr><th style="text-align: left; padding-right: 1em;">Recovery attempts</th><td>{{ run.recovery_attempts }}</td></tr>
+    {% endif %}
+  </table>
+
+  {% if not run.steps %}
+  <p><em>No step records for this workflow.</em></p>
+  {% else %}
+  <table style="width: 100%;">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Step</th>
+        <th>Started</th>
+        <th>Output</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for step in run.steps %}
+      <tr>
+        <td>{{ step.step_id|default_if_none:"—" }}</td>
+        <td><code>{{ step.function_name }}</code></td>
+        <td style="font-size: 0.85em;">{{ step.started_at|default:"—" }}</td>
+        <td>
+          {% if step.output is None %}
+          —
+          {% else %}
+          <pre style="white-space: pre-wrap; max-width: 600px; margin: 0;">{{ step.output }}</pre>
+          {% endif %}
+        </td>
+        <td>
+          {% if step.error %}
+          <pre style="white-space: pre-wrap; max-width: 600px; margin: 0; color: #b00;">{{ step.error }}</pre>
+          {% else %}
+          —
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+{% endfor %}
 {% endif %}
 
 <p style="margin-top: 1.5em;">
