@@ -1,4 +1,4 @@
-"""fyyd.de podcast-index client.
+"""fyyd.de podcast-aggregator client.
 
 fyyd's read API is open (no key required). An optional API key only
 raises rate limits, so it is plumbed through but not enforced.
@@ -11,16 +11,16 @@ from typing import Any
 
 import httpx
 
-from .base import EpisodeCandidate, PodcastIndex
+from .base import EpisodeCandidate, PodcastAggregator
 
 logger = logging.getLogger(__name__)
 
 API_BASE = "https://api.fyyd.de/0.2"
 TIMEOUT = 10.0
-USER_AGENT = "RAGtime/0.1 (podcast index lookup)"
+USER_AGENT = "RAGtime/0.1 (podcast aggregator lookup)"
 
 
-class FyydIndex(PodcastIndex):
+class FyydAggregator(PodcastAggregator):
     name = "fyyd"
 
     def __init__(self, api_key: str = ""):

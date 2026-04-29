@@ -197,7 +197,15 @@ def _bootstrap_status(episode_id: int, from_step: str) -> StepOutput:
 
 @DBOS.step()
 def fetch_details_step_(episode_id: int) -> StepOutput:
-    fetch_details_step.fetch_episode_details(episode_id)
+    # Read the workflow ID inside the step wrapper so the orchestrator
+    # itself stays DBOS-import-free; persisted on FetchDetailsRun for
+    # cross-reference forensics with ``dbos workflow steps``.
+    workflow_id = ""
+    try:
+        workflow_id = DBOS.workflow_id or ""
+    except Exception:
+        pass
+    fetch_details_step.fetch_episode_details(episode_id, workflow_id)
     _raise_if_failed(episode_id, FetchDetailsFailed)
     return StepOutput(episode_id=episode_id, step_name=Episode.Status.FETCHING_DETAILS)
 

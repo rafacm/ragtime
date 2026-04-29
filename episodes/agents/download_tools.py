@@ -428,21 +428,21 @@ async def lookup_podcast_index(
 ) -> list[IndexCandidate]:
     """Query configured podcast indexes for episode candidates.
 
-    Fans out across every provider in ``RAGTIME_PODCAST_INDEXES``
-    (currently fyyd.de and podcastindex.org) using the supplied
-    title + show name + GUID hint. Results are merged and
-    deduplicated by ``audio_url``. When *title*/*show_name*/*guid*
-    are empty, falls back to the episode's own metadata pulled
-    from deps.
+    Fans out across every provider in ``RAGTIME_PODCAST_AGGREGATORS``
+    (Apple Podcasts via iTunes Search, fyyd.de, podcastindex.org)
+    using the supplied title + show name + GUID hint. Results are
+    merged and deduplicated by ``audio_url``. When
+    *title*/*show_name*/*guid* are empty, falls back to the episode's
+    own metadata pulled from deps.
 
     Use this BEFORE Playwright when an episode page hides its audio
     URL behind interactive UI (3-dot menus, JS players, etc.) — the
-    indexes already carry the publisher's RSS-feed enclosure URL.
+    aggregators already carry the publisher's RSS-feed enclosure URL.
 
     Returns up to 10 candidates. Returns an empty list when no
-    indexes are configured or when no candidates match.
+    aggregators are configured or when no candidates match.
     """
-    from ..podcast_indexes import lookup_episode_candidates
+    from ..podcast_aggregators import lookup_episode_candidates
 
     effective_title = title or ctx.deps.title
     effective_show = show_name or ctx.deps.show_name

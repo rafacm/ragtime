@@ -1,3 +1,5 @@
+import json
+
 from django import forms
 from django.conf import settings
 from django.contrib import admin
@@ -5,6 +7,7 @@ from django.db.models import Count
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 
 from .models import (
     PIPELINE_STEPS,
@@ -13,6 +16,7 @@ from .models import (
     EntityMention,
     EntityType,
     Episode,
+    FetchDetailsRun,
 )
 
 
@@ -221,10 +225,55 @@ class EntityMentionInlineForEntity(admin.TabularInline):
         return False
 
 
+class FetchDetailsRunInlineForEpisode(admin.TabularInline):
+    model = FetchDetailsRun
+    extra = 0
+    classes = ("collapse",)
+    verbose_name_plural = "Fetch Details runs"
+    fields = (
+        "run_index",
+        "outcome",
+        "concise_summary",
+        "extraction_confidence",
+        "model",
+        "started_at",
+    )
+    readonly_fields = (
+        "run_index",
+        "outcome",
+        "concise_summary",
+        "extraction_confidence",
+        "model",
+        "started_at",
+    )
+    show_change_link = True
+    ordering = ("-run_index",)
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description="Summary")
+    def concise_summary(self, obj):
+        if not obj or not obj.output_json:
+            return "—"
+        concise = (obj.output_json or {}).get("concise") or {}
+        return concise.get("summary") or "—"
+
+    @admin.display(description="Confidence")
+    def extraction_confidence(self, obj):
+        if not obj or not obj.output_json:
+            return "—"
+        report = (obj.output_json or {}).get("report") or {}
+        return report.get("extraction_confidence") or "—"
+
+
 @admin.register(Episode)
 class EpisodeAdmin(admin.ModelAdmin):
     list_display = ("title", "url", "language", "formatted_duration", "status", "created_at", "updated_at")
-    list_filter = ("status", "language")
+    list_filter = ("status", "language", "source_kind", "aggregator_provider")
     readonly_fields = (
         "created_at",
         "updated_at",
@@ -236,6 +285,7 @@ class EpisodeAdmin(admin.ModelAdmin):
         "summary_generated",
         "entities_json",
         "dbos_steps_link",
+        "latest_fetch_details_run_summary",
     )
     actions = ["reprocess"]
 
@@ -246,12 +296,23 @@ class EpisodeAdmin(admin.ModelAdmin):
         "image_url",
         "language",
         "audio_url",
+        "audio_format",
+        "guid",
+        "country",
+    )
+
+    SOURCE_FIELDS = (
+        "canonical_url",
+        "source_kind",
+        "aggregator_provider",
     )
 
     def get_inlines(self, request, obj=None):
         if obj is None:
             return []
         inlines = []
+        if obj.fetch_details_runs.exists():
+            inlines.append(FetchDetailsRunInlineForEpisode)
         if obj.chunks.exists():
             inlines.append(ChunkInlineForEpisode)
         if obj.entity_mentions.exists():
@@ -262,13 +323,13 @@ class EpisodeAdmin(admin.ModelAdmin):
         readonly = list(super().get_readonly_fields(request, obj))
         if obj is None:
             # Creating a new episode — only url is editable
-            readonly += list(self.METADATA_FIELDS) + ["status", "scraped_html"]
+            readonly += list(self.METADATA_FIELDS) + list(self.SOURCE_FIELDS) + ["status"]
         elif obj.status == Episode.Status.FAILED:
             # FAILED — metadata editable so admin can fix and reprocess
-            readonly += ["status", "scraped_html"]
+            readonly += ["status"]
         else:
             # All other statuses — everything read-only except url
-            readonly += list(self.METADATA_FIELDS) + ["status", "scraped_html"]
+            readonly += list(self.METADATA_FIELDS) + list(self.SOURCE_FIELDS) + ["status"]
         return readonly
 
     def get_fieldsets(self, request, obj=None):
@@ -279,6 +340,17 @@ class EpisodeAdmin(admin.ModelAdmin):
             main_fields.append("error_message")
         fieldsets = [
             (None, {"fields": main_fields}),
+        ]
+        if obj.fetch_details_runs.exists():
+            fieldsets.append((
+                "Latest Fetch Details run",
+                {"fields": ("latest_fetch_details_run_summary",)},
+            ))
+        fieldsets += [
+            (
+                "Source",
+                {"fields": self.SOURCE_FIELDS},
+            ),
             (
                 "Metadata",
                 {"fields": self.METADATA_FIELDS},
@@ -308,13 +380,6 @@ class EpisodeAdmin(admin.ModelAdmin):
             ))
         fieldsets += [
             (
-                "Debug",
-                {
-                    "classes": ("collapse",),
-                    "fields": ("scraped_html",),
-                },
-            ),
-            (
                 "Timestamps",
                 {
                     "classes": ("collapse",),
@@ -323,6 +388,54 @@ class EpisodeAdmin(admin.ModelAdmin):
             ),
         ]
         return fieldsets
+
+    @admin.display(description="Latest run")
+    def latest_fetch_details_run_summary(self, obj):
+        if not obj or not obj.pk:
+            return "—"
+        run = (
+            obj.fetch_details_runs.order_by("-run_index").first()
+        )
+        if run is None:
+            return "—"
+        output = run.output_json or {}
+        concise = output.get("concise") or {}
+        report = output.get("report") or {}
+
+        change_url = reverse(
+            "admin:episodes_fetchdetailsrun_change", args=[run.pk]
+        )
+
+        outcome = run.outcome or "—"
+        summary = concise.get("summary") or "—"
+        narrative = report.get("narrative") or ""
+        hints = report.get("hints_for_next_step") or ""
+        confidence = report.get("extraction_confidence") or "—"
+
+        # Compose with format_html for safe escaping; narrative blocks
+        # rendered into <pre> so line breaks survive without raw HTML.
+        return format_html(
+            (
+                '<div style="line-height:1.5">'
+                '<div><strong>Run #{0}</strong> · '
+                '<a href="{1}">view details</a></div>'
+                '<div><strong>Outcome:</strong> {2}</div>'
+                '<div><strong>Confidence:</strong> {3}</div>'
+                '<div><strong>Summary:</strong> {4}</div>'
+                '<div style="margin-top:0.5em"><strong>Narrative:</strong>'
+                '<pre style="white-space:pre-wrap;margin:0">{5}</pre></div>'
+                '<div style="margin-top:0.5em"><strong>Hints for next step:</strong>'
+                '<pre style="white-space:pre-wrap;margin:0">{6}</pre></div>'
+                '</div>'
+            ),
+            run.run_index,
+            change_url,
+            outcome,
+            confidence,
+            summary,
+            narrative,
+            hints,
+        )
 
     @admin.display(description="DBOS workflows")
     def dbos_steps_link(self, obj):
@@ -748,6 +861,191 @@ class EntityAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+def _pretty_json(value) -> str:
+    """Render a JSON value as a pre-formatted, indented string."""
+    if value in (None, ""):
+        return "—"
+    try:
+        return json.dumps(value, indent=2, default=str, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return str(value)
+
+
+@admin.register(FetchDetailsRun)
+class FetchDetailsRunAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "episode_link",
+        "run_index",
+        "outcome",
+        "model",
+        "started_at",
+    )
+    list_filter = ("outcome", "model")
+    search_fields = (
+        "episode__title", "episode__url", "dbos_workflow_id",
+    )
+    readonly_fields = (
+        "episode_link",
+        "run_index",
+        "outcome",
+        "model",
+        "started_at",
+        "finished_at",
+        "dbos_workflow_id_link",
+        "concise_block",
+        "report_block",
+        "details_block",
+        "tool_calls_block",
+        "output_json_pretty",
+        "usage_json_pretty",
+        "error_message",
+    )
+    fieldsets = (
+        (None, {
+            "fields": (
+                "episode_link",
+                "run_index",
+                "outcome",
+                "model",
+                "started_at",
+                "finished_at",
+                "dbos_workflow_id_link",
+                "error_message",
+            ),
+        }),
+        ("Concise", {"fields": ("concise_block",)}),
+        ("Report", {"fields": ("report_block",)}),
+        ("Details", {"fields": ("details_block",)}),
+        ("Tool calls", {
+            "classes": ("collapse",),
+            "fields": ("tool_calls_block",),
+        }),
+        ("Raw payloads", {
+            "classes": ("collapse",),
+            "fields": ("output_json_pretty", "usage_json_pretty"),
+        }),
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description="Episode")
+    def episode_link(self, obj):
+        if not obj or not obj.episode_id:
+            return "—"
+        url = reverse("admin:episodes_episode_change", args=[obj.episode_id])
+        return format_html('<a href="{}">{}</a>', url, obj.episode)
+
+    @admin.display(description="DBOS workflow")
+    def dbos_workflow_id_link(self, obj):
+        if not obj or not obj.dbos_workflow_id:
+            return "—"
+        episode_id = obj.episode_id
+        if episode_id:
+            url = reverse(
+                "admin:episodes_episode_dbos_steps", args=[episode_id]
+            )
+            return format_html(
+                '<a href="{}">{}</a>', url, obj.dbos_workflow_id,
+            )
+        return obj.dbos_workflow_id
+
+    @admin.display(description="Concise message")
+    def concise_block(self, obj):
+        if not obj or not obj.output_json:
+            return "—"
+        concise = (obj.output_json or {}).get("concise") or {}
+        return format_html(
+            '<div><strong>Outcome:</strong> {}</div>'
+            '<div><strong>Summary:</strong> {}</div>',
+            concise.get("outcome") or "—",
+            concise.get("summary") or "—",
+        )
+
+    @admin.display(description="Report")
+    def report_block(self, obj):
+        if not obj or not obj.output_json:
+            return "—"
+        report = (obj.output_json or {}).get("report") or {}
+        attempted = report.get("attempted_sources") or []
+        attempted_lines = format_html_join_lines(
+            "{} · {} · {} · {}",
+            (
+                (
+                    a.get("source", "?"),
+                    a.get("url_or_query", ""),
+                    a.get("outcome", "?"),
+                    a.get("note", ""),
+                )
+                for a in attempted
+            ),
+        )
+        return format_html(
+            (
+                '<div><strong>Confidence:</strong> {}</div>'
+                '<div><strong>Discovered canonical_url:</strong> {}</div>'
+                '<div><strong>Discovered audio_url:</strong> {}</div>'
+                '<div><strong>Cross-linked:</strong> {}</div>'
+                '<div style="margin-top:0.5em"><strong>Narrative:</strong>'
+                '<pre style="white-space:pre-wrap;margin:0">{}</pre></div>'
+                '<div style="margin-top:0.5em"><strong>Hints for next step:</strong>'
+                '<pre style="white-space:pre-wrap;margin:0">{}</pre></div>'
+                '<div style="margin-top:0.5em"><strong>Attempted sources:</strong>'
+                '<pre style="white-space:pre-wrap;margin:0">{}</pre></div>'
+            ),
+            report.get("extraction_confidence") or "—",
+            "yes" if report.get("discovered_canonical_url") else "no",
+            "yes" if report.get("discovered_audio_url") else "no",
+            "yes" if report.get("cross_linked") else "no",
+            report.get("narrative") or "",
+            report.get("hints_for_next_step") or "",
+            attempted_lines or "—",
+        )
+
+    @admin.display(description="Episode details")
+    def details_block(self, obj):
+        if not obj or not obj.output_json:
+            return "—"
+        details = (obj.output_json or {}).get("details") or {}
+        return format_html(
+            '<pre style="white-space:pre-wrap;margin:0">{}</pre>',
+            _pretty_json(details),
+        )
+
+    @admin.display(description="Tool calls")
+    def tool_calls_block(self, obj):
+        if not obj or not obj.tool_calls_json:
+            return "—"
+        return format_html(
+            '<pre style="white-space:pre-wrap;margin:0">{}</pre>',
+            _pretty_json(obj.tool_calls_json),
+        )
+
+    @admin.display(description="output_json")
+    def output_json_pretty(self, obj):
+        return format_html(
+            '<pre style="white-space:pre-wrap;margin:0">{}</pre>',
+            _pretty_json(obj.output_json) if obj else "—",
+        )
+
+    @admin.display(description="usage_json")
+    def usage_json_pretty(self, obj):
+        return format_html(
+            '<pre style="white-space:pre-wrap;margin:0">{}</pre>',
+            _pretty_json(obj.usage_json) if obj else "—",
+        )
+
+
+def format_html_join_lines(format_string, args_iter) -> str:
+    """``format_html_join`` analogue that emits one safe line per record."""
+    lines = [format_html(format_string, *args) for args in args_iter]
+    return mark_safe("\n".join(lines)) if lines else ""
 
 
 @admin.register(EntityMention)

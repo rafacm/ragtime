@@ -1,4 +1,4 @@
-"""Podcast index ABC + shared dataclass."""
+"""Podcast aggregator ABC + shared dataclass."""
 
 from __future__ import annotations
 
@@ -8,11 +8,13 @@ from abc import ABC, abstractmethod
 
 @dataclasses.dataclass(frozen=True)
 class EpisodeCandidate:
-    """A single episode match returned by a podcast index.
+    """A single episode match returned by a podcast aggregator.
 
     ``audio_url`` is the only field strictly required for the download
     agent to act. ``source_index`` carries the provider name so the
-    agent (and ``DownloadResult``) can record which index hit.
+    agent (and ``DownloadResult``) can record which aggregator hit.
+    The legacy field name is preserved to avoid churn in callers that
+    only consume the value as an opaque label.
     """
 
     audio_url: str
@@ -22,13 +24,13 @@ class EpisodeCandidate:
     source_index: str = ""
 
 
-class PodcastIndex(ABC):
+class PodcastAggregator(ABC):
     """A queryable podcast directory.
 
     Providers implement ``search`` to translate ``(title, show_name,
     guid)`` into zero or more :class:`EpisodeCandidate` objects.
     Network failures should be swallowed and returned as ``[]`` —
-    the agent fans out across multiple indexes and a single
+    the agent fans out across multiple aggregators and a single
     provider's outage must not abort the cascade.
     """
 

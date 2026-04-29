@@ -63,7 +63,7 @@ Each step updates the episode's `status` field. A `post_save` signal enqueues a 
 |---|------|--------|-------------|
 | 1 | 📥 Submit | `pending` | User submits an episode URL |
 | ⏸ | ⏳ Queue | `queued` | Waiting for a pipeline worker slot |
-| 2 | 🕷️ Fetch Details | `fetching_details` | Extract metadata and detect language |
+| 2 | 🕷️ Fetch Details | `fetching_details` | Investigator agent extracts metadata and cross-links between canonical and aggregator pages (Apple Podcasts, fyyd) when the submitted URL alone is incomplete |
 | 3 | ⬇️ Download | `downloading` | Download audio (cheap `wget` first; agent + podcast-index fallback) and extract duration |
 | 4 | 🎙️ Transcribe | `transcribing` | Whisper API transcription with timestamps |
 | 5 | 📋 Summarize | `summarizing` | LLM-generated episode summary |

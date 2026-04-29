@@ -1,17 +1,14 @@
-"""Fetch Details Pydantic AI agent.
+"""Fetch Details Pydantic AI agent — investigator with cross-linking tools.
 
-Single structured-output LLM call. No tools yet — this is the SDK swap
-that puts the agent shape in place so a follow-up PR can attach browser
-tools (URL discovery on interactive pages) absorbed from the recovery
-agent.
+Single-loop agent: LLM gets system prompt + user message + 3 tools +
+``output_type=FetchDetailsOutput``. The agent decides when to fetch
+URLs, when to cross-link with Apple Podcasts / fyyd, and emits a
+structured output describing what it did and what it found.
 
 Module purity rule: imports only Pydantic AI, Pydantic, stdlib, and
-``agents/_model.py`` — no Django, no DBOS, no ``episodes.models``. This
-keeps the agent bootable from a bare interpreter for unit/eval tests:
-
-    from episodes.agents.fetch_details import run, EpisodeDetails
-
-Tests can override the model with ``Agent.override(model=TestModel())``.
+sibling modules under ``episodes/agents/``. No Django, no DBOS, no
+``episodes.models``. Tests can override the model with
+``Agent.override(model=TestModel())``.
 """
 
 from __future__ import annotations
@@ -19,53 +16,129 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import BaseModel, field_validator
 from pydantic_ai import Agent
 
+from . import fetch_details_tools as tools
 from ._model import build_model
+from .fetch_details_deps import FetchDetailsDeps
 
 ISO_639_RE = re.compile(r"^[a-z]{2}$")
+ISO_3166_RE = re.compile(r"^[a-z]{2}$")
+URL_RE = re.compile(r"^https?://", re.IGNORECASE)
 
 
 SYSTEM_PROMPT = """\
-You are a metadata extractor for podcast episode web pages.
-Given the cleaned HTML of a podcast episode page, extract the following fields.
+You are a podcast episode metadata investigator.
 
-Rules:
-- For URLs (image_url, audio_url): return absolute URLs. If the HTML contains \
-relative URLs, you cannot resolve them, so return them as-is.
-- For audio_url: look for links to .mp3 files in <audio>, <source>, or <a> tags. \
-Also check <meta> tags and embedded player markup.
-- For published_at: return in YYYY-MM-DD format.
-- For language: return an ISO 639-1 code (e.g. "en", "es", "de", "sv").
-- For guid: return the episode's RSS-feed-style identifier when one is present \
-in the HTML — look for ``urn:`` URIs, ``itunes:episodeGuid``, ``<guid>`` tags, \
-or ``data-guid``/``data-episode-id`` attributes. This is a hint for podcast \
-index lookups, so any stable per-episode identifier is acceptable. Return null \
-when none is visible.
-- Check <meta> tags (og:title, og:description, og:image, etc.) first, \
-then fall back to page content.
-- Return null for any field you cannot confidently determine.
+Inputs:
+  - One URL submitted by a user. It may be the publisher's canonical
+    episode page, or an aggregator's page (Apple Podcasts, Spotify, etc.).
+
+Your goal:
+  1. Determine whether the URL is a podcast episode page at all.
+  2. Extract the episode's metadata: title, description, language,
+     country, image, published date, audio URL, audio format, GUID.
+  3. Classify the URL's source_kind (canonical | aggregator | unknown)
+     and the aggregator_provider when applicable.
+  4. When extraction is incomplete from the submitted URL alone, use
+     your tools to cross-link: an Apple Podcasts URL often advertises
+     a canonical URL; a canonical URL with no extractable audio can
+     often be found by title+show on iTunes Search or fyyd.
+  5. Produce a faithful structured report (what you tried, where each
+     value came from, and your honest confidence).
+
+Tools:
+  - fetch_url(url): fetches and cleans HTML.
+  - search_apple_podcasts(show, episode_title): iTunes Search API.
+  - search_fyyd(show, episode_title): fyyd directory search.
+
+Constraints:
+  - Use tools only when they help. Redundant calls are a quality regression.
+  - Do NOT guess audio URLs you didn't see in a tool result.
+  - Use extraction_confidence=high ONLY when you have audio_url AND title
+    AND a clear source_kind classification.
+  - URLs returned must be absolute (http:// or https://).
+  - language: ISO 639-1 (lowercase). country: ISO 3166-1 alpha-2 (lowercase).
+  - audio_format: mp3 | m4a | aac | ogg | wav | opus.
+
+Outcome decision rules:
+  - ok: required fields filled, audio_url known, confidence high.
+  - partial: required fields filled, audio_url missing or low confidence.
+  - not_a_podcast_episode: page loaded, but it's clearly a homepage,
+    article, or non-episode page.
+  - unreachable: HTTP fetch failed (set this when fetch_url errored).
+  - extraction_failed: page loaded, seems like an episode, but title
+    couldn't be confidently extracted.
 """
 
 
+# Recognized aggregator providers — agent output is normalized at write
+# time but the field is a free string so a new aggregator the agent
+# names doesn't reject the whole structured output.
+AGGREGATOR_WHITELIST = (
+    "apple_podcasts", "spotify", "fyyd", "overcast", "pocketcasts",
+)
+
+
+class AttemptedSource(BaseModel):
+    source: Literal["user_url", "itunes", "fyyd", "cross_link"]
+    url_or_query: str
+    outcome: Literal["ok", "no_results", "error", "skipped"]
+    note: str = ""
+
+
+class FetchDetailsReport(BaseModel):
+    attempted_sources: list[AttemptedSource]
+    discovered_canonical_url: bool = False
+    discovered_audio_url: bool = False
+    cross_linked: bool = False
+    extraction_confidence: Literal["high", "medium", "low"] = "low"
+    narrative: str = ""
+    hints_for_next_step: str = ""
+
+
+class ConciseMessage(BaseModel):
+    outcome: Literal[
+        "ok", "partial", "not_a_podcast_episode",
+        "unreachable", "extraction_failed",
+    ]
+    summary: str
+
+    @field_validator("summary", mode="before")
+    @classmethod
+    def _cap_summary(cls, value):
+        if not isinstance(value, str):
+            return value
+        # Hard cap — the spec says ≤140 chars; trim quietly rather
+        # than reject so a stray over-long summary doesn't fail the run.
+        return value[:140]
+
+
 class EpisodeDetails(BaseModel):
-    """Structured output of the fetch_details agent.
+    """Episode-level facts extracted by the agent.
 
     All fields are optional — the agent returns ``None`` for any field
     it cannot confidently extract. URLs are plain ``str`` (not
     ``HttpUrl``) because pages often embed relative URLs that the agent
-    cannot resolve; the step orchestrator decides what to do with them.
+    cannot resolve; the validators below reject anything that isn't an
+    absolute http(s) URL.
     """
 
     title: str | None = None
     description: str | None = None
     published_at: date | None = None
     image_url: str | None = None
-    language: str | None = None
     audio_url: str | None = None
+    audio_format: Literal["mp3", "m4a", "aac", "ogg", "wav", "opus"] | None = None
+    language: str | None = None
+    country: str | None = None
     guid: str | None = None
+    canonical_url: str | None = None
+    source_kind: Literal["canonical", "aggregator", "unknown"] = "unknown"
+    aggregator_provider: str | None = None
 
     @field_validator("published_at", mode="before")
     @classmethod
@@ -84,18 +157,57 @@ class EpisodeDetails(BaseModel):
     def _validate_language_code(cls, value):
         if value in (None, ""):
             return None
-        if isinstance(value, str) and ISO_639_RE.match(value):
+        if isinstance(value, str) and ISO_639_RE.match(value.lower()):
+            return value.lower()
+        return None
+
+    @field_validator("country", mode="before")
+    @classmethod
+    def _validate_country_code(cls, value):
+        if value in (None, ""):
+            return None
+        if isinstance(value, str) and ISO_3166_RE.match(value.lower()):
+            return value.lower()
+        return None
+
+    @field_validator("image_url", "audio_url", "canonical_url", mode="before")
+    @classmethod
+    def _validate_absolute_url(cls, value):
+        if value in (None, ""):
+            return None
+        if isinstance(value, str) and URL_RE.match(value):
             return value
         return None
 
+    @field_validator("aggregator_provider", mode="before")
+    @classmethod
+    def _normalize_aggregator(cls, value):
+        if value in (None, ""):
+            return None
+        if not isinstance(value, str):
+            return None
+        normalized = value.strip().lower().replace(" ", "_").replace("-", "_")
+        # Apple's various brand spellings → canonical key.
+        if normalized in ("apple", "itunes", "applepodcasts"):
+            return "apple_podcasts"
+        return normalized
+
+
+class FetchDetailsOutput(BaseModel):
+    """Wrapped agent output: the three things the orchestrator needs."""
+
+    details: EpisodeDetails
+    report: FetchDetailsReport
+    concise: ConciseMessage
+
 
 @lru_cache(maxsize=1)
-def get_agent() -> Agent[None, EpisodeDetails]:
+def get_agent() -> Agent[FetchDetailsDeps, FetchDetailsOutput]:
     """Lazy + memoized agent factory.
 
-    Reads the ``RAGTIME_FETCH_DETAILS_*`` settings inside the lazy path
-    so the module stays importable without Django configured. Tests
-    that need a different model use ``Agent.override(model=TestModel())``
+    Reads ``RAGTIME_FETCH_DETAILS_*`` settings inside the lazy path so
+    the module stays importable without Django configured. Tests that
+    need a different model use ``Agent.override(model=TestModel())``
     on the returned agent.
     """
     from django.conf import settings
@@ -106,15 +218,57 @@ def get_agent() -> Agent[None, EpisodeDetails]:
     api_key = getattr(settings, "RAGTIME_FETCH_DETAILS_API_KEY", "")
     model = build_model(model_string, api_key)
 
-    return Agent(
+    agent = Agent(
         model,
-        output_type=EpisodeDetails,
+        deps_type=FetchDetailsDeps,
+        output_type=FetchDetailsOutput,
         system_prompt=SYSTEM_PROMPT,
+    )
+    agent.tool(tools.fetch_url)
+    agent.tool(tools.search_apple_podcasts)
+    agent.tool(tools.search_fyyd)
+    return agent
+
+
+def get_model_string() -> str:
+    """Return the configured model string (for ``FetchDetailsRun.model``)."""
+    from django.conf import settings
+
+    return getattr(
+        settings, "RAGTIME_FETCH_DETAILS_MODEL", "openai:gpt-4.1-mini"
     )
 
 
-async def run(html: str) -> EpisodeDetails:
-    """Run the agent against *html* and return the structured output."""
+async def run(submitted_url: str) -> tuple[FetchDetailsOutput, FetchDetailsDeps, dict | None]:
+    """Run the agent against *submitted_url* and return its output + deps + usage.
+
+    Returns the structured output, the deps object (carrying the full
+    tool-call trace), and the Pydantic AI usage dict (or ``None`` if
+    Pydantic AI didn't surface one).
+    """
     agent = get_agent()
-    result = await agent.run(html)
-    return result.output
+    deps = FetchDetailsDeps(submitted_url=submitted_url)
+    user_msg = f"URL: {submitted_url}"
+    result = await agent.run(user_msg, deps=deps)
+    usage = _usage_dict(result)
+    return result.output, deps, usage
+
+
+def _usage_dict(result) -> dict | None:
+    """Best-effort extraction of Pydantic AI usage as a JSON-serializable dict."""
+    try:
+        usage = result.usage()
+    except Exception:
+        return None
+    if usage is None:
+        return None
+    # Pydantic AI's Usage exposes ``__dict__`` of token counters.
+    if hasattr(usage, "model_dump"):
+        try:
+            return usage.model_dump()
+        except Exception:
+            pass
+    try:
+        return dict(usage.__dict__)
+    except Exception:
+        return None

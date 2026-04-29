@@ -17,6 +17,11 @@ class Episode(models.Model):
         READY = "ready"
         FAILED = "failed"
 
+    class SourceKind(models.TextChoices):
+        CANONICAL = "canonical"
+        AGGREGATOR = "aggregator"
+        UNKNOWN = "unknown"
+
     url = models.URLField(unique=True)
     status = models.CharField(
         max_length=20,
@@ -31,14 +36,23 @@ class Episode(models.Model):
     image_url = models.URLField(max_length=2000, blank=True, default="")
     language = models.CharField(max_length=10, blank=True, default="")
     audio_url = models.URLField(max_length=2000, blank=True, default="")
+    audio_format = models.CharField(max_length=10, blank=True, default="")
     guid = models.CharField(max_length=500, blank=True, default="")
+    country = models.CharField(max_length=2, blank=True, default="")
+
+    # Source classification (populated by fetch_details agent)
+    canonical_url = models.URLField(max_length=2000, blank=True, default="")
+    source_kind = models.CharField(
+        max_length=20,
+        choices=SourceKind.choices,
+        default=SourceKind.UNKNOWN,
+        blank=True,
+    )
+    aggregator_provider = models.CharField(max_length=50, blank=True, default="")
 
     # Audio file (populated by downloader)
     audio_file = models.FileField(upload_to="episodes/", blank=True)
     duration = models.PositiveIntegerField(null=True, blank=True)
-
-    # Stored cleaned HTML for debugging/re-processing
-    scraped_html = models.TextField(blank=True, default="")
 
     # Transcription (populated by transcriber)
     transcript = models.TextField(blank=True, default="")
@@ -201,6 +215,79 @@ class Chunk(models.Model):
 
     def __str__(self):
         return f"Chunk {self.index} of {self.episode}"
+
+
+class FetchDetailsRun(models.Model):
+    """One execution of the Fetch Details agent for an episode.
+
+    Persists the full agent trace so admins (and a future Scott UI) can
+    see every cross-link, tool call, and structured output the agent
+    produced. ``run_index`` increments per episode — successive
+    re-runs land as new rows. The ``Episode`` row carries only the
+    user-facing summary; everything richer lives here.
+    """
+
+    class Outcome(models.TextChoices):
+        OK = "ok"
+        PARTIAL = "partial"
+        NOT_A_PODCAST_EPISODE = "not_a_podcast_episode"
+        UNREACHABLE = "unreachable"
+        EXTRACTION_FAILED = "extraction_failed"
+
+    episode = models.ForeignKey(
+        Episode, on_delete=models.CASCADE, related_name="fetch_details_runs"
+    )
+    run_index = models.PositiveIntegerField(
+        help_text="1, 2, 3… per episode — increments on re-run.",
+    )
+
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    model = models.CharField(
+        max_length=100,
+        default="",
+        help_text="Pydantic AI model string at run time (e.g. openai:gpt-4.1-mini).",
+    )
+
+    outcome = models.CharField(
+        max_length=30,
+        choices=Outcome.choices,
+        blank=True,
+        default="",
+    )
+
+    # Full structured agent output: { details, report, concise }.
+    output_json = models.JSONField(null=True, blank=True)
+    # Auto-captured tool calls from Pydantic AI run messages — separate
+    # from the agent's self-narrated ``attempted_sources``.
+    tool_calls_json = models.JSONField(default=list, blank=True)
+    # Raw Pydantic AI usage dict; no extracted token columns this PR.
+    usage_json = models.JSONField(null=True, blank=True)
+
+    # Set only when the agent crashed before producing structured output.
+    error_message = models.TextField(blank=True, default="")
+
+    dbos_workflow_id = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="DBOS.workflow_id at orchestrator entry — cross-reference for forensics.",
+    )
+
+    class Meta:
+        unique_together = [("episode", "run_index")]
+        indexes = [
+            models.Index(fields=["episode", "-run_index"]),
+            models.Index(fields=["outcome"]),
+            models.Index(fields=["-started_at"]),
+        ]
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        outcome = self.outcome or "in_progress"
+        return f"FetchDetailsRun #{self.run_index} of {self.episode_id} ({outcome})"
 
 
 PIPELINE_STEPS = [

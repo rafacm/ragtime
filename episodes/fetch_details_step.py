@@ -1,83 +1,132 @@
-"""Fetch Details pipeline step (was: Scrape).
+"""Fetch Details pipeline step.
 
-Owns: status transitions, HTML fetch + clean, fast-path skip when required
-fields are pre-filled, empty-field-only merge of extracted metadata,
-completeness check, error handling. Delegates the LLM call to the
-``fetch_details`` Pydantic AI agent in ``episodes/agents/fetch_details.py``.
+Orchestrates the Fetch Details investigator agent and persists a per-run
+``FetchDetailsRun`` record. The agent owns metadata extraction and
+cross-linking; this module owns the state machine: status transitions,
+overwriting Episode fields with the agent's authoritative output, and
+mapping the agent's structured ``concise.outcome`` onto pipeline status.
+
+Authority model: the agent's output is authoritative — Episode columns
+are overwritten directly, not merged. Re-running via the admin
+``reprocess`` action will overwrite admin-edited values.
+
+DBOS interface: this module is DBOS-agnostic. The
+``@DBOS.step()`` wrapper in ``episodes/workflows.py`` reads
+``DBOS.workflow_id`` and passes it in as ``dbos_workflow_id``; the
+orchestrator records it onto the new ``FetchDetailsRun`` row for
+forensics. The wrapper still uses the ``_raise_if_failed`` typed-
+exception pattern at the end.
 """
+
+from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import date
 
-import httpx
-from bs4 import BeautifulSoup
+from django.db import transaction
+from django.utils import timezone
 
 from .agents import fetch_details as fetch_details_agent
-from .models import Episode
-from .processing import complete_step, fail_step, start_step
+from .models import Episode, FetchDetailsRun
 from .telemetry import trace_step
 
 logger = logging.getLogger(__name__)
 
-TAGS_TO_STRIP = [
-    "script",
-    "style",
-    "noscript",
-    "iframe",
-    "svg",
-    "canvas",
-    "nav",
-    "footer",
-]
 
-MAX_HTML_LENGTH = 30_000
-
-# Step's "ready to advance" contract — independent of the agent's output
-# contract. The step refuses to leave FETCHING_DETAILS without these fields.
-# ``audio_url`` is intentionally NOT required: the download agent owns
-# audio-URL discovery (cheap-path wget if present, otherwise
-# podcast-index lookup or Playwright browsing) for cases where
-# fetch-details could only recover a title.
-REQUIRED_FIELDS = ("title",)
+_OUTCOME_TO_STATUS = {
+    FetchDetailsRun.Outcome.OK: Episode.Status.DOWNLOADING,
+    FetchDetailsRun.Outcome.PARTIAL: Episode.Status.DOWNLOADING,
+    FetchDetailsRun.Outcome.NOT_A_PODCAST_EPISODE: Episode.Status.FAILED,
+    FetchDetailsRun.Outcome.UNREACHABLE: Episode.Status.FAILED,
+    FetchDetailsRun.Outcome.EXTRACTION_FAILED: Episode.Status.FAILED,
+}
 
 
-def fetch_html(url: str) -> str:
-    response = httpx.get(
-        url,
-        follow_redirects=True,
-        timeout=30,
-        headers={"User-Agent": "RAGtime/0.1 (podcast metadata fetcher)"},
+def _next_run_index(episode_id: int) -> int:
+    last = (
+        FetchDetailsRun.objects.filter(episode_id=episode_id)
+        .order_by("-run_index")
+        .values_list("run_index", flat=True)
+        .first()
     )
-    response.raise_for_status()
-    return response.text
+    return (last or 0) + 1
 
 
-def clean_html(raw_html: str) -> str:
-    soup = BeautifulSoup(raw_html, "html.parser")
-    for tag in soup.find_all(TAGS_TO_STRIP):
-        tag.decompose()
-    text = str(soup)
-    if len(text) > MAX_HTML_LENGTH:
-        text = text[:MAX_HTML_LENGTH]
-    return text
+def _run_agent_sync(submitted_url: str):
+    """Run the async fetch_details agent from sync DBOS step context."""
+    return asyncio.run(fetch_details_agent.run(submitted_url))
 
 
-def _has_required_fields(episode: Episode) -> bool:
-    return all(getattr(episode, f) for f in REQUIRED_FIELDS)
+def _apply_details(episode: Episode, details) -> list[str]:
+    """Overwrite Episode fields with the agent's authoritative output.
 
-
-def _run_agent_sync(html: str) -> fetch_details_agent.EpisodeDetails:
-    """Run the async fetch_details agent from sync DBOS step context.
-
-    DBOS step bodies are sync. ``asyncio.run`` is fine here — each step
-    body is its own short-lived call, and Pydantic AI's ``Agent.run``
-    creates HTTP clients lazily per call.
+    Returns the list of field names that were touched, suitable for
+    ``save(update_fields=...)``.
     """
-    return asyncio.run(fetch_details_agent.run(html))
+    fields: list[str] = []
+
+    def _set(name, value, *, allow_blank=False):
+        # Replace empty strings the agent emits with our model defaults
+        # (empty string), but honour ``None`` as "agent had no value".
+        if value is None:
+            return
+        if isinstance(value, str) and not value and not allow_blank:
+            return
+        setattr(episode, name, value)
+        fields.append(name)
+
+    _set("title", details.title or "")
+    _set("description", details.description or "")
+    _set("image_url", details.image_url or "")
+    _set("language", details.language or "")
+    _set("audio_url", details.audio_url or "")
+    _set("audio_format", details.audio_format or "")
+    _set("country", details.country or "")
+    _set("guid", details.guid or "")
+    _set("canonical_url", details.canonical_url or "")
+    _set("aggregator_provider", details.aggregator_provider or "")
+
+    if details.published_at and isinstance(details.published_at, date):
+        episode.published_at = details.published_at
+        fields.append("published_at")
+
+    # source_kind is a TextChoices field with a non-blank default —
+    # always reflect the agent's classification.
+    episode.source_kind = details.source_kind or Episode.SourceKind.UNKNOWN
+    fields.append("source_kind")
+
+    return fields
+
+
+def _persist_run(
+    *,
+    episode_id: int,
+    run_index: int,
+    output_json: dict | None,
+    tool_calls: list[dict],
+    usage_json: dict | None,
+    outcome: str,
+    error_message: str,
+    dbos_workflow_id: str,
+    model: str,
+) -> FetchDetailsRun:
+    return FetchDetailsRun.objects.create(
+        episode_id=episode_id,
+        run_index=run_index,
+        finished_at=timezone.now(),
+        model=model,
+        outcome=outcome or "",
+        output_json=output_json,
+        tool_calls_json=tool_calls,
+        usage_json=usage_json,
+        error_message=error_message,
+        dbos_workflow_id=dbos_workflow_id or "",
+    )
 
 
 @trace_step("fetch_episode_details")
-def fetch_episode_details(episode_id: int) -> None:
+def fetch_episode_details(episode_id: int, dbos_workflow_id: str = "") -> None:
     try:
         episode = Episode.objects.get(pk=episode_id)
     except Episode.DoesNotExist:
@@ -86,63 +135,65 @@ def fetch_episode_details(episode_id: int) -> None:
 
     episode.status = Episode.Status.FETCHING_DETAILS
     episode.save(update_fields=["status", "updated_at"])
-    start_step(episode, Episode.Status.FETCHING_DETAILS)
+
+    run_index = _next_run_index(episode_id)
+    model_string = fetch_details_agent.get_model_string()
 
     try:
-        # Fetch and clean HTML if not already stored
-        if not episode.scraped_html:
-            raw_html = fetch_html(episode.url)
-            episode.scraped_html = clean_html(raw_html)
-            episode.save(update_fields=["scraped_html", "updated_at"])
-
-        # If user already filled all required fields (reprocess after needs_review)
-        if _has_required_fields(episode):
-            complete_step(episode, Episode.Status.FETCHING_DETAILS)
-            episode.status = Episode.Status.DOWNLOADING
-            episode.save(update_fields=["status", "updated_at"])
-            return
-
-        # Extract metadata via the fetch_details agent
-        details = _run_agent_sync(episode.scraped_html)
-
-        # Apply extracted fields (only update empty fields)
-        for field in ("title", "description", "image_url", "language", "audio_url", "guid"):
-            value = getattr(details, field)
-            if value and not getattr(episode, field):
-                setattr(episode, field, value)
-
-        if details.published_at and not episode.published_at:
-            episode.published_at = details.published_at
-
-        # Check completeness
-        update_fields = [
-            "status", "error_message",
-            "title", "description", "image_url",
-            "language", "audio_url", "guid", "published_at", "updated_at",
-        ]
-        if _has_required_fields(episode):
-            complete_step(episode, Episode.Status.FETCHING_DETAILS)
-            episode.status = Episode.Status.DOWNLOADING
-            episode.save(update_fields=update_fields)
-        else:
-            incomplete_exc = ValueError("Incomplete metadata: missing required fields")
-            episode.error_message = str(incomplete_exc)
-            episode.status = Episode.Status.FAILED
-            # Save BEFORE fail_step: recovery runs synchronously via signal
-            # and may set a new status — saving after would overwrite it.
-            episode.save(update_fields=update_fields)
-            fail_step(
-                episode, Episode.Status.FETCHING_DETAILS,
-                str(incomplete_exc),
-                exc=incomplete_exc,
-            )
-            logger.warning(
-                "Episode %s: incomplete metadata after fetch_details", episode_id
-            )
-
+        output, deps, usage = _run_agent_sync(episode.url)
     except Exception as exc:
-        logger.exception("Failed to fetch details for episode %s", episode_id)
-        episode.error_message = str(exc)
-        episode.status = Episode.Status.FAILED
-        episode.save(update_fields=["status", "error_message", "updated_at"])
-        fail_step(episode, Episode.Status.FETCHING_DETAILS, str(exc), exc=exc)
+        # Agent crashed before producing structured output — record a
+        # row with no outcome, fail the episode, propagate so DBOS can
+        # log the exception via _raise_if_failed.
+        logger.exception("fetch_details agent crashed for episode %s", episode_id)
+        with transaction.atomic():
+            _persist_run(
+                episode_id=episode_id,
+                run_index=run_index,
+                output_json=None,
+                tool_calls=[],
+                usage_json=None,
+                outcome="",
+                error_message=str(exc),
+                dbos_workflow_id=dbos_workflow_id,
+                model=model_string,
+            )
+            episode.status = Episode.Status.FAILED
+            episode.error_message = str(exc)
+            episode.save(update_fields=["status", "error_message", "updated_at"])
+        return
+
+    outcome_value = output.concise.outcome
+    summary = output.concise.summary
+
+    with transaction.atomic():
+        details_fields = _apply_details(episode, output.details)
+
+        new_status = _OUTCOME_TO_STATUS.get(outcome_value, Episode.Status.FAILED)
+        episode.status = new_status
+        if new_status == Episode.Status.FAILED:
+            episode.error_message = summary or outcome_value
+        else:
+            episode.error_message = ""
+        update_fields = list(set(
+            details_fields + ["status", "error_message", "updated_at"]
+        ))
+        episode.save(update_fields=update_fields)
+
+        _persist_run(
+            episode_id=episode_id,
+            run_index=run_index,
+            output_json=output.model_dump(mode="json"),
+            tool_calls=deps.tool_calls,
+            usage_json=usage,
+            outcome=outcome_value,
+            error_message="",
+            dbos_workflow_id=dbos_workflow_id,
+            model=model_string,
+        )
+
+    if new_status == Episode.Status.FAILED:
+        logger.warning(
+            "Episode %s: fetch_details outcome=%s — %s",
+            episode_id, outcome_value, summary,
+        )

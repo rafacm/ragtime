@@ -261,7 +261,7 @@ class ConfigureWizardTest(TestCase):
             "",                            # Pipeline
             "", "", "", "", "",            # Wikidata
             "", "",                        # Download Agent (model, timeout)
-            "",                            # Podcast Indexes (PODCAST_INDEXES list)
+            "",                            # Podcast Aggregators (PODCAST_AGGREGATORS list)
             "", "", "",                    # OTel
             "",                             # Langfuse host
         ]
@@ -349,7 +349,7 @@ class ConfigureWizardTest(TestCase):
             "",               # Wikidata min chars (keep default)
             "",               # Download Agent model (keep default)
             "",               # Download Agent timeout (keep default)
-            "",               # Podcast Indexes (RAGTIME_PODCAST_INDEXES list)
+            "",               # Podcast Aggregators (RAGTIME_PODCAST_AGGREGATORS list)
             "",               # OTel collectors (keep default)
             "",               # OTel service name (keep default)
             "",               # OTel Jaeger endpoint (keep default)
@@ -486,7 +486,7 @@ class ConfigureWizardTest(TestCase):
             "",               # Wikidata min chars (keep default)
             "",               # Download Agent model (keep default)
             "",               # Download Agent timeout (keep default)
-            "",               # Podcast Indexes (RAGTIME_PODCAST_INDEXES list)
+            "",               # Podcast Aggregators (RAGTIME_PODCAST_AGGREGATORS list)
             "",               # OTel collectors (keep default)
             "",               # OTel service name (keep default)
             "",               # OTel Jaeger endpoint (keep default)
@@ -569,7 +569,7 @@ class ConfigureWizardTest(TestCase):
             "",                 # Pipeline EPISODE_CONCURRENCY
             "", "", "", "", "",  # Wikidata (5 fields)
             "", "",             # Download Agent (model, timeout)
-            "",                 # Podcast Indexes (RAGTIME_PODCAST_INDEXES list)
+            "",                 # Podcast Aggregators (RAGTIME_PODCAST_AGGREGATORS list)
             "", "", "",         # OTel (3 fields)
             "",                 # Langfuse host
         ]
