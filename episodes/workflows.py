@@ -52,6 +52,21 @@ class StepOutput:
     step_name: str
 
 
+@dataclasses.dataclass(frozen=True)
+class ResolveStepOutput(StepOutput):
+    """``resolve_step`` payload — carries the IDs to enqueue for enrichment.
+
+    The Wikidata-enrichment workflow can't be enqueued from inside a
+    step (DBOS keys the operation log on the step's ``function_id``,
+    so only the first enqueue per ``(step, target_func)`` pair runs;
+    every subsequent call returns the first call's handle without
+    actually enqueueing). The step therefore returns the IDs and
+    ``process_episode`` (workflow context) does the enqueue.
+    """
+
+    entity_ids_to_enrich: tuple[int, ...] = ()
+
+
 class StepFailed(Exception):
     """Base class for pipeline-step failures recorded by DBOS.
 
@@ -130,17 +145,43 @@ def _raise_if_failed(episode_id: int, exc_cls: type[StepFailed]) -> None:
 
 @DBOS.workflow()
 def process_episode(episode_id: int, from_step: str = "") -> None:
-    """Run the full episode ingestion pipeline with durable checkpointing."""
+    """Run the full episode ingestion pipeline with durable checkpointing.
+
+    Pipeline-step results are captured in the workflow body so background
+    follow-up work (currently: Wikidata enrichment for the entities
+    ``resolve_step`` touched) can be enqueued from workflow context
+    instead of from inside a step. ``Queue.enqueue`` calls inside a step
+    are deduplicated against the step's ``function_id`` and silently
+    return the first call's handle — so enqueueing inside a step would
+    only ever start a single follow-up workflow regardless of how many
+    times we called it.
+    """
     _bootstrap_status(episode_id, from_step)
 
     skipping = bool(from_step)
+    entity_ids_to_enrich: tuple[int, ...] = ()
+
     for step_name, step_fn in _PIPELINE_DISPATCH:
         if skipping:
             if step_name == from_step:
                 skipping = False
             else:
                 continue
-        step_fn(episode_id)
+        result = step_fn(episode_id)
+        if step_name == Episode.Status.RESOLVING and isinstance(result, ResolveStepOutput):
+            entity_ids_to_enrich = result.entity_ids_to_enrich
+
+    if entity_ids_to_enrich:
+        from .enrichment import enrich_entity_wikidata, wikidata_queue
+
+        for entity_id in entity_ids_to_enrich:
+            try:
+                wikidata_queue.enqueue(enrich_entity_wikidata, entity_id)
+            except Exception:
+                logger.exception(
+                    "Failed to enqueue Wikidata enrichment for entity %s",
+                    entity_id,
+                )
 
 
 @DBOS.step()
@@ -197,10 +238,14 @@ def extract_step(episode_id: int) -> StepOutput:
 
 
 @DBOS.step()
-def resolve_step(episode_id: int) -> StepOutput:
-    resolver.resolve_entities(episode_id)
+def resolve_step(episode_id: int) -> ResolveStepOutput:
+    entity_ids = resolver.resolve_entities(episode_id)
     _raise_if_failed(episode_id, ResolveFailed)
-    return StepOutput(episode_id=episode_id, step_name=Episode.Status.RESOLVING)
+    return ResolveStepOutput(
+        episode_id=episode_id,
+        step_name=Episode.Status.RESOLVING,
+        entity_ids_to_enrich=tuple(entity_ids or ()),
+    )
 
 
 @DBOS.step()

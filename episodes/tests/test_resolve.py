@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import yaml
 from django.test import TestCase, override_settings
 
+from episodes import resolver
 from episodes.models import Chunk, Entity, EntityMention, EntityType, Episode
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -62,10 +63,23 @@ class ResolveEntitiesTests(TestCase):
 
     def setUp(self):
         _seed_entity_types()
-        # Patch enrichment enqueue across all tests so we don't actually try
-        # to enqueue DBOS workflows from inside a test transaction.
-        patcher = patch("episodes.resolver._enqueue_enrichment")
-        self._mock_enqueue = patcher.start()
+        # ``resolve_entities`` returns the list of entity IDs that need
+        # background Wikidata enrichment. The DBOS workflow wrapper
+        # (``resolve_step``) hands those up to ``process_episode`` so it
+        # can enqueue them from workflow context — enqueueing inside a
+        # step is silently deduped against the step's function_id.
+        # Tests track the most recent return so individual cases can
+        # assert on it without re-running the resolver.
+        self._last_enqueued_ids: list[int] = []
+        original = resolver.resolve_entities
+
+        def _capture(episode_id):
+            ids = original(episode_id)
+            self._last_enqueued_ids = list(ids or [])
+            return ids
+
+        patcher = patch.object(resolver, "resolve_entities", side_effect=_capture)
+        patcher.start()
         self.addCleanup(patcher.stop)
 
     def _create_episode(self, **kwargs):
@@ -119,10 +133,8 @@ class ResolveEntitiesTests(TestCase):
             self.assertEqual(entity.wikidata_id, "")
             self.assertEqual(entity.musicbrainz_id, "")
 
-        # Enrichment was enqueued for the new entities.
-        self.assertTrue(self._mock_enqueue.called)
-        enqueued_ids = self._mock_enqueue.call_args[0][0]
-        self.assertEqual(len(enqueued_ids), 59)
+        # Enrichment IDs returned for every new entity.
+        self.assertEqual(len(self._last_enqueued_ids), 59)
 
     @patch("episodes.resolver._fetch_musicbrainz_candidates", return_value={})
     @patch("episodes.resolver.get_resolution_provider")
@@ -921,11 +933,9 @@ class ResolveEntitiesTests(TestCase):
         existing.refresh_from_db()
         self.assertEqual(existing.musicbrainz_id, mbid)
 
-        # The entity must have been enqueued for enrichment despite not
+        # The entity ID must be returned for enrichment despite not
         # being newly created.
-        self.assertTrue(self._mock_enqueue.called)
-        enqueued_ids = self._mock_enqueue.call_args[0][0]
-        self.assertIn(existing.pk, enqueued_ids)
+        self.assertIn(existing.pk, self._last_enqueued_ids)
 
     @patch("episodes.resolver._fetch_musicbrainz_candidates", return_value={})
     @patch("episodes.resolver.get_resolution_provider")
@@ -965,10 +975,8 @@ class ResolveEntitiesTests(TestCase):
         with patch("episodes.signals.DBOS"):
             resolve_entities(episode.pk)
 
-        # Either not called at all (empty set short-circuits in
-        # _enqueue_enrichment) OR called with an empty list.
-        if self._mock_enqueue.called:
-            self.assertEqual(self._mock_enqueue.call_args[0][0], [])
+        # Already-resolved entities do not flow into the enrichment list.
+        self.assertEqual(self._last_enqueued_ids, [])
 
     @patch("episodes.resolver.get_resolution_provider")
     def test_safety_net_assigns_sole_mb_candidate_when_llm_omits_mbid(self, mock_factory):
