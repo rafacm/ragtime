@@ -228,6 +228,71 @@ class FetchEpisodeDetailsTests(TestCase):
         self.assertEqual(episode.title, "Jazz Episode 1")
         self.assertEqual(episode.audio_url, "https://example.com/ep1.mp3")
 
+    def test_partial_rerun_clears_audio_url_when_agent_returns_none(self):
+        """A later ``partial`` run with audio_url=None must clear the prior URL.
+
+        Otherwise the Download step receives a stale audio_url and
+        downloads the wrong file.
+        """
+        episode = self._create_episode(url="https://example.com/ep/partial-clear")
+
+        # Run 1 — full ok with an audio URL.
+        with self._patch_run(_output()):
+            fetch_episode_details(episode.pk)
+        episode.refresh_from_db()
+        self.assertEqual(episode.audio_url, "https://example.com/ep1.mp3")
+
+        # Run 2 — partial, agent could not find an audio URL.
+        partial = _output(
+            outcome="partial",
+            summary="Audio URL hidden behind JS.",
+            audio_url=None,
+            audio_format=None,
+            confidence="medium",
+        )
+        with self._patch_run(partial):
+            fetch_episode_details(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.audio_url, "")
+        self.assertEqual(episode.audio_format, "")
+        # Status still advances on partial — the Download step decides.
+        self.assertEqual(episode.status, Episode.Status.DOWNLOADING)
+
+    def test_rerun_clears_published_at_when_agent_returns_none(self):
+        """A later run with published_at=None must clear the prior date."""
+        episode = self._create_episode(
+            url="https://example.com/ep/date-clear",
+            published_at=date(2025, 12, 1),
+        )
+        out = _output(published_at=None)
+        with self._patch_run(out):
+            fetch_episode_details(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertIsNone(episode.published_at)
+
+    def test_rerun_clears_aggregator_metadata(self):
+        """source_kind / aggregator_provider follow the agent's latest call."""
+        episode = self._create_episode(
+            url="https://example.com/ep/source-flip",
+            source_kind=Episode.SourceKind.AGGREGATOR,
+            aggregator_provider="apple_podcasts",
+            canonical_url="https://canonical.example/ep",
+        )
+        out = _output(
+            source_kind="canonical",
+            canonical_url=None,
+            aggregator_provider=None,
+        )
+        with self._patch_run(out):
+            fetch_episode_details(episode.pk)
+
+        episode.refresh_from_db()
+        self.assertEqual(episode.source_kind, Episode.SourceKind.CANONICAL)
+        self.assertEqual(episode.aggregator_provider, "")
+        self.assertEqual(episode.canonical_url, "")
+
     def test_tool_calls_persisted(self):
         episode = self._create_episode(url="https://example.com/ep/tools")
         traces = [
