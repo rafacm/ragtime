@@ -61,42 +61,38 @@ def _run_agent_sync(submitted_url: str):
 def _apply_details(episode: Episode, details) -> list[str]:
     """Overwrite Episode fields with the agent's authoritative output.
 
+    Authoritative overwrite: every Episode column the agent owns is
+    written on every run, even when the agent's value is ``None`` /
+    empty. A previously-populated field is cleared by a later run
+    that no longer carries it — required so a ``partial`` re-run
+    doesn't leave a stale ``audio_url`` (or stale ``published_at``)
+    that would mislead the Download step.
+
     Returns the list of field names that were touched, suitable for
     ``save(update_fields=...)``.
     """
-    fields: list[str] = []
+    # CharField/URLField columns: empty string is the model default,
+    # so coerce ``None`` to ``""`` and write unconditionally.
+    string_fields = (
+        "title", "description", "image_url", "language",
+        "audio_url", "audio_format", "country", "guid",
+        "canonical_url", "aggregator_provider",
+    )
+    for name in string_fields:
+        value = getattr(details, name)
+        setattr(episode, name, value if isinstance(value, str) else "")
 
-    def _set(name, value, *, allow_blank=False):
-        # Replace empty strings the agent emits with our model defaults
-        # (empty string), but honour ``None`` as "agent had no value".
-        if value is None:
-            return
-        if isinstance(value, str) and not value and not allow_blank:
-            return
-        setattr(episode, name, value)
-        fields.append(name)
-
-    _set("title", details.title or "")
-    _set("description", details.description or "")
-    _set("image_url", details.image_url or "")
-    _set("language", details.language or "")
-    _set("audio_url", details.audio_url or "")
-    _set("audio_format", details.audio_format or "")
-    _set("country", details.country or "")
-    _set("guid", details.guid or "")
-    _set("canonical_url", details.canonical_url or "")
-    _set("aggregator_provider", details.aggregator_provider or "")
-
-    if details.published_at and isinstance(details.published_at, date):
+    # Nullable date — write the value or clear it.
+    if isinstance(details.published_at, date):
         episode.published_at = details.published_at
-        fields.append("published_at")
+    else:
+        episode.published_at = None
 
-    # source_kind is a TextChoices field with a non-blank default —
+    # source_kind is a TextChoices field with a non-blank default;
     # always reflect the agent's classification.
     episode.source_kind = details.source_kind or Episode.SourceKind.UNKNOWN
-    fields.append("source_kind")
 
-    return fields
+    return [*string_fields, "published_at", "source_kind"]
 
 
 def _persist_run(
