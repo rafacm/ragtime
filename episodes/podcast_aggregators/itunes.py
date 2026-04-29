@@ -88,4 +88,5 @@ class ItunesAggregator(PodcastAggregator):
             show_name=item.get("collectionName") or "",
             duration_seconds=duration_seconds,
             source_index=self.name,
+            episode_page_url=item.get("trackViewUrl") or "",
         )

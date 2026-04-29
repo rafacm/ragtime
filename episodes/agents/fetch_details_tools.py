@@ -143,6 +143,7 @@ async def search_apple_podcasts(
             title=c.title,
             show_name=c.show_name,
             duration_seconds=c.duration_seconds,
+            episode_page_url=c.episode_page_url,
         )
         for c in candidates
     ]
