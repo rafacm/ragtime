@@ -175,15 +175,24 @@ def _collect_mentions(name, entity, names_dict, episode, seen):
     return mentions
 
 
-def _acquire_name_locks(entity_type_id: int, names) -> None:
-    """Take Postgres txn-scoped advisory locks on each (entity_type, name) pair.
+def _acquire_name_locks(pairs) -> None:
+    """Take Postgres txn-scoped advisory locks on each ``(entity_type_id, name)`` pair.
 
-    Names are sorted to enforce a global lock-acquisition order, eliminating
-    deadlock risk between resolvers that share names. Locks release at txn end.
+    *pairs* is an iterable of ``(entity_type_id, name)`` tuples spanning
+    **all** entity types touched by the current resolve. Keys are sorted
+    globally — across entity types, not just within one — so every
+    resolver acquires locks in the same total order. Without that,
+    parallel resolves can interleave: episode A holds
+    ``(musician, "Miles Davis")`` and waits on ``(album, "Kind of
+    Blue")`` while episode B holds ``(album, "Kind of Blue")`` and
+    waits on ``(musician, "Miles Davis")``, producing a Postgres
+    deadlock.
+
+    Locks release at transaction end.
     """
-    if not names:
+    keys = sorted({f"{type_id}:{name}" for type_id, name in pairs})
+    if not keys:
         return
-    keys = [f"{entity_type_id}:{n}" for n in sorted(names)]
     with connection.cursor() as cur:
         for key in keys:
             cur.execute(
@@ -273,21 +282,43 @@ def resolve_entities(episode_id: int) -> None:
     try:
         provider = get_resolution_provider()
 
+        # Pre-resolve every EntityType referenced by the aggregated chunks
+        # so the advisory-lock batch below can run before any per-type
+        # work. Unknown keys are dropped here with a single warning each.
+        entity_types_by_key: dict[str, EntityType] = {}
+        for entity_type_key in aggregated:
+            try:
+                entity_types_by_key[entity_type_key] = EntityType.objects.get(
+                    key=entity_type_key
+                )
+            except EntityType.DoesNotExist:
+                logger.warning(
+                    "Unknown entity type '%s' in episode %s — skipping",
+                    entity_type_key, episode_id,
+                )
+
         with transaction.atomic():
             EntityMention.objects.filter(episode=episode).delete()
 
+            # Acquire all (entity_type_id, name) advisory locks in one
+            # globally-sorted batch up front. Locking inside the per-type
+            # loop only serialised within a type — across types, two
+            # parallel resolvers could deadlock on shared names like
+            # "Miles Davis" appearing under both ``musician`` and ``album``.
+            lock_pairs = [
+                (entity_types_by_key[type_key].pk, name)
+                for type_key, names_dict in aggregated.items()
+                if type_key in entity_types_by_key
+                for name in names_dict
+            ]
+            _acquire_name_locks(lock_pairs)
+
             for entity_type_key, names_dict in aggregated.items():
-                try:
-                    entity_type = EntityType.objects.get(key=entity_type_key)
-                except EntityType.DoesNotExist:
-                    logger.warning(
-                        "Unknown entity type '%s' in episode %s — skipping",
-                        entity_type_key, episode_id,
-                    )
+                entity_type = entity_types_by_key.get(entity_type_key)
+                if entity_type is None:
                     continue
 
                 unique_names = list(names_dict.keys())
-                _acquire_name_locks(entity_type.pk, unique_names)
                 existing = list(Entity.objects.filter(entity_type=entity_type))
                 mb_candidates = _fetch_musicbrainz_candidates(unique_names, entity_type)
 
