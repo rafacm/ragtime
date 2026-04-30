@@ -85,6 +85,20 @@ class FetchUrlTests(SimpleTestCase):
         self.assertEqual(len(deps.tool_calls), 1)
         self.assertFalse(deps.tool_calls[0]["ok"])
 
+    async def test_fetch_value_error_returns_marker(self):
+        # httpx can raise ValueError when parsing corrupted response headers
+        # (e.g. binary Content-Length). Must be caught so the agent loop
+        # keeps running instead of propagating a crash.
+        deps = FetchDetailsDeps(submitted_url="https://example.com/ep/1")
+        with patch(
+            "episodes.agents.fetch_details_tools.httpx.get"
+        ) as get:
+            get.side_effect = ValueError("invalid literal for int() with base 10: '8Ac\xff'")
+            result = await fetch_url(_ctx(deps), "https://example.com/ep/1")
+        self.assertTrue(result.startswith("FETCH_FAILED:"))
+        self.assertEqual(len(deps.tool_calls), 1)
+        self.assertFalse(deps.tool_calls[0]["ok"])
+
     async def test_html_truncated_to_max(self):
         deps = FetchDetailsDeps(submitted_url="https://example.com/ep/1")
         long_html = "<html><body>" + ("x" * 60_000) + "</body></html>"
