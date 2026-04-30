@@ -102,7 +102,7 @@ async def fetch_url(ctx: RunContext[FetchDetailsDeps], url: str) -> str:
             )
             response.raise_for_status()
             return True, _clean_html(response.text)
-        except httpx.HTTPError as exc:
+        except Exception as exc:
             return False, f"FETCH_FAILED: {exc}"
 
     ok, body = await asyncio.to_thread(_sync_fetch)
