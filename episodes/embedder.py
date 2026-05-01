@@ -47,6 +47,7 @@ def _build_payloads(episode, chunks):
                 "episode_id": episode.pk,
                 "language": episode.language,
                 "entity_ids": by_chunk.get(chunk.pk, []),
+                "episode_title": episode.title,
             }
         )
     return payloads
