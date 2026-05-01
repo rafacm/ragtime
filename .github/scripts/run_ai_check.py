@@ -30,6 +30,27 @@ import litellm
 DEFAULT_MODEL = "openai/gpt-4o-mini"
 MAX_DIFF_CHARS = 200_000
 
+PROVIDER_TO_ENV_VAR: dict[str, str] = {
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "google": "GEMINI_API_KEY",
+}
+
+
+def required_env_var(model: str) -> str | None:
+    """Return the canonical env var name LiteLLM expects for `model`, or None."""
+    if "/" not in model:
+        return None
+    return PROVIDER_TO_ENV_VAR.get(model.split("/", 1)[0].lower())
+
+
+class ConfigError(RuntimeError):
+    """Raised for setup problems (missing/invalid API key) — distinguished from
+    rule-evaluation failures so the runner can print a clear setup hint instead
+    of a fake `fail` verdict."""
+
+
 SYSTEM_PROMPT = """You are reviewing a pull request diff against a single review rule.
 
 The rule defines what to check. After reading the diff, report exactly one verdict via the `report_verdict` function:
@@ -134,23 +155,41 @@ def evaluate(check_path: Path, base: str, model: str) -> dict[str, str]:
     if len(diff) > MAX_DIFF_CHARS:
         diff = diff[:MAX_DIFF_CHARS] + "\n\n[...diff truncated...]"
 
-    resp = litellm.completion(
-        model=fm.get("model", model),
-        max_tokens=2048,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": USER_TEMPLATE.format(
-                    name=fm.get("name", check_path.stem),
-                    body=body.strip(),
-                    diff=diff,
-                ),
-            },
-        ],
-        tools=[REPORT_TOOL],
-        tool_choice={"type": "function", "function": {"name": "report_verdict"}},
-    )
+    chosen_model = fm.get("model", model)
+    key_name = required_env_var(chosen_model)
+    if key_name and not os.environ.get(key_name):
+        raise ConfigError(
+            f"Missing `{key_name}`. AI_CHECK_MODEL is `{chosen_model}`, which routes "
+            f"to the {chosen_model.split('/', 1)[0]} provider via LiteLLM. Set "
+            f"`{key_name}` (in CI: Settings → Secrets and variables → Actions; "
+            f"locally: `export {key_name}=...`), or change AI_CHECK_MODEL to a "
+            f"provider whose key is set."
+        )
+
+    try:
+        resp = litellm.completion(
+            model=chosen_model,
+            max_tokens=2048,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": USER_TEMPLATE.format(
+                        name=fm.get("name", check_path.stem),
+                        body=body.strip(),
+                        diff=diff,
+                    ),
+                },
+            ],
+            tools=[REPORT_TOOL],
+            tool_choice={"type": "function", "function": {"name": "report_verdict"}},
+        )
+    except litellm.AuthenticationError as e:
+        raise ConfigError(
+            f"Provider rejected the request as unauthenticated for model `{chosen_model}`. "
+            f"The `{key_name}` secret is likely invalid, expired, or revoked. "
+            f"Underlying error: {e}"
+        ) from e
 
     msg = resp.choices[0].message
     if not getattr(msg, "tool_calls", None):
@@ -190,7 +229,22 @@ def main() -> int:
 
     fm, _ = parse_check(args.check)
     name = fm.get("name", args.check.stem)
-    result = evaluate(args.check, args.base, args.model)
+
+    try:
+        result = evaluate(args.check, args.base, args.model)
+    except ConfigError as e:
+        print(f"[CONFIG ERROR] {name}", file=sys.stderr)
+        print(str(e), file=sys.stderr)
+        write_step_summary(
+            name,
+            {
+                "verdict": "fail",
+                "summary": "Setup error — see job log.",
+                "details": str(e),
+            },
+        )
+        print(f"::error title=AI check setup error ({name})::{e}")
+        return 2
 
     marker = {"pass": "PASS", "fail": "FAIL", "skip": "SKIP"}[result["verdict"]]
     print(f"[{marker}] {name}")

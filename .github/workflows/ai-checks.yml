@@ -15,6 +15,13 @@ jobs:
       matrix: ${{ steps.list.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
+      - name: Preflight provider API key
+        env:
+          AI_CHECK_MODEL: ${{ vars.AI_CHECK_MODEL || 'openai/gpt-4o-mini' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python .github/scripts/preflight_key.py
       - id: list
         run: python .github/scripts/list_ai_checks.py >> "$GITHUB_OUTPUT"
 
