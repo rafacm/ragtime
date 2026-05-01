@@ -14,6 +14,7 @@ class Episode(models.Model):
         EXTRACTING = "extracting"
         RESOLVING = "resolving"
         EMBEDDING = "embedding"
+        VERIFYING = "verifying"
         READY = "ready"
         FAILED = "failed"
 
@@ -299,6 +300,7 @@ PIPELINE_STEPS = [
     Episode.Status.EXTRACTING,
     Episode.Status.RESOLVING,
     Episode.Status.EMBEDDING,
+    Episode.Status.VERIFYING,
 ]
 
 
