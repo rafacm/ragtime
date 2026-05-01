@@ -1,0 +1,43 @@
+name: AI Checks
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: python .github/scripts/list_ai_checks.py >> "$GITHUB_OUTPUT"
+
+  check:
+    needs: list
+    if: ${{ fromJson(needs.list.outputs.matrix).include[0] != null }}
+    runs-on: ubuntu-latest
+    name: "AI Check: ${{ matrix.name }}"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.list.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Run check
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          AI_CHECK_MODEL: ${{ vars.AI_CHECK_MODEL || 'openai/gpt-4o-mini' }}
+        run: |
+          git fetch --no-tags --depth=200 origin "${{ github.event.pull_request.base.ref }}"
+          uv run --with litellm python .github/scripts/run_ai_check.py "${{ matrix.path }}"

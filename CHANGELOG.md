@@ -8,11 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Self-hosted AI checks GitHub Action with provider-neutral routing via LiteLLM. Replaces Continue.dev (#117) as the runner for the rule files migrated from `.continue/checks/` → `.ai-checks/` (9 files, frontmatter + body unchanged). New `.github/workflows/ai-checks.yml` runs a `list` job that scans `.ai-checks/*.md` and emits a JSON matrix, then a `check` job that fans out one matrix shard per rule (`fail-fast: false`, job name `AI Check: <rule name>`, so each rule appears as its own PR status row — matching the Continue UX). New `.github/scripts/list_ai_checks.py` (matrix emitter) and `.github/scripts/run_ai_check.py` (per-rule driver: parses frontmatter, reads `git diff $BASE_REF...HEAD`, optional `paths:` glob short-circuits to `skip`, calls LiteLLM with a `report_verdict` function — `pass`/`fail`/`skip` + summary + details — and writes a Markdown summary to `$GITHUB_STEP_SUMMARY`; exits 1 on `fail`). `AI_CHECK_MODEL` is a LiteLLM model string carrying the provider as a prefix (`openai/gpt-4o-mini` (default), `anthropic/claude-sonnet-4-6`, `gemini/gemini-2.0-flash`); LiteLLM auto-reads each provider's canonical env var (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`). Switching providers is a one-line repo-variable change plus the matching secret — no driver edits. Closes #121 — [plan](doc/plans/2026-05-01-ai-checks-action.md), [feature](doc/features/2026-05-01-ai-checks-action.md), [planning session](doc/sessions/2026-05-01-ai-checks-action-planning-session.md), [implementation session](doc/sessions/2026-05-01-ai-checks-action-implementation-session.md)
 - Structured CI test reporting. `PostgresTestRunner` now emits a single combined JUnit XML to `test-results/junit.xml` when `JUNIT_XML_OUTPUT=1`, leaving local `manage.py test` invocations unchanged. The CI workflow publishes the XML via `EnricoMi/publish-unit-test-result-action@v2` (sticky PR comment when results change vs base, `Unit Test Results` Check Run with diff annotations, rich workflow-run summary). New dev dependency: `unittest-xml-reporting`. Job-scoped `permissions:` block grants the test job `pull-requests: write` and `checks: write`. Preparatory work for the agent-evaluation framework (#115), whose results will live alongside this Check under a separate `check_name` — [plan](doc/plans/2026-05-01-ci-test-visibility.md), [feature](doc/features/2026-05-01-ci-test-visibility.md), [planning session](doc/sessions/2026-05-01-ci-test-visibility-planning-session.md), [implementation session](doc/sessions/2026-05-01-ci-test-visibility-implementation-session.md)
 
 ### Changed
 
 - CI test step verbosity dropped from `--verbosity 2` to `--verbosity 1`. The structured XML now carries the per-test detail; the GitHub Actions log only needs to surface unexpected failures.
+
+### Removed
+
+- `.continue/checks/` directory and Continue.dev integration. The 9 rule files were migrated verbatim to `.ai-checks/`; the Continue.dev runner is replaced by the self-hosted AI checks workflow above.
 
 ## 2026-04-29
 
