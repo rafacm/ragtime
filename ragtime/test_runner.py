@@ -5,9 +5,16 @@ that create database connections which outlive the test. PostgreSQL
 refuses to drop a database with active connections. This runner
 patches the database backend to terminate lingering sessions immediately
 before DROP DATABASE.
+
+When the ``JUNIT_XML_OUTPUT=1`` environment variable is set, the runner
+also emits a JUnit-compatible XML report to ``test-results/junit.xml``
+for consumption by CI reporters. The flag is opt-in so local
+``manage.py test`` invocations stay clean.
 """
 
 import logging
+import os
+from pathlib import Path
 
 from django.db import connections
 from django.db.backends.postgresql.creation import DatabaseCreation
@@ -16,6 +23,8 @@ from django.test.runner import DiscoverRunner
 logger = logging.getLogger(__name__)
 
 _original_destroy = DatabaseCreation._destroy_test_db
+
+JUNIT_OUTPUT_PATH = Path("test-results") / "junit.xml"
 
 
 def _destroy_test_db_with_terminate(self, *args, **kwargs):
@@ -49,6 +58,10 @@ def _destroy_test_db_with_terminate(self, *args, **kwargs):
     return _original_destroy(self, *args, **kwargs)
 
 
+def _junit_enabled() -> bool:
+    return os.environ.get("JUNIT_XML_OUTPUT") == "1"
+
+
 class PostgresTestRunner(DiscoverRunner):
     def setup_test_environment(self, **kwargs):
         super().setup_test_environment(**kwargs)
@@ -57,3 +70,18 @@ class PostgresTestRunner(DiscoverRunner):
     def teardown_test_environment(self, **kwargs):
         DatabaseCreation._destroy_test_db = _original_destroy
         super().teardown_test_environment(**kwargs)
+
+    def run_suite(self, suite, **kwargs):
+        if not _junit_enabled():
+            return super().run_suite(suite, **kwargs)
+
+        from xmlrunner import XMLTestRunner
+
+        JUNIT_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+        runner_kwargs = self.get_test_runner_kwargs()
+        # XMLTestRunner installs its own resultclass; the one Django supplies
+        # (DebugSQLTextTestResult) is incompatible with the XML result.
+        runner_kwargs.pop("resultclass", None)
+        with JUNIT_OUTPUT_PATH.open("wb") as output_stream:
+            runner = XMLTestRunner(output=output_stream, **runner_kwargs)
+            return runner.run(suite)

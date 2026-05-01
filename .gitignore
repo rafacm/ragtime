@@ -64,3 +64,6 @@ docker-compose.override.yml
 
 # Frontend (Vite + React island for Scott)
 node_modules/
+
+# Test results (JUnit XML emitted when JUNIT_XML_OUTPUT=1)
+test-results/
