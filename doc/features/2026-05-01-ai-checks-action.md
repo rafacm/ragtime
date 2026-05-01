@@ -4,7 +4,9 @@
 
 ## Problem
 
-#117 introduced Continue.dev as the runner for `.continue/checks/`. The checks rendered on PRs as `Agent encountered an error` rather than real verdicts — opaque, unreliable, and dependent on a third-party SaaS we want to retire. The 9 rule files themselves (well-shaped Markdown, capturing repo-specific invariants and past incidents) are valuable; only the runner needed to be replaced.
+#117 introduced Continue.dev as the runner for `.continue/checks/`. Adopting it before RAGtime had its own eval infrastructure was premature — the rule files are valuable invariants worth keeping, but outsourcing the runner to a separately-billed service at this stage was the wrong sequencing.
+
+The motivation for retiring it now is provider-account consolidation. The project already pays for OpenAI and Anthropic credits, and a third billable account is one more thing to top up, monitor, and rotate. As an aside on the failing-check state that prompted this work: credits were added to the Continue.dev account during initial debugging, but the GitHub checks still failed to run — moving off a separately-billed runner is the right call regardless of root cause. Once RAGtime has its own eval infrastructure (planned in #115), revisiting Continue.dev is on the table — the rule format transfers back cleanly.
 
 We surveyed the OSS GitHub Action ecosystem (PR-Agent, Claude Code Action, ChatGPT-CodeReview, freeedcom/ai-codereviewer, promptfoo). None offer the Continue UX of "directory of Markdown rules → one PR check row per rule, BYO LLM key, provider-neutral". The category is dominated by SaaS bots; OSS alternatives produce a single combined review, not per-rule rows. The 50-line custom workflow ends up being the standard answer when teams want self-hosted + per-rule checks.
 
@@ -33,6 +35,37 @@ We deliberately do **not** generalize the API key env var name to `AI_CHECK_PROV
 | Workflow trigger | `pull_request: branches: [main]` | Push events have no useful diff context; PR diff is the unit of review. |
 | `strategy.fail-fast` | `false` | One failing model call must not abort the rest. |
 | `git fetch --depth=200` | 200 commits | Enough history for any realistic PR base; cheaper than `fetch-depth: 0`. |
+
+## Setup
+
+### Provider API key (least privilege)
+
+When creating the OpenAI API key for `OPENAI_API_KEY`, scope it to the minimum surface this workflow needs. **One Project, one model, one permission, one budget.**
+
+1. **Create a dedicated Project** in the OpenAI dashboard (e.g. `ragtime-ai-checks`). Don't reuse a project that runs other workloads — a leaked key on a shared project drains their budget too.
+2. **Set a monthly budget** on the Project (Limits → Monthly budget). `gpt-4o-mini` at ~9 checks per PR costs pennies; a low cap (e.g. $10/month) is a hard stop on overage.
+3. **Restrict the Project's model allow-list** to just the model used by `AI_CHECK_MODEL` (default: `gpt-4o-mini`). Even if `AI_CHECK_MODEL` is later changed, the key physically cannot call other models.
+4. **Create a Restricted secret key** under that Project (API keys → Create new secret key → Restricted) with exactly one permission enabled:
+
+   | Section | Endpoint | Permission |
+   |---|---|---|
+   | Model capabilities | **Chat completions (`/v1/chat/completions`)** | **Request** |
+   | Everything else (Responses, TTS, Realtime, Embeddings, Images, Moderations, Files, Assistants, Threads, Vector stores, Fine-tuning, Batches, Uploads, Models, …) | — | **None** |
+
+   `Request` is the only "active" choice OpenAI offers for stateless endpoints; resource-shaped sections (Files, Assistants, …) use Read/Write/None and stay at None.
+
+5. **Name the key descriptively** (e.g. `gh-actions-ragtime-ai-checks`). Future-you will thank you when rotating.
+6. **Add the key as a GitHub repository secret** named `OPENAI_API_KEY` under **Settings → Secrets and variables → Actions → New repository secret**. Use a *repository* secret, not an *environment* secret — environment secrets add an Environment + protection-rule layer (required reviewers, branch allow-lists) that's overkill here. The blast radius is already bounded by the OpenAI Project budget cap, and GitHub already withholds repository secrets from fork PRs by default.
+7. **Rotate periodically** (e.g. every 90 days) — standard hygiene, separate from least-privilege itself.
+
+If you switch providers later (`AI_CHECK_MODEL` → `anthropic/...` or `gemini/...`), apply the equivalent of this checklist on that provider's console: dedicated project, budget, single endpoint allow-list, descriptive name, repository secret.
+
+### Workflow-level config
+
+| Where | Name | Purpose |
+|---|---|---|
+| Repo secret | `OPENAI_API_KEY` (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`) | The provider key. Only the one matching `AI_CHECK_MODEL`'s prefix needs to be set. |
+| Repo variable | `AI_CHECK_MODEL` (optional) | Override the default model. Format: `<provider>/<model>`, e.g. `anthropic/claude-sonnet-4-6`. |
 
 ## Verification
 

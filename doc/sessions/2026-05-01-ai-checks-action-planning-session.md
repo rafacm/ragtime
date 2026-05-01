@@ -6,7 +6,7 @@
 
 ## Summary
 
-Planned a replacement for Continue.dev as the runner for `.continue/checks/`. The 9 rule files themselves (capturing repo-specific invariants and past incidents from #117) are valuable and stay; the SaaS runner is what's being retired because it has been surfacing on PRs as `Agent encountered an error` rather than producing real verdicts. Surveyed the OSS GitHub Action ecosystem and concluded no off-the-shelf tool offers the Continue UX (one PR check row per rule, BYO LLM key, prompts as Markdown). The category splits into SaaS bots (CodeRabbit, Greptile, Ellipsis) and OSS PR-review actions that emit a single combined review (PR-Agent, Claude Code Action). Closest mechanical fit is `promptfoo`, but it's off-label. Decision: build a small in-tree workflow — matrix-fanout with one job per rule, Python driver, LiteLLM for provider routing, default `openai/gpt-4o-mini`, default secret `OPENAI_API_KEY`. Directory renamed to `.ai-checks/`. Provider neutrality lives in the model string, not the API key env var.
+Planned a replacement for Continue.dev as the runner for `.continue/checks/`. Adopting Continue.dev before RAGtime had its own eval infrastructure was premature; the motivation for retiring the runner now is provider-account consolidation (the project already pays for OpenAI and Anthropic — adding a third billable account is overhead) rather than a product critique. Continue.dev is on the table to revisit once #115's eval infrastructure lands. The 9 rule files (capturing repo-specific invariants and past incidents from #117) are valuable and stay verbatim. Surveyed the OSS GitHub Action ecosystem and concluded no off-the-shelf tool offers the Continue UX (one PR check row per rule, BYO LLM key, prompts as Markdown). The category splits into SaaS bots (CodeRabbit, Greptile, Ellipsis) and OSS PR-review actions that emit a single combined review (PR-Agent, Claude Code Action). Closest mechanical fit is `promptfoo`, but it's off-label. Decision: build a small in-tree workflow — matrix-fanout with one job per rule, Python driver, LiteLLM for provider routing, default `openai/gpt-4o-mini`, default secret `OPENAI_API_KEY`. Directory renamed to `.ai-checks/`. Provider neutrality lives in the model string, not the API key env var.
 
 ## Detailed conversation
 
@@ -76,7 +76,7 @@ Can you create an issue for this?
 
 ### Assistant
 
-Read existing issue #117 (the Continue.dev introduction) to mirror its tone and structure. Drafted issue #121 with sections: Background (why retire Continue, ecosystem survey), Proposal (layout table, behaviour, design principles), Migration, Out of scope, Closes/relates-to. Created via `gh issue create --label enhancement` → https://github.com/rafacm/ragtime/issues/121.
+Read existing issue #117 (the Continue.dev introduction) to mirror its tone and structure. Drafted issue #121 with sections: Background (motivation for the change — initially framed as a Continue.dev product critique; later rewritten to provider-account consolidation per user feedback), Proposal (layout table, behaviour, design principles), Migration, Out of scope, Closes/relates-to. Created via `gh issue create --label enhancement` → https://github.com/rafacm/ragtime/issues/121.
 
 ### User
 
