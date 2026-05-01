@@ -47,27 +47,28 @@ def main() -> int:
         print(f"{key_name} is set; provider preflight passed.")
         return 0
 
-    summary = f"""# AI Checks: missing `{key_name}` secret
+    summary = f"""# AI Checks: missing `{key_name}` repository secret
 
-`AI_CHECK_MODEL` is set to `{model}`, which routes to the **{provider}** provider via LiteLLM. The required secret `{key_name}` is not set in this repository, so none of the per-rule AI checks can run.
+`AI_CHECK_MODEL` is set to `{model}`, which routes to the **{provider}** provider via LiteLLM. The required repository secret `{key_name}` is not set, so none of the per-rule AI checks can run.
 
 ## To fix
 
-Add `{key_name}` under **Settings → Secrets and variables → Actions**, then re-run this workflow.
+Add `{key_name}` as a **repository** secret (not an environment secret) under **Settings → Secrets and variables → Actions → New repository secret**, then re-run this workflow. See `doc/features/2026-05-01-ai-checks-action.md` for the full setup checklist (dedicated OpenAI Project, budget cap, key permissions).
 
 ## To switch providers
 
-Change the repo variable `AI_CHECK_MODEL` (currently `{model}`) and add the matching secret. Supported prefixes: `openai/...`, `anthropic/...`, `gemini/...`.
+Change the repo variable `AI_CHECK_MODEL` (currently `{model}`) and add the matching repository secret. Supported prefixes: `openai/...`, `anthropic/...`, `gemini/...`.
 """
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary_path:
         Path(summary_path).write_text(summary)
 
     print(
-        f"::error title=Missing {key_name} secret::"
-        f"AI checks need the '{key_name}' secret because AI_CHECK_MODEL={model}. "
-        f"Add it under Settings -> Secrets and variables -> Actions, "
-        f"or change the AI_CHECK_MODEL repo variable to a different provider."
+        f"::error title=Missing {key_name} repository secret::"
+        f"AI checks need the '{key_name}' repository secret because AI_CHECK_MODEL={model}. "
+        f"Add it under Settings -> Secrets and variables -> Actions -> New repository secret "
+        f"(not an environment secret), or change the AI_CHECK_MODEL repo variable "
+        f"to a different provider."
     )
     return 1
 

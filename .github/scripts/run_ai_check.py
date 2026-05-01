@@ -161,9 +161,10 @@ def evaluate(check_path: Path, base: str, model: str) -> dict[str, str]:
         raise ConfigError(
             f"Missing `{key_name}`. AI_CHECK_MODEL is `{chosen_model}`, which routes "
             f"to the {chosen_model.split('/', 1)[0]} provider via LiteLLM. Set "
-            f"`{key_name}` (in CI: Settings → Secrets and variables → Actions; "
-            f"locally: `export {key_name}=...`), or change AI_CHECK_MODEL to a "
-            f"provider whose key is set."
+            f"`{key_name}` (in CI: Settings → Secrets and variables → Actions → "
+            f"New *repository* secret, not an environment secret; locally: "
+            f"`export {key_name}=...`), or change AI_CHECK_MODEL to a provider "
+            f"whose key is set."
         )
 
     try:

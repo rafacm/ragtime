@@ -129,3 +129,59 @@ Identified two complementary fixes — workflow-level preflight (one clear error
 - Smoke-tested all paths: preflight without key (exits 1 with `::error::`), preflight with key (exits 0), preflight with unknown provider (exits 0 with `::warning::`), driver without key (exits 2 with `[CONFIG ERROR]`).
 
 Updated `doc/features/...` (Changes section + Files-modified list) and committed as a follow-up to the PR.
+
+### User
+
+Can you add a summary as end-user documentation to what is needed from a permissions perspective for the API KEY to the issue and the PR so we do not forget?
+
+### Assistant
+
+Drafted a 7-step least-privilege checklist for the OpenAI API key: dedicated Project, monthly budget cap, model allow-list restricted to `gpt-4o-mini`, Restricted secret key with only `Model capabilities → Chat completions (/v1/chat/completions) → Request` enabled (everything else `None`), descriptive key name, add as repository secret, rotate every ~90 days. Inserted as a new top-level section in issue #121 (between Proposal and Migration) and expanded the PR's "Required follow-up" section with the same checklist.
+
+### User
+
+Shall I add it [the secret] as a repository secret or as an environment secret?
+
+### Assistant
+
+Repository secret. Environment secrets buy approval gates and branch allow-lists you don't need here — the secret pays for LLM tokens (blast radius bounded by the OpenAI Project budget cap), the workflow trigger already restricts to PRs against `main`, and GitHub already withholds repository secrets from fork PRs by default. Migration to environment secret later is trivial if a deploy-style workflow ever needs the key.
+
+### User
+
+Yes [mirror the permissions section into the feature doc].
+
+### Assistant
+
+Added a new `## Setup` section to `doc/features/2026-05-01-ai-checks-action.md` with the 7-step checklist and a note about repository-vs-environment-secret choice. Doc home is the durable location — issue and PR can rot, the date-stamped feature doc is what `CHANGELOG.md` and future readers will navigate to. Committed as a follow-up to the PR.
+
+### User
+
+[Mirror the repository-secret choice into the runtime error messages too.]
+
+### Assistant
+
+Updated `.github/scripts/preflight_key.py` step-summary Markdown and the `::error::` annotation to specify "repository secret (not an environment secret)" and to point readers at the date-stamped feature doc for the full setup checklist. Mirrored the same wording into `run_ai_check.py`'s `ConfigError` message. Smoke-tested locally — the missing-key path now reads "Missing OPENAI_API_KEY repository secret … Add it under Settings → Secrets and variables → Actions → New repository secret (not an environment secret)".
+
+### User
+
+Last thing. Let's rephrase the text in the issue, PR description and CHANGELOG about the reasons for moving away from Continue.dev. It was my responsibility to introduce it too early and I do not want to have to add credits to yet another service if I already do that with OpenAI and Anthropic. I actually added credits to my Continue.dev account but somehow the error about the agent not having credits persisted. I may go back to Continue.dev once I've implemented Evals for the whole RAGtime app.
+
+### Assistant
+
+Rewrote the framing across all forward-looking artefacts: CHANGELOG `### Removed` entry, issue #121 Background section, PR #122 Summary section, plan doc Problem section, feature doc Problem section, and the Summary/notes lines in both session transcripts that previously characterised Continue.dev as "unreliable / opaque / a SaaS dependency we want to retire". New framing centres on: (a) adopting Continue.dev before RAGtime had its own eval infrastructure was premature sequencing; (b) the immediate motivation for moving off is provider-account consolidation (already paying OpenAI and Anthropic; a third billable account is overhead) rather than a product critique; (c) credits were added to the Continue.dev account during initial debugging but the GitHub checks still failed to run — the decision to move off a separately-billed runner stands regardless of root cause; (d) revisiting Continue.dev once #115's eval framework lands is explicitly on the table. The session-transcript user messages stay verbatim — the framing shift is documented in the assistant-summary lines and the forward-looking docs.
+
+### User
+
+Amend the commits accordingly and force push.
+
+### Assistant
+
+Authorised destructive operation. Amended HEAD to roll the framing rewrite into commit `4c4880c` (the existing repository-secret docs polish — both are documentation polish in the same family) with an updated commit message that mentions both changes.
+
+### User
+
+You can also add that I added credits to my Continue.dev account but still could not get the GitHub checks to work.
+
+### Assistant
+
+Strengthened the "added credits but still didn't work" point — it had been buried in a parenthetical aside. Updated the plan doc, feature doc, CHANGELOG `### Removed` entry, and this session transcript to state it explicitly: "credits were added to the Continue.dev account during initial debugging, but the GitHub checks still failed to run — moving off a separately-billed runner is the right call regardless of root cause." Re-amended the same HEAD commit to include the strengthening, then force-pushed with `--force-with-lease` and mirrored the same wording into issue #121 and PR #122 bodies.

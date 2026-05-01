@@ -4,7 +4,9 @@
 
 ## Problem
 
-#117 introduced Continue.dev as the runner for `.continue/checks/`. The checks have been surfacing on PRs as `Agent encountered an error` rather than real verdicts — unreliable, opaque, and a third-party SaaS dependency we now want to retire. The rules themselves are valuable; the runner is the part to replace.
+#117 introduced Continue.dev as the runner for `.continue/checks/`. Adopting it before RAGtime had its own eval infrastructure was premature on my part — the rule files are valuable invariants worth keeping, but outsourcing the runner to a separately-billed service at this stage was the wrong sequencing.
+
+The motivation for retiring it now is provider-account consolidation. The project already pays for OpenAI and Anthropic credits, and a third billable account is one more thing to top up, monitor, and rotate. As an aside on the failing-check state that prompted this discussion: I did add credits to the Continue.dev account during initial debugging, but the GitHub checks still failed to run — the decision to move off a separately-billed runner is the right call regardless of root cause. Once RAGtime has its own eval infrastructure (planned in #115), revisiting Continue.dev is on the table — the rule format we're keeping transfers back cleanly. This is "not yet, not now", not "never".
 
 ## Goals
 

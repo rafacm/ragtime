@@ -17,7 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Removed
 
-- `.continue/checks/` directory and Continue.dev integration. The 9 rule files were migrated verbatim to `.ai-checks/`; the Continue.dev runner is replaced by the self-hosted AI checks workflow above.
+- `.continue/checks/` directory and Continue.dev integration. The 9 rule files migrate verbatim to `.ai-checks/` and run through the self-hosted workflow above. The motivation is provider-account consolidation — RAGtime already pays for OpenAI and Anthropic credits, and a third billable account is one more thing to top up, monitor, and rotate. (As context on the failing-check state that prompted this: credits were added to the Continue.dev account during initial debugging, but the GitHub checks still failed to run — moving off a separately-billed runner is the right call regardless of root cause.) Adopting Continue.dev before RAGtime had its own eval infrastructure was premature; revisiting it once #115's eval framework lands is on the table.
 
 ## 2026-04-29
 
