@@ -26,3 +26,8 @@ dependencies = [
 
 [project.optional-dependencies]
 langfuse = ["langfuse>=4,<5"]
+
+[dependency-groups]
+dev = [
+    "unittest-xml-reporting>=4.0.0",
+]

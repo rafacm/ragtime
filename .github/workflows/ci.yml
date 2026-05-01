@@ -9,6 +9,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
     services:
       postgres:
         image: postgres:17-alpine
@@ -27,4 +31,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
-      - run: uv run python manage.py test --verbosity 2
+      - name: Run tests
+        env:
+          JUNIT_XML_OUTPUT: "1"
+        run: uv run python manage.py test --verbosity 1
+      - name: Publish test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          check_name: Unit Tests
+          comment_mode: changes
+          files: test-results/junit.xml

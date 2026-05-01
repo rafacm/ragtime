@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-05-01
+
+### Added
+
+- Structured CI test reporting. `PostgresTestRunner` now emits a single combined JUnit XML to `test-results/junit.xml` when `JUNIT_XML_OUTPUT=1`, leaving local `manage.py test` invocations unchanged. The CI workflow publishes the XML via `EnricoMi/publish-unit-test-result-action@v2` (sticky PR comment when results change vs base, `Unit Tests` Check Run with diff annotations, rich workflow-run summary). New dev dependency: `unittest-xml-reporting`. Job-scoped `permissions:` block grants the test job `pull-requests: write` and `checks: write`. Preparatory work for the agent-evaluation framework (#115), whose results will live alongside this Check under a separate `check_name` — [plan](doc/plans/2026-05-01-ci-test-visibility.md), [feature](doc/features/2026-05-01-ci-test-visibility.md), [planning session](doc/sessions/2026-05-01-ci-test-visibility-planning-session.md), [implementation session](doc/sessions/2026-05-01-ci-test-visibility-implementation-session.md)
+
+### Changed
+
+- CI test step verbosity dropped from `--verbosity 2` to `--verbosity 1`. The structured XML now carries the per-test detail; the GitHub Actions log only needs to surface unexpected failures.
+
 ## 2026-04-29
 
 ### Added
