@@ -25,6 +25,7 @@ from django.views.decorators.http import require_http_methods
 from .models import Conversation, Message
 
 logger = logging.getLogger(__name__)
+EVAL_TOUCH = True
 
 
 def _serialize_conversation(conversation: Conversation) -> dict:
