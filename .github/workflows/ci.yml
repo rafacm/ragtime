@@ -39,6 +39,6 @@ jobs:
         if: always()
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          check_name: Unit Tests
+          check_name: Unit Test Results
           comment_mode: changes
           files: test-results/junit.xml

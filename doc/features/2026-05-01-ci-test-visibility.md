@@ -15,7 +15,7 @@ The GitHub Actions test step (`uv run python manage.py test --verbosity 2`) emit
   - Added job-scoped `permissions:` block (`contents: read`, `pull-requests: write`, `checks: write`).
   - Set `JUNIT_XML_OUTPUT=1` on the test step.
   - Dropped `--verbosity 2` to `--verbosity 1` (XML carries the structured detail; the log only needs to surface unexpected failures).
-  - Added an `EnricoMi/publish-unit-test-result-action@v2` step with `if: always()`, `check_name: Unit Tests`, `comment_mode: changes`, `files: test-results/junit.xml`. One action invocation publishes three surfaces: sticky PR comment (when results change vs base), Check Run with diff annotations, workflow-run summary.
+  - Added an `EnricoMi/publish-unit-test-result-action@v2` step with `if: always()`, `check_name: Unit Test Results`, `comment_mode: changes`, `files: test-results/junit.xml`. One action invocation publishes three surfaces: sticky PR comment (when results change vs base), Check Run with diff annotations, workflow-run summary. The "Results" suffix disambiguates this informational Check from the gating `test` job that actually runs the suite.
 
 `xmlrunner` writes a single XML file (with `<testsuites>` root) when its `output` argument is a file-like object rather than a directory. The runner pops `resultclass` from the kwargs Django supplies because `XMLTestRunner` installs its own incompatible result class.
 
@@ -25,7 +25,7 @@ The GitHub Actions test step (`uv run python manage.py test --verbosity 2`) emit
 |---|---|---|
 | `JUNIT_XML_OUTPUT` | `1` (CI only) | Opt-in so local `manage.py test` invocations don't litter `test-results/`. |
 | `comment_mode` | `changes` | Sticky comment posts only when results differ from base — quiet on no-op pushes, loud on regressions. |
-| `check_name` | `Unit Tests` | Accurate today (all 371 tests mock external deps). Disambiguates cleanly when #115's eval workflow lands as a separate Check. |
+| `check_name` | `Unit Test Results` | "Results" suffix follows EnricoMi's `Test Results` default convention — signals this is the report surface, not a re-run of the suite (the `test` job is the gate). Scales when #115's eval workflow lands as `Eval Results`. |
 | `--verbosity` | `1` | Minimal log noise; XML carries the per-test detail. |
 | Output path | `test-results/junit.xml` | Directory form is future-proof if a second report ever lands. |
 
@@ -40,7 +40,7 @@ Confirmed `test-results/junit.xml` is produced (~128 KB, 371 `<testcase>` elemen
 **In CI:**
 1. Open a PR against `main`.
 2. Confirm the workflow run renders a per-test summary table on the run page.
-3. Confirm a `Unit Tests` Check appears in the PR's Checks tab.
+3. Confirm a `Unit Test Results` Check appears in the PR's Checks tab (alongside the gating `test` job Check).
 4. Confirm a sticky comment is posted when results differ from base.
 5. To exercise diff annotations, deliberately fail one test in a follow-up commit and confirm an inline annotation appears on the diff.
 
