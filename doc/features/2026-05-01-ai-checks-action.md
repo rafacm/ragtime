@@ -14,6 +14,8 @@ We surveyed the OSS GitHub Action ecosystem (PR-Agent, Claude Code Action, ChatG
 - **Matrix emitter** (`.github/scripts/list_ai_checks.py`). Scans `.ai-checks/*.md`, extracts each `name:` from frontmatter, writes `matrix={"include": [{"name": "<rule name>", "path": "<path>"}, ...]}` to `$GITHUB_OUTPUT`.
 - **Driver** (`.github/scripts/run_ai_check.py`). Parses frontmatter, computes `git diff $BASE_REF...HEAD`, optionally short-circuits to `skip` via frontmatter `paths:` globs, calls LiteLLM with a `report_verdict` function (`pass`/`fail`/`skip` + summary + details), writes a Markdown summary to `$GITHUB_STEP_SUMMARY`, exits 1 on `fail`. Diff truncated at 200 KB. Conservative system prompt: returns `fail` only with concrete diff evidence.
 - **Workflow** (`.github/workflows/ai-checks.yml`). Two jobs: `list` builds the matrix, `check` fans out via `strategy.matrix` with `fail-fast: false`. Each matrix shard's `name:` is `AI Check: <rule name>`, so each rule appears as its own PR status row. Env block exposes `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` from secrets — LiteLLM picks the one matching the chosen model. Triggered on `pull_request: branches: [main]`.
+- **Preflight** (`.github/scripts/preflight_key.py`). Runs as the first step of the `list` job. Maps `AI_CHECK_MODEL`'s provider prefix to the canonical secret name (`openai/...` → `OPENAI_API_KEY`, etc.) and fails the job with a Markdown-formatted setup explanation in `$GITHUB_STEP_SUMMARY` plus an `::error::` annotation if the secret is missing. Emits `::warning::` (and exits 0) when the model uses a provider prefix the script doesn't know — LiteLLM validates at call time in that case. The matrix `check` jobs never run if the preflight fails, so users see one actionable error instead of nine identical Python tracebacks.
+- **Driver setup-error path.** `run_ai_check.py` defines a `ConfigError` exception and a small `required_env_var()` mapper. The driver raises `ConfigError` when the required env var is unset locally, and translates `litellm.AuthenticationError` into the same exception with a "key likely invalid/expired/revoked" hint. `main()` catches `ConfigError`, writes a clean step-summary, emits a `::error::` annotation, and exits with code `2` to distinguish setup failures from rule-evaluation `fail` verdicts (which exit `1`).
 
 LiteLLM provides the provider abstraction. The model string carries the provider as a prefix (`openai/gpt-4o-mini`, `anthropic/claude-sonnet-4-6`, `gemini/gemini-2.0-flash`). LiteLLM normalizes function-calling across providers, so the same `report_verdict` tool definition works against any of them. Switching providers is a one-line repo-variable change (`AI_CHECK_MODEL`) plus the matching API key secret — no driver edits.
 
@@ -61,8 +63,9 @@ Expected: all 9 rules parse with non-empty `name:` and body; matrix emitter prin
 
 - `.continue/checks/*.md` → `.ai-checks/*.md` — 9 rule files, moved verbatim. `.continue/` directory removed.
 - `.github/scripts/list_ai_checks.py` — new. Matrix emitter, prints `matrix={...}` to `$GITHUB_OUTPUT`.
-- `.github/scripts/run_ai_check.py` — new. Frontmatter parser + diff fetcher + path-glob filter + LiteLLM call + step-summary writer + exit-code mapper.
-- `.github/workflows/ai-checks.yml` — new. `list` job builds the matrix, `check` job fans out.
+- `.github/scripts/preflight_key.py` — new. Verifies the secret required by `AI_CHECK_MODEL` is set; fails the `list` job with a setup-help message if not.
+- `.github/scripts/run_ai_check.py` — new. Frontmatter parser + diff fetcher + path-glob filter + LiteLLM call + step-summary writer + exit-code mapper. Distinguishes `ConfigError` (exit 2) from rule `fail` verdicts (exit 1).
+- `.github/workflows/ai-checks.yml` — new. `list` job runs preflight + builds the matrix; `check` job fans out.
 - `doc/plans/2026-05-01-ai-checks-action.md` — plan for this work.
 - `doc/features/2026-05-01-ai-checks-action.md` — this feature doc.
 - `doc/sessions/2026-05-01-ai-checks-action-planning-session.md` — planning session transcript.

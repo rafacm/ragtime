@@ -114,3 +114,18 @@ Per CLAUDE.md the PR commit must include the plan, feature doc, both session tra
 - `CHANGELOG.md` — entry under `## 2026-05-01`: `### Added` for `.ai-checks/` + workflow + driver + LiteLLM provider routing; `### Removed` for `.continue/`.
 
 Ran the full test suite before committing per the project's feedback memory ("Run tests before committing"). Then staged the migration (`git mv` shows up as `R` rename entries), the new files, the docs, and the changelog. Committed and opened the PR.
+
+### User
+
+Thanks! Tested the first run and since I did not define the OPENAI_API_KEY I see a Python exception. Can we improve the implementation to give a better user/dev-facing error?
+
+### Assistant
+
+Identified two complementary fixes — workflow-level preflight (one clear error, fast fail, no nine-runner fan-out) and driver-level defensive handling (for local runs and unexpected auth failures).
+
+- New `.github/scripts/preflight_key.py`: maps `AI_CHECK_MODEL` prefix → required secret via a small table (`openai`/`anthropic`/`gemini`+`google`). When the secret is missing, writes a Markdown explanation to `$GITHUB_STEP_SUMMARY` (with "To fix" and "To switch providers" sections), emits a `::error::` annotation, exits 1. Unknown prefix → `::warning::` and exit 0 (LiteLLM validates at call time).
+- Wired it into `ai-checks.yml` as the first step of the `list` job, so the matrix never fans out when the secret is missing.
+- Driver: added `PROVIDER_TO_ENV_VAR` map + `required_env_var()` helper, defined a `ConfigError` exception, raised it from `evaluate()` when the required env var is unset, and caught `litellm.AuthenticationError` and re-raised as `ConfigError` with a "key likely invalid/expired/revoked" hint. Updated `main()` to catch `ConfigError`, emit a `[CONFIG ERROR]` line + `::error::` annotation + clean step-summary, and exit code `2` to distinguish from rule `fail` verdicts (exit 1).
+- Smoke-tested all paths: preflight without key (exits 1 with `::error::`), preflight with key (exits 0), preflight with unknown provider (exits 0 with `::warning::`), driver without key (exits 2 with `[CONFIG ERROR]`).
+
+Updated `doc/features/...` (Changes section + Files-modified list) and committed as a follow-up to the PR.
