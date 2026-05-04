@@ -108,11 +108,22 @@ interactions up to and including PR review feedback and follow-up
 changes. If the PR has had review rounds, confirm those rounds appear
 in the transcript — not just the initial implementation.
 
-### 6. User messages are verbatim
+### 6. User / parent-agent messages are verbatim
 
-Spot-check the transcript: user sections should read like real,
+Spot-check the transcript: `### User` sections should read like real,
 unedited messages (typos, casual phrasing, context). If they read like
 clean prose summaries, they have been paraphrased and need fixing.
+
+AGENTS.md also recognizes **agent-orchestrated sessions** (parallel
+implementation agents launched from a parent Claude Code session, e.g.
+under Conductor). In that case the transcript may use
+`### Parent agent (orchestrator)` headings *instead of* `### User`,
+provided the parent-agent's launching prompt is reproduced verbatim
+(same verbatim rule). The transcript must explicitly declare the
+session as agent-orchestrated at the top of `## Detailed conversation`,
+not silently substitute the heading. Either form (real verbatim user
+messages, or honest agent-orchestrated declaration with verbatim parent
+prompt) satisfies this check; summarized/paraphrased content does not.
 
 ## Key Files
 
