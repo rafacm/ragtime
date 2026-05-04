@@ -98,7 +98,18 @@ def _save_audio(episode: Episode, src_path: str) -> int:
 
 
 def _show_name(episode: Episode) -> str:
-    """Best-effort show name (no Show model — fall back to URL host)."""
+    """Best-effort show name.
+
+    Prefers ``Episode.show_name`` (extracted by the fetch_details agent
+    from ``og:site_name`` / RSS ``<channel><title>`` / JSON-LD, etc.).
+    Falls back to the URL host so the download agent always has *some*
+    string to work with — but the download agent prompt knows that a
+    hostname-shaped show_name is a degraded signal and should match
+    candidates by ``(title, published_at)`` instead.
+    """
+    if episode.show_name:
+        return episode.show_name
+
     from urllib.parse import urlparse
 
     netloc = urlparse(episode.url).netloc
@@ -168,6 +179,7 @@ def download_episode(episode_id: int) -> None:
             show_name=_show_name(episode),
             guid=episode.guid or "",
             language=episode.language or "",
+            published_at=episode.published_at,
         )
 
         if agent_result.success and agent_result.downloaded_file:

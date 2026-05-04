@@ -43,8 +43,18 @@ Your goal:
      to recover by searching aggregators based on the URL alone.
   3. If the fetch succeeded, determine whether the page is a podcast
      episode page at all. If it isn't, emit outcome=not_a_podcast_episode.
-  4. Extract metadata: title, description, language, country, image,
-     published date, audio URL, audio format, GUID.
+  4. Extract metadata: title, show_name, description, language, country,
+     image, published date, audio URL, audio format, GUID.
+     For show_name, look at (in order of preference):
+       - <meta property="og:site_name"> on the episode page
+       - <meta name="application-name">
+       - RSS/Atom <channel><title> when fetching the feed URL
+       - JSON-LD structured data: PodcastEpisode → isPartOf.name (the
+         parent PodcastSeries) or partOfSeries.name
+       - The visible publisher / show title near the episode title
+     show_name is the broadcast / podcast title (e.g. "Zeitzeichen",
+     "This American Life") — NOT the publisher's company name and NOT
+     the URL hostname. Leave blank when you can't pinpoint it.
   5. Classify source_kind (canonical | aggregator | unknown) and
      aggregator_provider when applicable.
   6. Cross-link ONLY when the submitted page is itself a podcast
@@ -153,6 +163,7 @@ class EpisodeDetails(BaseModel):
     """
 
     title: str | None = None
+    show_name: str | None = None
     description: str | None = None
     published_at: date | None = None
     image_url: str | None = None

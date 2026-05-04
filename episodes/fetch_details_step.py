@@ -82,6 +82,15 @@ def _apply_details(episode: Episode, details) -> list[str]:
         value = getattr(details, name)
         setattr(episode, name, value if isinstance(value, str) else "")
 
+    # show_name is "additive only" — we never want a fresh agent run
+    # that fails to extract a show name to wipe out a previously-good
+    # value (or a user edit in the admin). Write only when non-empty.
+    touched_fields = list(string_fields)
+    show_name_value = getattr(details, "show_name", None)
+    if isinstance(show_name_value, str) and show_name_value.strip():
+        episode.show_name = show_name_value.strip()
+        touched_fields.append("show_name")
+
     # Nullable date — write the value or clear it.
     if isinstance(details.published_at, date):
         episode.published_at = details.published_at
@@ -92,7 +101,7 @@ def _apply_details(episode: Episode, details) -> list[str]:
     # always reflect the agent's classification.
     episode.source_kind = details.source_kind or Episode.SourceKind.UNKNOWN
 
-    return [*string_fields, "published_at", "source_kind"]
+    return [*touched_fields, "published_at", "source_kind"]
 
 
 def _persist_run(

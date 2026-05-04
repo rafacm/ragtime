@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 from abc import ABC, abstractmethod
+from datetime import date
 
 
 @dataclasses.dataclass(frozen=True)
@@ -15,6 +16,13 @@ class EpisodeCandidate:
     agent (and ``DownloadResult``) can record which aggregator hit.
     The legacy field name is preserved to avoid churn in callers that
     only consume the value as an opaque label.
+
+    ``published_at`` is the candidate's publication date (when the
+    aggregator surfaces one). The download agent uses it as a
+    tiebreaker when ``show_name`` is degraded — e.g. for non-English
+    publishers whose extracted ``show_name`` falls back to the URL
+    host. ``None`` means the aggregator did not expose a date or it
+    failed to parse.
     """
 
     audio_url: str
@@ -27,6 +35,7 @@ class EpisodeCandidate:
     # Fetch Details agent's cross-linking flow; ignored by the
     # Download cascade. Empty when the aggregator doesn't expose one.
     episode_page_url: str = ""
+    published_at: date | None = None
 
 
 class PodcastAggregator(ABC):

@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import time
+from datetime import date, datetime, timezone
 from typing import Any
 
 import httpx
@@ -107,6 +108,7 @@ class PodcastIndexOrg(PodcastAggregator):
             duration = item.get("duration")
             if not isinstance(duration, int):
                 duration = None
+            published_at = _parse_date_published(item.get("datePublished"))
             results.append(
                 EpisodeCandidate(
                     audio_url=audio_url,
@@ -114,6 +116,35 @@ class PodcastIndexOrg(PodcastAggregator):
                     show_name=item.get("feedTitle") or item.get("title") or "",
                     duration_seconds=duration,
                     source_index=self.name,
+                    published_at=published_at,
                 )
             )
         return results
+
+
+def _parse_date_published(raw: Any) -> date | None:
+    """Parse podcastindex's ``datePublished`` (Unix epoch seconds) to ``date``.
+
+    Returns ``None`` on missing / unparseable input — never raises.
+    """
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, bool):  # bool is a subclass of int; reject explicitly.
+        logger.warning("podcastindex datePublished is bool: %r", raw)
+        return None
+    if isinstance(raw, (int, float)):
+        try:
+            return datetime.fromtimestamp(raw, tz=timezone.utc).date()
+        except (OverflowError, OSError, ValueError):
+            logger.warning("podcastindex datePublished out of range: %r", raw)
+            return None
+    if isinstance(raw, str):
+        try:
+            return datetime.fromtimestamp(int(raw), tz=timezone.utc).date()
+        except (TypeError, ValueError):
+            logger.warning("podcastindex datePublished not numeric: %r", raw)
+            return None
+    logger.warning(
+        "podcastindex datePublished has unexpected type %s: %r", type(raw), raw,
+    )
+    return None

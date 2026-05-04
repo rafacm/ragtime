@@ -36,7 +36,7 @@ Three keyless tools live in [`episodes/agents/fetch_details_tools.py`](../episod
 
 The agent emits a wrapped `FetchDetailsOutput { details, report, concise }`:
 
-- `details` — episode-level facts: `title`, `description`, `published_at`, `image_url`, `audio_url`, `audio_format` (closed `Literal`), `language` (ISO 639-1), `country` (ISO 3166-1 alpha-2), `guid`, `canonical_url`, `source_kind` (`canonical | aggregator | unknown`), `aggregator_provider`.
+- `details` — episode-level facts: `title`, `show_name` (broadcast / podcast title, e.g. "Zeitzeichen" — not the publisher's company name and not the URL hostname), `description`, `published_at`, `image_url`, `audio_url`, `audio_format` (closed `Literal`), `language` (ISO 639-1), `country` (ISO 3166-1 alpha-2), `guid`, `canonical_url`, `source_kind` (`canonical | aggregator | unknown`), `aggregator_provider`.
 - `report` — structured trace: `attempted_sources`, `discovered_canonical_url`, `discovered_audio_url`, `cross_linked`, `extraction_confidence` (`high | medium | low`), `narrative` (2–4 sentences), `hints_for_next_step` (carried into the Download step).
 - `concise` — `outcome` (5-value enum) + `summary` (≤140 chars).
 
@@ -52,7 +52,7 @@ Five outcomes drive the step's status transitions:
 
 Discrimination among the three terminal outcomes happens on `FetchDetailsRun.outcome` — only one `Episode.Status.FAILED` value is used.
 
-Every run persists a `FetchDetailsRun` row carrying the structured output, the auto-captured tool-call trace (input / output excerpts / `ok` flag), the Pydantic AI usage dict, and the DBOS workflow ID. `Episode` columns are overwritten directly by the agent's authoritative output (no empty-field-only merge); a re-run via the admin `reprocess` action increments `run_index` and overwrites again.
+Every run persists a `FetchDetailsRun` row carrying the structured output, the auto-captured tool-call trace (input / output excerpts / `ok` flag), the Pydantic AI usage dict, and the DBOS workflow ID. `Episode` columns are overwritten directly by the agent's authoritative output (no empty-field-only merge); a re-run via the admin `reprocess` action increments `run_index` and overwrites again. The one exception is `show_name`, which is **additive only** — when a fresh run fails to extract a value, any previously-good `show_name` (whether from an earlier run or an admin edit) is preserved rather than cleared.
 
 The step orchestrator ([`episodes/fetch_details_step.py`](../episodes/fetch_details_step.py)) is DBOS-agnostic: the `@DBOS.step()` wrapper in `episodes/workflows.py` reads `DBOS.workflow_id` and passes it in. The orchestrator records it onto `FetchDetailsRun.dbos_workflow_id` for cross-reference forensics.
 

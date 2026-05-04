@@ -31,6 +31,7 @@ class Episode(models.Model):
 
     # Metadata fields (populated by fetch_details step)
     title = models.CharField(max_length=500, blank=True, default="")
+    show_name = models.CharField(max_length=255, blank=True, default="")
     description = models.TextField(blank=True, default="")
     published_at = models.DateField(null=True, blank=True)
     image_url = models.URLField(max_length=2000, blank=True, default="")
