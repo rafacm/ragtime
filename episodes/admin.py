@@ -46,9 +46,12 @@ def _decode_dbos_payload(value):
     2. Tries ``base64 → pickle.loads`` when the string looks like a
        pickle stream (starts with ``gAS`` — the b64 prefix for the
        pickle protocol 4 magic ``\\x80\\x04\\x95``).
-    3. Falls back to the raw string when decoding fails (so a
-       future DBOS version that already returns native objects
-       still renders).
+    3. Falls back to a "could not deserialize: <preview>" notice
+       for pickle blobs we can't decode — most often legacy rows
+       written before ``StepFailed.__reduce__`` was switched to
+       ``RuntimeError``, whose typed-class wire form fails to
+       unpickle if the class signature has since changed.
+    4. Returns non-pickle-looking strings unchanged.
 
     Pickle is unsafe on untrusted input; here the bytes were
     written by this same process into a database we own — same
@@ -66,7 +69,10 @@ def _decode_dbos_payload(value):
     try:
         obj = pickle.loads(base64.b64decode(value))
     except Exception:
-        return value
+        # Truncate the b64 preview so admins see *something* without
+        # a 4 KB blob hijacking the column.
+        preview = value if len(value) <= 80 else value[:77] + "..."
+        return f"<could not deserialize: {preview}>"
     return str(obj)
 
 

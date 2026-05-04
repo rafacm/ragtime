@@ -118,12 +118,39 @@ class EpisodeAdminTests(TestCase):
         encoded = base64.b64encode(pickle.dumps(out)).decode("ascii")
         self.assertEqual(_decode_dbos_payload(encoded), str(out))
 
-        # And for errors.
+        # Errors pickle as plain ``RuntimeError`` (see
+        # ``StepFailed.__reduce__``) carrying the formatted message —
+        # so the CLI / Conductor can deserialize them without
+        # importing ``episodes.workflows``. The string content is the
+        # same as ``str(StepFailed(...))``.
         err = DownloadStepFailed(episode_id=2, error_message="boom")
         encoded = base64.b64encode(pickle.dumps(err)).decode("ascii")
         decoded = _decode_dbos_payload(encoded)
         self.assertIn("downloading failed for episode 2", decoded)
         self.assertIn("boom", decoded)
+
+    def test_step_failed_pickle_round_trip_yields_runtime_error(self):
+        """``StepFailed.__reduce__`` collapses to ``RuntimeError`` on the wire.
+
+        Required for cross-process portability: the standalone ``dbos
+        workflow steps`` CLI runs outside Django and can't import
+        ``episodes.workflows``. Pickling as a stdlib ``RuntimeError``
+        means any Python process can deserialize the step error.
+        """
+        import pickle
+
+        from episodes.workflows import DownloadStepFailed, StepFailed
+
+        err = DownloadStepFailed(episode_id=7, error_message="boom")
+        # In-process raise still matches the typed hierarchy.
+        self.assertIsInstance(err, StepFailed)
+
+        rehydrated = pickle.loads(pickle.dumps(err))
+        # On the wire it's a plain ``RuntimeError`` — portable across
+        # processes that don't import ``episodes.workflows``.
+        self.assertIs(type(rehydrated), RuntimeError)
+        self.assertIn("downloading failed for episode 7", str(rehydrated))
+        self.assertIn("boom", str(rehydrated))
 
     def test_decode_dbos_payload_passthrough_for_plain_values(self):
         from episodes.admin import _decode_dbos_payload
@@ -132,8 +159,12 @@ class EpisodeAdminTests(TestCase):
         self.assertEqual(_decode_dbos_payload(""), "")
         # Already-readable string — left alone.
         self.assertEqual(_decode_dbos_payload("hello"), "hello")
-        # Looks pickle-ish but not valid b64/pickle — fall back to raw.
-        self.assertEqual(_decode_dbos_payload("gASnotpickle"), "gASnotpickle")
+        # Looks pickle-ish but not valid b64/pickle — graceful
+        # fallback for legacy rows whose typed-class wire format the
+        # current process can no longer rehydrate.
+        decoded = _decode_dbos_payload("gASnotpickle")
+        self.assertIn("could not deserialize", decoded)
+        self.assertIn("gASnotpickle", decoded)
 
     @patch("episodes.signals.DBOS")
     @patch("dbos.DBOS")
