@@ -1,6 +1,7 @@
 ---
 name: Entity Creation Race Safety
 description: All Entity row creation must go through get_or_create with a sorted advisory lock — never bare Entity.objects.create().
+paths: episodes/**
 ---
 
 # Entity Creation Race Safety

@@ -15,6 +15,8 @@ jobs:
       matrix: ${{ steps.list.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Preflight provider API key
         env:
           AI_CHECK_MODEL: ${{ vars.AI_CHECK_MODEL || 'openai/gpt-4o-mini' }}
@@ -22,12 +24,20 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python .github/scripts/preflight_key.py
+      - name: Fetch base ref
+        run: git fetch --no-tags --depth=200 origin "${{ github.event.pull_request.base.ref }}"
       - id: list
+        env:
+          BASE_REF: origin/${{ github.event.pull_request.base.ref }}
         run: python .github/scripts/list_ai_checks.py >> "$GITHUB_OUTPUT"
 
   check:
     needs: list
-    if: ${{ fromJson(needs.list.outputs.matrix).include[0] != null }}
+    # Gate per matrix shard: rules whose path scope didn't match any changed
+    # file render as gray "skipped" in the PR Checks tab — no runner, no model
+    # call, clearer signal than green "pass". Top-level `include[0] != null`
+    # guard avoids the "no jobs to run" error when the matrix is empty.
+    if: ${{ fromJson(needs.list.outputs.matrix).include[0] != null && matrix.applies }}
     runs-on: ubuntu-latest
     name: "AI Check: ${{ matrix.name }}"
     strategy:

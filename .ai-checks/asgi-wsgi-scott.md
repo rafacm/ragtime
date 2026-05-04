@@ -1,6 +1,7 @@
 ---
 name: ASGI vs WSGI Awareness for Scott
 description: Anything touching Scott's chat path must be tested under uvicorn (ASGI). runserver does not load asgi.py and will silently 404 the AG-UI endpoint.
+paths: ragtime/asgi.py, chat/**, frontend/**
 ---
 
 # ASGI vs WSGI Awareness for Scott

@@ -1,6 +1,7 @@
 ---
 name: Slim Qdrant Payload Discipline
 description: Qdrant chunk points must carry only filter fields. All display data is hydrated from Postgres at search time.
+paths: episodes/vector_store.py
 ---
 
 # Slim Qdrant Payload Discipline
