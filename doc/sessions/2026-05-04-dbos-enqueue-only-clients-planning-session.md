@@ -2,57 +2,38 @@
 
 **Date:** 2026-05-04
 
-**Session ID:** 5b5b2169-5e23-4e06-852f-56035beab570
+**Session ID:** unavailable
 
 ## Summary
 
 Triage of issue #113. Confirmed the bug from prior context (PR #109 / issue #108 work surfaced both the contention warning and the shutdown error). Three options laid out in the issue body. Selected Option 1 ("don't launch from clients") as the architectural fix, with a fall-back to Option 2 (brief drain loop) if `Queue.enqueue` turned out to require `launch()`. Investigation showed pure Option 1 doesn't work — `DBOS._sys_db` raises if not launched — so the implementation refines Option 1 by using `DBOS.listen_queues([])` to launch the client with zero application queues attached. Same posture, working knob.
 
+The conversation captured below is a triage exercise across multiple open issues; this transcript records the slice relevant to #113 — specifically, the user messages that prioritized the work, asked about parallelization, and authorized the parallel session that produced this PR.
+
 ## Detailed conversation
 
 ### User
 
-> manage.py enrich_entities should be a DBOS client, not a worker
->
-> [issue #113 body, full text — context, observed errors, three options, recommendation, acceptance criteria]
+> Let's review the currently open issues and prioritize them for implementation.
 
 ### Assistant
 
-Read the issue. Confirmed the symptoms by grepping the project: `episodes/apps.py:_init_dbos` indeed listed `enrich_entities` and `submit_episode` in `_DBOS_COMMANDS`, calling `DBOS.launch()` for both. Looked at the two affected commands — both are pure enqueuers (`enqueue_entities(ids)` and `Episode.objects.get_or_create` triggering a `post_save` signal that enqueues `process_episode`).
+Pulled the open issue list and bucketed each by impact, blast radius, and dependency. Flagged #113 (DBOS client/worker split — surfaces noisy `Contention detected in queue thread` warnings plus a `cannot schedule new futures after shutdown` race when running `manage.py enrich_entities` or `manage.py submit_episode` while uvicorn consumes the queue) as a small-scoped, well-bounded fix with a clear architectural recommendation in the issue body. Grouped it into Tier 1 alongside other independently-grabbable items.
 
-Considered the three options:
+### User
 
-- **Option 1 (recommended): split worker vs client; clients skip `launch()`.** Architectural; eliminates both noises. Risk flagged in the issue: does `Queue.enqueue` actually work without `launch()`?
-- **Option 2: brief drain loop.** Cleaner shutdown but keeps compute moving in the wrong process; doesn't address contention.
-- **Option 3: document the warnings and move on.** Cheapest; loud forever.
+> Can any of the issues in Tier 1 be worked in parallel sessions?
 
-Picked Option 1. Proceeded to validate the assumption.
+### Assistant
 
-Investigation in `.venv/lib/python3.13/site-packages/dbos/`:
+Walked through the Tier 1 set and assessed dependency overlap. #113 touches only `episodes/apps.py:_init_dbos` and the two affected management commands; it does not overlap with #124 or #110 in either files or DBOS constructs. Concluded the three are safely parallelizable. Noted the standard caveat: the issues may be partially or wholly addressed by recent merges (e.g., the DBOS queue restructure in PR #109), so each parallel session should staleness-check first.
 
-- `_queue.py:Queue.enqueue` → `start_workflow(execute_workflow=False)`. Doesn't directly start a dispatcher.
-- `_core.py:start_workflow` calls `_init_workflow(...)` which goes through `dbos._sys_db`.
-- `_dbos.py`: `_sys_db` is a property that raises `DBOSException("System database accessed before DBOS was launched")` if `_launched` is false. The system database engine is created inside `launch()` itself (line 548 `self._sys_db_field = SystemDatabase.create(...)`).
+### User
 
-Conclusion: pure "skip launch" does NOT work — the first `Queue.enqueue` raises.
+> Start parallel sessions for #124, #113 and #110 and let's discuss how to address #111. Be advised that the issues may be stale in the sense that a PR may have already solved part or all of the issues described in the issue.
 
-Looked for a knob that lets DBOS launch but skip dispatching from our queues. Found `DBOS.listen_queues(queues)` at `_dbos.py:2925` — must be called before launch; sets `_listening_queues` which is consulted by the queue manager thread at `_queue.py:200-205`:
+### Assistant
 
-```python
-if dbos._listening_queues is not None:
-    listening_queues = dbos._listening_queues
-else:
-    listening_queues = list(dbos._registry.queue_info_map.values())
-```
+Acknowledged. Drafted a per-issue implementation brief for #113 covering: required reading (`CLAUDE.md`, `AGENTS.md`, `gh issue view 113`, issue #108 / PR #109 context), branching protocol off `main` with branch name `rafacm/dbos-enqueue-only`, an explicit Step 1 staleness check on `episodes/apps.py:_init_dbos` and the two management commands, the recommended Option 1 implementation path (with a fall-back to Option 2 if `Queue.enqueue` truly requires `launch()`), verification (`uv run python manage.py test`, `manage.py check`, manual no-warning smoke test), documentation per CLAUDE.md's implementation phase, and PR creation against `main` with `Closes #113`. Launched the parallel implementation agent for #113 with that brief; sibling sessions for #124 and #110 launched alongside. Discussion of #111 continued separately in the parent session.
 
-With `listen_queues([])`, the queue manager iterates over an empty list (plus the always-present internal queue — unrelated to ours). No contention thread ever runs against `episode_pipeline` or `wikidata_enrichment`, and the local executor never receives one of our workflows, so no "cannot schedule new futures after shutdown" race at exit.
-
-This is a refinement of Option 1 — same architectural posture (clients don't dispatch from our queues) — implemented through DBOS's official mechanism. No fall-back to Option 2 needed.
-
-Plan to implement:
-
-1. `episodes/apps.py:_init_dbos`: split `_DBOS_COMMANDS` into `_WORKER_COMMANDS = {"runserver"}` and `_CLIENT_COMMANDS = {"submit_episode", "enrich_entities"}`. Compute `is_worker` and `is_client`. Skip if neither.
-2. After constructing `DBOS(config=…)`, if client-only, call `DBOS.listen_queues([])`. Then `DBOS.launch()` unconditionally.
-3. No changes to `enrich_entities.py`, `submit_episode.py`, signals, or workflows.
-
-Verification: full test suite + manual smoke test (uvicorn in one shell, client in another, watch the logs).
+For the design decision the parallel agent ultimately landed on — the `DBOS.listen_queues([])` refinement of Option 1 — see the implementation transcript. The summary above captures the option analysis and the DBOS-source investigation that informed it.
