@@ -10,11 +10,53 @@ Implemented Option 3 from issue #110: `StepFailed.__reduce__` now returns `(Runt
 
 ## Detailed conversation
 
-### User
+This session was orchestrated by a parent agent acting on behalf of the user via Claude Code's Agent tool with `isolation: worktree`. No direct user-to-implementation-agent messages occurred. The parent-agent's launching prompt — which serves as the de-facto user message for this session — is reproduced verbatim below.
 
-(Task spec from the agent harness — see planning session for the full text. Key directives: branch off `main` as `rafacm/stepfailed-portable`, pick Option 3, update legacy-row admin fallback, run the full test suite, write the docs, open a PR with "Closes #110".)
+### Parent agent (orchestrator)
 
-### Assistant
+```
+You are working on issue #110 in the rafacm/ragtime repo: "Replace typed StepFailed exceptions with serializable failure objects so the dbos CLI can render them".
+
+## Read first
+- `CLAUDE.md` and `AGENTS.md` (project docs requirements, branching rules)
+- The full issue and its top comment: run `gh issue view 110 --comments`
+- Commit `9ff6719` which partially addressed this: `git show 9ff6719`
+
+## Step 0 — Branching
+Per AGENTS.md, confirm we are on `main` and pull latest. Create a branch named `rafacm/stepfailed-portable` off `main`.
+
+## Step 1 — Staleness check
+The issue is explicitly noted as "partially addressed in 9ff6719". Verify the current state:
+1. Read `episodes/workflows.py` — find `StepFailed` and its subclasses, see if `__reduce__` is already there and what it returns
+2. Check if any further work has landed: `git log --oneline --all -- episodes/workflows.py | head -20`
+
+Decide based on what you find whether further work is needed. If it's already complete, report and stop.
+
+## Step 2 — Implementation
+Pick the smallest viable option from the issue:
+- **Option 3 (recommended for minimal blast radius):** Make `__reduce__` return `(RuntimeError, (str(self),))` so the on-the-wire pickle is a plain RuntimeError that any process can deserialize, while the typed shape stays available inside the worker (raise-time).
+- **Option 1:** raise `RuntimeError(json.dumps({...}))` directly — drops the typed hierarchy.
+
+Confirm DBOS or any Django code does NOT do `except FetchDetailsFailed` etc. (grep). If nothing catches by type, both options are safe; pick option 3 for typed-shape preservation.
+
+Also handle the legacy-rows graceful fallback: if Django's admin "View workflow steps" page tries to deserialize a pre-`9ff6719` pickle blob, it should not crash — instead render a graceful "could not deserialize: <preview>" message. Find where the admin renders these and add the fallback.
+
+## Step 3 — Verification
+1. Run `uv run python manage.py test` (full suite — issue says 349+ should pass)
+2. If you can stand up DBOS locally and produce a failed workflow, run `uv run dbos workflow steps <id> --sys-db-url ...` and confirm no "could not be deserialized" warning. If impractical, document manual repro steps.
+
+## Step 4 — Documentation
+Follow CLAUDE.md's "Documentation > Implementation phase" — feature doc, session transcripts, changelog. Date prefix `2026-05-04-`.
+
+## Step 5 — PR
+- Push and `gh pr create --base main` (rebase strategy)
+- "Closes #110" in body
+
+## Reporting
+At the end report: (a) staleness verdict, (b) which option you picked and why, (c) what you did about legacy rows, (d) files changed, (e) PR URL, (f) tests passing count, (g) what you couldn't manually verify. Under 250 words.
+```
+
+### Assistant (implementation agent)
 
 **Branching.** The current worktree was on `rafacm/triage-issues`; pulled latest into the `main` worktree (already up to date), then `git checkout -b rafacm/stepfailed-portable main` from the `paris` worktree.
 

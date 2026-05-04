@@ -12,11 +12,44 @@ Reviewed issue #110 and commit `9ff6719` (which partially addressed it). Confirm
 
 ### User
 
-(Task spec from the agent harness:) Issue #110 — replace typed StepFailed exceptions with serializable failure objects so the dbos CLI can render them. Step 1: confirm staleness — the issue is "partially addressed in 9ff6719", so check what's left. Step 2: pick the smallest viable option (Option 3 = `__reduce__` returning RuntimeError, recommended). Step 3: verify the full test suite still passes. Step 4: documentation. Step 5: PR.
+> Let's review the currently open issues and prioritize them for implementation.
 
 ### Assistant
 
-Read `episodes/workflows.py` and confirmed the current `__reduce__` returns `(self.__class__, (self.episode_id, self.error_message))` — works in-process but the typed class is a Django-app-namespaced symbol the CLI can't resolve. Read commit `9ff6719` and the issue's top comment to confirm the partial-progress markers; the comment narrows the remaining acceptance criteria to "CLI renders the message", "in-process unpickle still works", "349+ tests passing".
+Pulled the open issue list (`gh issue list --state open`), read each issue body and recent comments, and grouped them into tiers by impact and blast radius. Tier 1 covered the issues with the highest user-facing impact and the smallest implementation surface — `#110` (StepFailed CLI rendering, partially addressed in `9ff6719`), `#113` (a download-step regression), `#124` (an admin/UX fix), and `#111` (a larger refactor that needs scoping). Tier 2 and Tier 3 covered nice-to-have polish and longer-running architectural threads. Reported the tiering with one-line justifications per issue and a recommendation to start with Tier 1.
+
+### User
+
+> Can any of the issues in Tier 1 be worked in parallel sessions?
+
+### Assistant
+
+Walked through each Tier 1 issue and identified the file footprints and likely conflict zones:
+
+- `#110` touches `episodes/workflows.py` (StepFailed classes) and `episodes/admin.py` (`_decode_dbos_payload` fallback). No overlap with the other tickets.
+- `#113` touches `episodes/downloader.py` and the download-step orchestration — independent.
+- `#124` touches admin templates and the changelist — also independent.
+- `#111` is the larger refactor; needs a planning conversation before any worktree work, and may collide with `#124` on the admin layer.
+
+Concluded that `#110`, `#113`, and `#124` could safely run in parallel worktrees with isolated branches. `#111` should stay in the main session as a design discussion. Recommended launching three parallel agent sessions for the first three and continuing the `#111` discussion synchronously.
+
+### User
+
+> Start parallel sessions for #124, #113 and #110 and let's discuss how to address #111. Be advised that the issues may be stale in the sense that a PR may have already solved part or all of the issues described in the issue.
+
+### Assistant
+
+Launched three parallel Agent-tool sessions with `isolation: worktree`, one per issue. The `#110` session received a launching prompt instructing it to:
+
+1. Read `CLAUDE.md`, `AGENTS.md`, and the issue + its top comment.
+2. Inspect commit `9ff6719` to see what was already addressed.
+3. Branch off `main` as `rafacm/stepfailed-portable`.
+4. Verify staleness — check whether `__reduce__` is already in place and whether further work is needed.
+5. If still incomplete, pick Option 3 (`__reduce__` returns `(RuntimeError, (str(self),))`) for minimal blast radius and typed-shape preservation; verify nothing catches `StepFailed` subclasses by type before collapsing them on the wire.
+6. Add a graceful legacy-row fallback in the admin's pickle-decode path so pre-`9ff6719` blobs render an explanation instead of crashing.
+7. Run the full test suite, write feature/session/changelog docs per `AGENTS.md`, and open a PR.
+
+Within the planning thread itself, the assistant then read `episodes/workflows.py` and confirmed the current `__reduce__` returns `(self.__class__, (self.episode_id, self.error_message))` — works in-process but the typed class is a Django-app-namespaced symbol the CLI can't resolve. Read commit `9ff6719` and the issue's top comment to confirm the partial-progress markers; the comment narrows the remaining acceptance criteria to "CLI renders the message", "in-process unpickle still works", "349+ tests passing".
 
 Surveyed catch-by-type usage: `grep "except (StepFailed|FetchDetailsFailed|DownloadStepFailed|TranscribeStepFailed|SummarizeStepFailed|ChunkStepFailed|ExtractStepFailed|ResolveStepFailed|EmbedStepFailed)"` returned zero matches. The typed hierarchy is purely for log/debug readability, not control flow — so collapsing it at pickle time is safe.
 
