@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## 2026-05-04
+
+### Changed
+
+- AGENTS.md and the Feature PR Documentation Bundle AI check now recognize **agent-orchestrated sessions**. When a parallel implementation agent is launched from a parent Claude Code session (e.g. under Conductor) and has no direct user-to-implementation-agent messages, the transcript may use `### Parent agent (orchestrator)` headings *instead of* `### User`, provided the parent-agent's launching prompt is reproduced verbatim. The transcript must declare the session as agent-orchestrated at the top of `## Detailed conversation`. Same verbatim rule applies — summarized parent prompts are still rejected. This is a policy clarification only; no code changes.
+
 ## 2026-05-01
 
 ### Added
