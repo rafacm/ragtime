@@ -72,3 +72,25 @@ Ran `uv run python manage.py test --noinput`. 155 tests passed; 36 errors are en
 **Step 4 — Documentation.** Wrote `doc/plans/2026-05-04-ai-checks-skipped.md`, `doc/features/2026-05-04-ai-checks-skipped.md`, this implementation transcript, and the planning transcript. Added a `## 2026-05-04` section to `CHANGELOG.md` under `### Changed` linking to all four docs and citing #124.
 
 **Step 5 — PR.** Pushed branch and opened PR per AGENTS.md.
+
+## Revision after codex review
+
+### User
+> You are adding a follow-up commit to PR #130 in the rafacm/ragtime repo, addressing the blocking concern from the codex review. (...) The user has decided to ship **option 1B** (filter `applies: false` entries out of the matrix entirely) as the smallest viable fix. Option 1C (Checks API publishing) is captured separately as #135 for future work.
+
+### Assistant
+
+The codex review on PR #130 (review id `4218279237`) flagged the workflow design as blocking: `jobs.check.if: ${{ matrix.applies }}` does not work because GitHub Actions evaluates job-level `if:` *before* expanding `strategy.matrix`. The empirical signal was workflow run `25307264491` failing in 0 seconds with no jobs expanded.
+
+Pivoted to **option 1B**:
+
+1. `list_ai_checks.py` now omits non-applicable rules from the matrix entirely — no `applies` field on emitted entries. The `applies_for` helper is unchanged in semantics; `main()` simply `continue`s past rules where it returns `False`.
+2. `ai-checks.yml` drops `&& matrix.applies` from the `check` job's `if:`, keeping only the `include[0] != null` empty-matrix guard. Updated the comment block to explain why per-shard gating doesn't work and to point at #135 as the future-work option.
+3. `changed_files()` now fails closed: a `subprocess.CalledProcessError` triggers `sys.exit(1)` with a clear stderr message ("Refusing to silently skip path-scoped rules"), matching the codex review's "fail closed on a bad base ref" suggestion.
+4. Added `.github/scripts/tests/__init__.py` and `.github/scripts/tests/test_list_ai_checks.py` — 24 stdlib-only `unittest` tests covering well-formed/missing/multi-line/quoted/comment frontmatter, empty/single/comma-separated/nonmatching/multi-matching `applies_for` cases, the codex-flagged `*`-crosses-`/` and `**`-not-segment-aware glob semantics, the new `sys.exit(1)` fail-closed path on `git diff` errors, and the end-to-end `main()` matrix-emission flow asserting only applicable rules appear and that no `applies` field is emitted. The quoted-glob and YAML-list-form unsupported behaviors are explicitly locked in by tests so a future "fix" doesn't silently change them.
+5. Added docstrings on `parse_frontmatter` and `applies_for` documenting the supported `paths:` syntax (single-line, comma-separated, unquoted, `fnmatch` semantics — not segment-aware). Added a "Supported `paths:` syntax" section to the feature doc.
+6. Updated the plan doc with a "Revision after codex review" section and updated the feature doc's design narrative to reflect the matrix-filter approach.
+
+**Verification.** All 24 unit tests pass (`python -m unittest discover .github/scripts/tests -v`). Locally simulated matrix emission with `BASE_REF=origin/main python .github/scripts/list_ai_checks.py` — output contains only the 5 applicable rules with no `applies` field.
+
+**Out of scope per the user's instructions.** Did not change verdict-enum work (already correct), did not change the four `paths:` frontmatter (already correct), did not tighten `entity-creation-race-safety` scope (deferred per codex), did not address the `## Plan...` first-line nit or the verbatim-user-messages nit on the original session transcripts (the user can address separately if they want).

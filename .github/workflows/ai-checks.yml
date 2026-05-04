@@ -33,11 +33,13 @@ jobs:
 
   check:
     needs: list
-    # Gate per matrix shard: rules whose path scope didn't match any changed
-    # file render as gray "skipped" in the PR Checks tab — no runner, no model
-    # call, clearer signal than green "pass". Top-level `include[0] != null`
-    # guard avoids the "no jobs to run" error when the matrix is empty.
-    if: ${{ fromJson(needs.list.outputs.matrix).include[0] != null && matrix.applies }}
+    # Non-applicable rules (path scope didn't match any changed file) are
+    # filtered out of the matrix entirely by `list_ai_checks.py`, so they
+    # simply don't appear in the PR Checks tab. The `include[0] != null`
+    # guard avoids the "no jobs to run" error when zero rules apply.
+    # (We can't gate per-shard with `matrix.applies` because GitHub Actions
+    # evaluates job-level `if:` *before* expanding `strategy.matrix`.)
+    if: ${{ fromJson(needs.list.outputs.matrix).include[0] != null }}
     runs-on: ubuntu-latest
     name: "AI Check: ${{ matrix.name }}"
     strategy:
