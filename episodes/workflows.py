@@ -88,14 +88,30 @@ class StepFailed(Exception):
         )
 
     def __reduce__(self):
-        # Default Exception.__reduce__ unpickles via ``cls(*self.args)``
-        # which doesn't match this class's two-arg ``__init__`` signature
-        # (``self.args`` only carries the formatted message). Return the
-        # constructor inputs verbatim so DBOS-stored exceptions can be
-        # round-tripped — necessary for the admin step-trace view to
-        # render the human-readable error_message instead of the raw
-        # b64-encoded pickle wire format.
-        return (self.__class__, (self.episode_id, self.error_message))
+        # Pickle as a plain ``RuntimeError`` carrying the formatted
+        # message. Two reasons:
+        #
+        # 1. **Cross-process portability.** DBOS persists step errors
+        #    as base64-encoded pickle bytes. The standalone ``dbos
+        #    workflow steps`` CLI (and DBOS Conductor) run outside the
+        #    Django process and can't import ``episodes.workflows`` —
+        #    unpickling a typed ``StepFailed`` subclass there raises
+        #    ``ModuleNotFoundError`` and the CLI prints "exception
+        #    object could not be deserialized". ``RuntimeError`` lives
+        #    in the stdlib, so any Python process can rehydrate it.
+        # 2. **Default ``Exception.__reduce__`` round-trip is broken**
+        #    for our two-arg ``__init__`` signature (``self.args`` only
+        #    carries the formatted message); a plain ``RuntimeError``
+        #    payload sidesteps that entirely.
+        #
+        # Worker-side semantics are unchanged: in the process that
+        # raises, ``except StepFailed`` / ``except FetchDetailsFailed``
+        # still match. The typed shape only collapses at pickle time,
+        # which is when we cross the process boundary anyway. No
+        # caller currently catches by typed subclass (verified with
+        # grep) — the typed hierarchy exists for log readability, not
+        # control flow.
+        return (RuntimeError, (str(self),))
 
 
 class FetchDetailsFailed(StepFailed):
