@@ -62,3 +62,17 @@ Path-scoped non-applicability is now handled before the model is invoked — the
 
 - Posting check-runs via the Checks API (gives full skipped-icon coverage including model-driven skips, but doubles the rows in the Checks tab unless we restructure away from `strategy.matrix`).
 - Changing the rule format itself (frontmatter schema is unchanged — `paths:` was already supported by the driver, just unused).
+
+## Revision after codex review (2026-05-04)
+
+The codex review on PR #130 caught a blocker: GitHub Actions evaluates `jobs.<job_id>.if:` *before* expanding `strategy.matrix`, so a job-level `if: ${{ matrix.applies }}` gate is not visible at that scope and the workflow fails to expand any jobs at all (0-second workflow-validation failure).
+
+Pivoted to **option 1B**: filter non-applicable rules out of the matrix entirely at emission time in `list_ai_checks.py`. Non-applicable rules simply don't appear in the PR Checks tab. This is not the gray-skipped icon the issue originally asked for, but it does fix the original "indistinguishable from green pass" complaint and ships in a workflow that actually runs.
+
+Option 1C — publish gray rows via the GitHub Checks API from the `list` job — is the only way to render true gray-skipped icons given GHA's evaluation order. Tracked separately as **#135** for future work.
+
+Other follow-ups landed in the same revision:
+
+- `changed_files()` now fails closed (`sys.exit(1)`) on `git diff` errors instead of silently returning `[]`.
+- New unit tests in `.github/scripts/tests/test_list_ai_checks.py` lock in parser, glob, and fail-closed behavior — including the explicitly-unsupported quoted-glob and YAML-list-form behaviors.
+- `paths:` syntax is documented in docstrings on `parse_frontmatter` / `applies_for` and in the "Supported `paths:` syntax" section of the feature doc.
