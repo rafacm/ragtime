@@ -6,7 +6,7 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   list:
@@ -38,6 +38,11 @@ jobs:
         with:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v6
+      - name: Sanitize matrix name for artifact
+        id: slug
+        run: |
+          slug=$(printf '%s' "${{ matrix.name }}" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//;s/-$//')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
       - name: Run check
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -45,6 +50,50 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BASE_REF: origin/${{ github.event.pull_request.base.ref }}
           AI_CHECK_MODEL: ${{ vars.AI_CHECK_MODEL || 'openai/gpt-4o-mini' }}
+          AI_CHECK_OUTPUT: ${{ runner.temp }}/ai-check-result.json
         run: |
+          mkdir -p "${{ runner.temp }}"
           git fetch --no-tags --depth=200 origin "${{ github.event.pull_request.base.ref }}"
           uv run --with litellm python .github/scripts/run_ai_check.py "${{ matrix.path }}"
+      - name: Upload verdict artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-check-result-${{ steps.slug.outputs.slug }}
+          path: ${{ runner.temp }}/ai-check-result.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  aggregate:
+    needs: check
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download verdict artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ai-check-results
+          pattern: ai-check-result-*
+          merge-multiple: false
+      - name: Render sticky comment body
+        id: render
+        run: |
+          mkdir -p ai-check-results
+          python .github/scripts/aggregate_ai_checks.py \
+            --results-dir ai-check-results \
+            --body-out comment-body.md \
+            --has-fail-out has-fail.txt
+          echo "has_fail=$(cat has-fail.txt)" >> "$GITHUB_OUTPUT"
+      - name: Upsert sticky comment (failures present)
+        if: steps.render.outputs.has_fail == 'true'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: ai-checks-summary
+          path: comment-body.md
+      - name: Delete sticky comment (all green)
+        if: steps.render.outputs.has_fail == 'false'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: ai-checks-summary
+          delete: true

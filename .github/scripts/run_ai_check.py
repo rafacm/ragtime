@@ -213,6 +213,17 @@ def write_step_summary(check_name: str, result: dict[str, str]) -> None:
     Path(summary_path).write_text(md)
 
 
+def write_output_json(path: Path, name: str, description: str, result: dict[str, str]) -> None:
+    payload = {
+        "name": name,
+        "description": description,
+        "verdict": result["verdict"],
+        "summary": result.get("summary", ""),
+        "details": result.get("details", ""),
+    }
+    path.write_text(json.dumps(payload, indent=2))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("check", type=Path, help="Path to a .ai-checks/*.md rule file")
@@ -226,24 +237,31 @@ def main() -> int:
         default=os.environ.get("AI_CHECK_MODEL", DEFAULT_MODEL),
         help=f"LiteLLM model string, e.g. openai/gpt-4o-mini (default: {DEFAULT_MODEL})",
     )
+    ap.add_argument(
+        "--output",
+        type=Path,
+        default=Path(os.environ["AI_CHECK_OUTPUT"]) if os.environ.get("AI_CHECK_OUTPUT") else None,
+        help="Optional path to write the verdict as JSON (also reads $AI_CHECK_OUTPUT).",
+    )
     args = ap.parse_args()
 
     fm, _ = parse_check(args.check)
     name = fm.get("name", args.check.stem)
+    description = fm.get("description", "")
 
     try:
         result = evaluate(args.check, args.base, args.model)
     except ConfigError as e:
         print(f"[CONFIG ERROR] {name}", file=sys.stderr)
         print(str(e), file=sys.stderr)
-        write_step_summary(
-            name,
-            {
-                "verdict": "fail",
-                "summary": "Setup error — see job log.",
-                "details": str(e),
-            },
-        )
+        result = {
+            "verdict": "fail",
+            "summary": "Setup error — see job log.",
+            "details": str(e),
+        }
+        write_step_summary(name, result)
+        if args.output:
+            write_output_json(args.output, name, description, result)
         print(f"::error title=AI check setup error ({name})::{e}")
         return 2
 
@@ -255,6 +273,8 @@ def main() -> int:
         print(result["details"])
 
     write_step_summary(name, result)
+    if args.output:
+        write_output_json(args.output, name, description, result)
     return 1 if result["verdict"] == "fail" else 0
 
 
