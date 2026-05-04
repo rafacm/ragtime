@@ -21,21 +21,6 @@ class EpisodesConfig(AppConfig):
     def _init_dbos(self):
         import sys
 
-        # DBOS startup is split into two roles:
-        #
-        # * **Worker** entrypoints (uvicorn, runserver) launch a full DBOS
-        #   instance that listens to every declared queue and dequeues
-        #   workflows for execution.
-        # * **Client** management commands (``submit_episode``,
-        #   ``enrich_entities``) only need to write a row to
-        #   ``dbos.workflow_status`` so a running worker picks the workflow
-        #   up. They launch DBOS with ``listen_queues([])`` so no local
-        #   dispatcher races with the worker (avoids the "Contention
-        #   detected" warning) and so no workflow is ever submitted to the
-        #   client's executor (avoids "cannot schedule new futures after
-        #   shutdown" at process exit).
-        #
-        # Other commands (migrate, check, shell, …) don't need DBOS at all.
         _CLIENT_COMMANDS = {"submit_episode", "enrich_entities"}
         _WORKER_COMMANDS = {"runserver"}
         is_uvicorn = any("uvicorn" in arg for arg in sys.argv[:1])
@@ -59,13 +44,9 @@ class EpisodesConfig(AppConfig):
             f"postgresql://{user}:{password}@{host}:{port}/{name}",
         )
 
-        # Import every module that registers DBOS workflows / queues so the
-        # @DBOS.workflow / @DBOS.step / Queue() decorators run BEFORE
-        # DBOS.launch(). Lazy imports from inside steps would otherwise
-        # register against an already-launched DBOS, and enqueues against
-        # those late-registered workflows silently fail.
-        import episodes.workflows  # noqa: F401 — episode_pipeline queue + process_episode
-        import episodes.enrichment  # noqa: F401 — wikidata_enrichment queue + enrich_entity_wikidata
+        # Decorators must register before DBOS.launch(); enqueues against late-registered workflows silently fail.
+        import episodes.workflows  # noqa: F401
+        import episodes.enrichment  # noqa: F401
 
         dbos_config: DBOSConfig = {
             "name": "ragtime",
@@ -73,11 +54,7 @@ class EpisodesConfig(AppConfig):
         }
         DBOS(config=dbos_config)
         if is_client and not is_worker:
-            # Listen to no application queues — this process only enqueues.
-            # ``Queue.enqueue`` calls ``start_workflow(execute_workflow=False)``
-            # which only writes to ``dbos.workflow_status``; the dispatcher is
-            # not needed. Pure "don't call launch()" doesn't work because
-            # ``DBOS._sys_db`` is created inside ``launch()``.
+            # Skipping launch() isn't an option — DBOS._sys_db is created there and Queue.enqueue requires it.
             DBOS.listen_queues([])
         DBOS.launch()
 
