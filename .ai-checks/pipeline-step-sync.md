@@ -1,6 +1,7 @@
 ---
 name: Pipeline Step Documentation Sync
 description: When the 10-step ingestion pipeline changes, README.md, doc/README.md, and diagrams must be updated in lockstep.
+paths: episodes/models.py, episodes/workflows.py, README.md, doc/README.md, doc/*.excalidraw
 ---
 
 # Pipeline Step Documentation Sync

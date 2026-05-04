@@ -9,8 +9,14 @@ provider as a prefix, e.g. `openai/gpt-4o-mini`, `anthropic/claude-sonnet-4-6`,
 `gemini/gemini-2.0-flash`. LiteLLM auto-reads each provider's canonical env
 var (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, ...).
 
-Exits 1 on `fail`, 0 on `pass` / `skip`. Each invocation is a single GH
-Actions matrix job, so the job's pass/fail status becomes the PR check.
+Exits 1 on `fail`, 0 on `pass`. Each invocation is a single GH Actions
+matrix job, so the job's pass/fail status becomes the PR check.
+
+Path-scoped non-applicability is now handled at the workflow level: the
+`list` job evaluates each rule's `paths:` frontmatter against the PR's
+changed files and emits `applies: bool` per matrix include. Shards with
+`applies: false` are skipped at the GHA level (gray icon, no runner). The
+driver itself only ever returns `pass` or `fail`.
 """
 
 from __future__ import annotations
@@ -55,9 +61,10 @@ SYSTEM_PROMPT = """You are reviewing a pull request diff against a single review
 
 The rule defines what to check. After reading the diff, report exactly one verdict via the `report_verdict` function:
 
-- pass: the diff complies with the rule, OR the rule does not apply to this diff in any meaningful way.
+- pass: the diff complies with the rule, OR the rule does not apply to this diff in any meaningful way. When the rule does not apply, set `summary` to "Rule does not apply." and put a one-line "rule does not apply because …" in `details`.
 - fail: the diff clearly violates the rule, with concrete evidence visible in the diff.
-- skip: the rule cannot be evaluated against this diff (e.g. no relevant files were changed and the rule is path-scoped).
+
+Path-scoped non-applicability is handled before you are invoked — if you are evaluating this diff at all, the workflow has decided the rule is in scope. Your job is to check compliance, not to second-guess scope.
 
 Be conservative. Return `fail` only when you can point at specific lines in the diff that violate the rule. Vague concerns, style nitpicks, or "could be improved" remarks are not failures — return `pass` and put your notes in the `details` field."""
 
@@ -85,7 +92,7 @@ REPORT_TOOL: dict[str, Any] = {
             "properties": {
                 "verdict": {
                     "type": "string",
-                    "enum": ["pass", "fail", "skip"],
+                    "enum": ["pass", "fail"],
                     "description": "Overall verdict for this rule against the diff.",
                 },
                 "summary": {
@@ -141,15 +148,28 @@ def evaluate(check_path: Path, base: str, model: str) -> dict[str, str]:
     diff, files = get_diff(base)
 
     if not diff.strip():
-        return {"verdict": "skip", "summary": "Empty diff.", "details": ""}
+        return {
+            "verdict": "pass",
+            "summary": "Rule does not apply.",
+            "details": "Rule does not apply because the diff is empty.",
+        }
 
+    # Workflow normally gates path-scoped rules at the matrix level via
+    # `matrix.applies`, so this branch is mostly a safety net for direct
+    # CLI invocation. Returns `pass` with an explanatory note rather than
+    # `skip` (which is no longer in the verdict enum — semantic
+    # non-applicability is now `pass`, path non-applicability is gray-skipped
+    # at the GHA job level).
     if "paths" in fm:
         patterns = [p.strip() for p in fm["paths"].split(",") if p.strip()]
         if patterns and not matches_paths(files, patterns):
             return {
-                "verdict": "skip",
-                "summary": "No matching files changed.",
-                "details": f"Rule scoped to: `{fm['paths']}`",
+                "verdict": "pass",
+                "summary": "Rule does not apply.",
+                "details": (
+                    f"Rule does not apply because no changed files match its "
+                    f"path scope: `{fm['paths']}`."
+                ),
             }
 
     if len(diff) > MAX_DIFF_CHARS:
@@ -203,7 +223,7 @@ def write_step_summary(check_name: str, result: dict[str, str]) -> None:
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
         return
-    marker = {"pass": "PASS", "fail": "FAIL", "skip": "SKIP"}[result["verdict"]]
+    marker = {"pass": "PASS", "fail": "FAIL"}[result["verdict"]]
     md = (
         f"# [{marker}] {check_name}\n\n"
         f"**Verdict:** `{result['verdict']}`\n\n"
@@ -265,7 +285,7 @@ def main() -> int:
         print(f"::error title=AI check setup error ({name})::{e}")
         return 2
 
-    marker = {"pass": "PASS", "fail": "FAIL", "skip": "SKIP"}[result["verdict"]]
+    marker = {"pass": "PASS", "fail": "FAIL"}[result["verdict"]]
     print(f"[{marker}] {name}")
     print(result["summary"])
     if result.get("details"):
