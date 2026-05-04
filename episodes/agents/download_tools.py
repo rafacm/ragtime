@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+from datetime import date
 
 from playwright.async_api import Error as PlaywrightError
 from pydantic import BaseModel
@@ -411,13 +412,21 @@ async def intercept_audio_requests(
 
 
 class IndexCandidate(BaseModel):
-    """One candidate from a podcast index, surfaced to the agent."""
+    """One candidate from a podcast index, surfaced to the agent.
+
+    ``published_at`` is the candidate's publication date when the
+    aggregator surfaces one (ISO 8601 ``YYYY-MM-DD`` in serialized
+    output). The agent should match candidates by
+    ``(title, published_at)`` when ``show_name`` is a hostname rather
+    than a real broadcast title.
+    """
 
     audio_url: str
     title: str = ""
     show_name: str = ""
     duration_seconds: int | None = None
     source_index: str = ""
+    published_at: date | None = None
 
 
 async def lookup_podcast_index(
@@ -461,6 +470,7 @@ async def lookup_podcast_index(
             show_name=c.show_name,
             duration_seconds=c.duration_seconds,
             source_index=c.source_index,
+            published_at=c.published_at,
         )
         for c in candidates
     ]

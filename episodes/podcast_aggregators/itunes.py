@@ -18,6 +18,7 @@ Used in two places:
 from __future__ import annotations
 
 import logging
+from datetime import date, datetime
 from typing import Any
 
 import httpx
@@ -82,6 +83,7 @@ class ItunesAggregator(PodcastAggregator):
         duration_seconds: int | None = None
         if isinstance(duration_ms, int) and duration_ms > 0:
             duration_seconds = duration_ms // 1000
+        published_at = _parse_release_date(item.get("releaseDate"))
         return EpisodeCandidate(
             audio_url=audio_url,
             title=item.get("trackName") or "",
@@ -89,4 +91,30 @@ class ItunesAggregator(PodcastAggregator):
             duration_seconds=duration_seconds,
             source_index=self.name,
             episode_page_url=item.get("trackViewUrl") or "",
+            published_at=published_at,
         )
+
+
+def _parse_release_date(raw: Any) -> date | None:
+    """Parse iTunes' ``releaseDate`` (ISO 8601 datetime) to a ``date``.
+
+    Example value: ``"2024-08-30T04:00:00Z"``. Returns ``None`` on
+    missing / unparseable input — never raises.
+    """
+    if not raw:
+        return None
+    if isinstance(raw, date) and not isinstance(raw, datetime):
+        return raw
+    if isinstance(raw, datetime):
+        return raw.date()
+    if not isinstance(raw, str):
+        logger.warning("iTunes releaseDate has unexpected type %s: %r", type(raw), raw)
+        return None
+    text = raw.strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
+    except ValueError:
+        logger.warning("iTunes releaseDate could not be parsed: %r", raw)
+        return None

@@ -175,3 +175,35 @@ class DownloadEpisodeTests(TestCase):
 
         episode.refresh_from_db()
         self.assertEqual(episode.status, Episode.Status.QUEUED)
+
+
+class ShowNameTests(TestCase):
+    """`_show_name(episode)` cascade: episode.show_name → URL host."""
+
+    def _create_episode(self, **kwargs):
+        with patch("episodes.signals.DBOS"):
+            return Episode.objects.create(**kwargs)
+
+    def test_returns_show_name_when_set(self):
+        from episodes.downloader import _show_name
+
+        episode = self._create_episode(
+            url="https://www.ardsounds.de/ep/x",
+            show_name="Zeitzeichen",
+        )
+        self.assertEqual(_show_name(episode), "Zeitzeichen")
+
+    def test_falls_back_to_host_when_show_name_blank(self):
+        from episodes.downloader import _show_name
+
+        episode = self._create_episode(
+            url="https://www.ardsounds.de/ep/y",
+        )
+        self.assertEqual(_show_name(episode), "www.ardsounds.de")
+
+    def test_returns_empty_when_url_has_no_host(self):
+        from episodes.downloader import _show_name
+
+        # URL without netloc (e.g. relative path stored erroneously) — return "".
+        episode = Episode(url="not-a-url", show_name="")
+        self.assertEqual(_show_name(episode), "")

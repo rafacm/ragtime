@@ -1,5 +1,6 @@
 """Tests for the podcast aggregator provider abstraction."""
 
+from datetime import date
 from unittest.mock import patch
 
 import httpx
@@ -67,6 +68,57 @@ class FyydAggregatorTests(SimpleTestCase):
             get.side_effect = httpx.ConnectError("nope")
             self.assertEqual(FyydAggregator().search(title="x"), [])
 
+    def test_pubdate_parsed_to_date(self):
+        payload = {
+            "data": [
+                {
+                    "title": "Django Reinhardt",
+                    "enclosure": "https://wdr.example/episode.mp3",
+                    "pubdate": "2024-08-30 04:00:00",
+                    "podcast": {"title": "Zeitzeichen"},
+                }
+            ]
+        }
+        with patch("episodes.podcast_aggregators.fyyd.httpx.get") as get:
+            get.return_value = _FakeResponse(payload)
+            results = FyydAggregator().search(
+                title="Django Reinhardt", show_name="Zeitzeichen"
+            )
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].published_at, date(2024, 8, 30))
+
+    def test_missing_pubdate_returns_none(self):
+        payload = {
+            "data": [
+                {
+                    "title": "x",
+                    "enclosure": "https://e/ep.mp3",
+                    "podcast": {"title": "y"},
+                }
+            ]
+        }
+        with patch("episodes.podcast_aggregators.fyyd.httpx.get") as get:
+            get.return_value = _FakeResponse(payload)
+            results = FyydAggregator().search(title="x")
+        self.assertIsNone(results[0].published_at)
+
+    def test_malformed_pubdate_returns_none(self):
+        payload = {
+            "data": [
+                {
+                    "title": "x",
+                    "enclosure": "https://e/ep.mp3",
+                    "pubdate": "not-a-date",
+                    "podcast": {"title": "y"},
+                }
+            ]
+        }
+        with patch("episodes.podcast_aggregators.fyyd.httpx.get") as get:
+            get.return_value = _FakeResponse(payload)
+            results = FyydAggregator().search(title="x")
+        self.assertEqual(len(results), 1)
+        self.assertIsNone(results[0].published_at)
+
 
 class ItunesAggregatorTests(SimpleTestCase):
     def test_search_returns_candidates(self):
@@ -108,6 +160,54 @@ class ItunesAggregatorTests(SimpleTestCase):
             get.side_effect = httpx.ConnectError("nope")
             self.assertEqual(ItunesAggregator().search(title="x"), [])
 
+    def test_release_date_parsed_to_date(self):
+        payload = {
+            "results": [
+                {
+                    "trackName": "x",
+                    "collectionName": "Show",
+                    "episodeUrl": "https://e/ep.mp3",
+                    "releaseDate": "2024-08-30T04:00:00Z",
+                }
+            ]
+        }
+        with patch("episodes.podcast_aggregators.itunes.httpx.get") as get:
+            get.return_value = _FakeResponse(payload)
+            results = ItunesAggregator().search(title="x", show_name="Show")
+        self.assertEqual(results[0].published_at, date(2024, 8, 30))
+
+    def test_missing_release_date_returns_none(self):
+        payload = {
+            "results": [
+                {
+                    "trackName": "x",
+                    "collectionName": "Show",
+                    "episodeUrl": "https://e/ep.mp3",
+                }
+            ]
+        }
+        with patch("episodes.podcast_aggregators.itunes.httpx.get") as get:
+            get.return_value = _FakeResponse(payload)
+            results = ItunesAggregator().search(title="x", show_name="Show")
+        self.assertIsNone(results[0].published_at)
+
+    def test_malformed_release_date_returns_none(self):
+        payload = {
+            "results": [
+                {
+                    "trackName": "x",
+                    "collectionName": "Show",
+                    "episodeUrl": "https://e/ep.mp3",
+                    "releaseDate": "garbage",
+                }
+            ]
+        }
+        with patch("episodes.podcast_aggregators.itunes.httpx.get") as get:
+            get.return_value = _FakeResponse(payload)
+            results = ItunesAggregator().search(title="x", show_name="Show")
+        self.assertEqual(len(results), 1)
+        self.assertIsNone(results[0].published_at)
+
 
 class PodcastIndexOrgTests(SimpleTestCase):
     def test_guid_lookup_first(self):
@@ -136,6 +236,55 @@ class PodcastIndexOrgTests(SimpleTestCase):
             PodcastIndexOrg("k", "s").search(title="t", show_name="Show")
         called_url = get.call_args[0][0]
         self.assertIn("/search/byterm", called_url)
+
+    def test_date_published_epoch_parsed_to_date(self):
+        # 2024-08-30T04:00:00Z → 1724990400 epoch seconds.
+        payload = {
+            "feeds": [
+                {
+                    "title": "x",
+                    "feedTitle": "Show",
+                    "enclosureUrl": "https://e/ep.mp3",
+                    "datePublished": 1724990400,
+                }
+            ]
+        }
+        with patch("episodes.podcast_aggregators.podcastindex.httpx.get") as get:
+            get.return_value = _FakeResponse(payload)
+            results = PodcastIndexOrg("k", "s").search(title="x", show_name="Show")
+        self.assertEqual(results[0].published_at, date(2024, 8, 30))
+
+    def test_missing_date_published_returns_none(self):
+        payload = {
+            "feeds": [
+                {
+                    "title": "x",
+                    "feedTitle": "Show",
+                    "enclosureUrl": "https://e/ep.mp3",
+                }
+            ]
+        }
+        with patch("episodes.podcast_aggregators.podcastindex.httpx.get") as get:
+            get.return_value = _FakeResponse(payload)
+            results = PodcastIndexOrg("k", "s").search(title="x", show_name="Show")
+        self.assertIsNone(results[0].published_at)
+
+    def test_malformed_date_published_returns_none(self):
+        payload = {
+            "feeds": [
+                {
+                    "title": "x",
+                    "feedTitle": "Show",
+                    "enclosureUrl": "https://e/ep.mp3",
+                    "datePublished": "garbage",
+                }
+            ]
+        }
+        with patch("episodes.podcast_aggregators.podcastindex.httpx.get") as get:
+            get.return_value = _FakeResponse(payload)
+            results = PodcastIndexOrg("k", "s").search(title="x", show_name="Show")
+        self.assertEqual(len(results), 1)
+        self.assertIsNone(results[0].published_at)
 
 
 class FactoryTests(SimpleTestCase):

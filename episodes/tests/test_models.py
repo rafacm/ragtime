@@ -32,6 +32,7 @@ class EpisodeModelTests(TestCase):
     def test_metadata_fields_blank_by_default(self, mock_async):
         episode = Episode.objects.create(url="https://example.com/ep/1")
         self.assertEqual(episode.title, "")
+        self.assertEqual(episode.show_name, "")
         self.assertEqual(episode.description, "")
         self.assertIsNone(episode.published_at)
         self.assertEqual(episode.image_url, "")
@@ -42,3 +43,11 @@ class EpisodeModelTests(TestCase):
         self.assertEqual(episode.canonical_url, "")
         self.assertEqual(episode.source_kind, Episode.SourceKind.UNKNOWN)
         self.assertEqual(episode.aggregator_provider, "")
+
+    def test_show_name_can_be_set(self, mock_async):
+        episode = Episode.objects.create(
+            url="https://example.com/ep/1",
+            show_name="Zeitzeichen",
+        )
+        episode.refresh_from_db()
+        self.assertEqual(episode.show_name, "Zeitzeichen")

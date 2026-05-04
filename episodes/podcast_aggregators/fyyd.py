@@ -7,6 +7,7 @@ raises rate limits, so it is plumbed through but not enforced.
 from __future__ import annotations
 
 import logging
+from datetime import date, datetime
 from typing import Any
 
 import httpx
@@ -82,10 +83,46 @@ class FyydAggregator(PodcastAggregator):
         duration = item.get("duration")
         if not isinstance(duration, int):
             duration = None
+        published_at = _parse_pubdate(item.get("pubdate"))
         return EpisodeCandidate(
             audio_url=audio_url,
             title=item.get("title") or "",
             show_name=show_name,
             duration_seconds=duration,
             source_index=self.name,
+            published_at=published_at,
         )
+
+
+def _parse_pubdate(raw: Any) -> date | None:
+    """Parse fyyd's ``pubdate`` field to a ``date``.
+
+    fyyd documents the value as ISO 8601 (e.g. ``"2024-08-30 04:00:00"``).
+    Returns ``None`` on missing / unparseable input — never raises, so
+    a single broken row doesn't drop a candidate.
+    """
+    if not raw:
+        return None
+    if isinstance(raw, date) and not isinstance(raw, datetime):
+        return raw
+    if isinstance(raw, datetime):
+        return raw.date()
+    if not isinstance(raw, str):
+        logger.warning("fyyd pubdate has unexpected type %s: %r", type(raw), raw)
+        return None
+    text = raw.strip()
+    if not text:
+        return None
+    # Try a few likely shapes: "YYYY-MM-DD HH:MM:SS", ISO 8601 with T,
+    # bare "YYYY-MM-DD".
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text[: len(fmt) + 4], fmt).date()
+        except ValueError:
+            continue
+    # Last resort: ``fromisoformat`` (handles offsets, fractional seconds, etc.)
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
+    except ValueError:
+        logger.warning("fyyd pubdate could not be parsed: %r", raw)
+        return None

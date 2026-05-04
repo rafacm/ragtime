@@ -1,6 +1,7 @@
 """Dependencies and result model for the download agent."""
 
 import dataclasses
+from datetime import date
 
 from playwright.async_api import Page
 from pydantic import BaseModel
@@ -20,6 +21,10 @@ class DownloadDeps:
     download_dir: str
     page: Page
     screenshots: list[bytes]
+    # Episode publication date (when fetch_details extracted one). Used
+    # by the agent as a tiebreaker against ``IndexCandidate.published_at``
+    # when ``show_name`` is degraded (e.g. fell back to URL host).
+    published_at: date | None = None
 
 
 class DownloadAgentResult(BaseModel):

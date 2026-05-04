@@ -21,6 +21,7 @@ The agent returns a structured ``DownloadAgentResult`` that
 import asyncio
 import logging
 import os
+from datetime import date
 
 from django.conf import settings
 from pydantic_ai import Agent
@@ -42,6 +43,7 @@ Episode context:
 - Episode URL: {episode_url}
 - Title: {title}
 - Show: {show_name}
+- Published: {published_at}
 - GUID hint: {guid}
 - Known audio URL (failed wget): {audio_url}
 - Language: {language}
@@ -51,10 +53,30 @@ Strategy (try in this order, escalate only if a step fails):
 1. Call `lookup_podcast_index` with the title/show/guid hints.
    Podcast indexes (fyyd, podcastindex.org) often carry the
    publisher's RSS-feed enclosure URL even when the publisher's
-   page hides it behind interactive UI. If a candidate looks
-   right, call `download_file` on its `audio_url`. On success,
-   return success with `source` set to the candidate's
-   `source_index` (e.g. "fyyd").
+   page hides it behind interactive UI.
+
+   Picking the right candidate:
+   - The episode's `Show` value above may be a publisher hostname
+     rather than the broadcast title — for example
+     `www.ardsounds.de` instead of `Zeitzeichen`. Detect this:
+     when `Show` contains a `.` and no spaces, treat it as a
+     hostname and do NOT require an exact string match against
+     the candidate's `show_name`.
+   - For hostname-shaped `Show` values, prefer matching candidates
+     by `(title, published_at)` instead. A candidate is a strong
+     match when its `title` is essentially the same as the
+     episode `Title` (allowing for trailing punctuation, suffixes
+     like `" | Podcast"`, etc.) AND its `published_at` is within
+     ±1 day of the episode `Published` value.
+   - For real show titles, an exact / fuzzy match on
+     `show_name` plus a similar episode `title` is enough.
+   - When `Published` is unknown, fall back to title similarity
+     alone — do not reject a clear title match just because the
+     date is missing on either side.
+
+   When you find a strong match, call `download_file` on its
+   `audio_url`. On success, return success with `source` set to
+   the candidate's `source_index` (e.g. "fyyd").
 
 2. If no index candidates look right, navigate to the episode
    page with `navigate_to_url`, then use `find_audio_links` to
@@ -130,10 +152,14 @@ def _build_agent() -> Agent[DownloadDeps, DownloadAgentResult]:
 def _get_system_prompt(deps: DownloadDeps) -> str:
     from ..languages import ISO_639_LANGUAGE_NAMES, ISO_639_RE
 
+    published_at_str = (
+        deps.published_at.isoformat() if deps.published_at else "(unknown)"
+    )
     prompt = DOWNLOAD_SYSTEM_PROMPT.format(
         episode_url=deps.episode_url,
         title=deps.title or "(unknown)",
         show_name=deps.show_name or "(unknown)",
+        published_at=published_at_str,
         guid=deps.guid or "(none)",
         audio_url=deps.audio_url or "(none)",
         language=deps.language or "(unknown)",
@@ -157,6 +183,7 @@ async def _run_agent_async(
     show_name: str,
     guid: str,
     language: str,
+    published_at: date | None = None,
 ) -> DownloadAgentResult:
     import shutil
     import tempfile
@@ -176,6 +203,7 @@ async def _run_agent_async(
                 download_dir=download_dir,
                 page=page,
                 screenshots=[],
+                published_at=published_at,
             )
 
             system_prompt = _get_system_prompt(deps)
@@ -339,6 +367,7 @@ def run_download_agent(
     show_name: str = "",
     guid: str = "",
     language: str = "",
+    published_at: date | None = None,
 ) -> DownloadAgentResult:
     """Run the download agent synchronously (entry point from the step)."""
     try:
@@ -355,13 +384,13 @@ def run_download_agent(
                     asyncio.run,
                     _run_agent_async(
                         episode_id, episode_url, audio_url,
-                        title, show_name, guid, language,
+                        title, show_name, guid, language, published_at,
                     ),
                 ).result()
         return asyncio.run(
             _run_agent_async(
                 episode_id, episode_url, audio_url,
-                title, show_name, guid, language,
+                title, show_name, guid, language, published_at,
             )
         )
     finally:

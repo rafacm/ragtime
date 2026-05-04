@@ -297,6 +297,7 @@ class EpisodeAdmin(admin.ModelAdmin):
 
     METADATA_FIELDS = (
         "title",
+        "show_name",
         "description",
         "published_at",
         "image_url",
