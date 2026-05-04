@@ -21,12 +21,27 @@ class EpisodesConfig(AppConfig):
     def _init_dbos(self):
         import sys
 
-        # Only initialize DBOS for server/worker entrypoints, plus the
-        # management commands that need to talk to the queue. Other commands
-        # (migrate, check, shell, …) don't need a live DBOS connection.
-        _DBOS_COMMANDS = {"runserver", "submit_episode", "enrich_entities"}
+        # DBOS startup is split into two roles:
+        #
+        # * **Worker** entrypoints (uvicorn, runserver) launch a full DBOS
+        #   instance that listens to every declared queue and dequeues
+        #   workflows for execution.
+        # * **Client** management commands (``submit_episode``,
+        #   ``enrich_entities``) only need to write a row to
+        #   ``dbos.workflow_status`` so a running worker picks the workflow
+        #   up. They launch DBOS with ``listen_queues([])`` so no local
+        #   dispatcher races with the worker (avoids the "Contention
+        #   detected" warning) and so no workflow is ever submitted to the
+        #   client's executor (avoids "cannot schedule new futures after
+        #   shutdown" at process exit).
+        #
+        # Other commands (migrate, check, shell, …) don't need DBOS at all.
+        _CLIENT_COMMANDS = {"submit_episode", "enrich_entities"}
+        _WORKER_COMMANDS = {"runserver"}
         is_uvicorn = any("uvicorn" in arg for arg in sys.argv[:1])
-        if not is_uvicorn and not _DBOS_COMMANDS.intersection(sys.argv):
+        is_worker = is_uvicorn or bool(_WORKER_COMMANDS.intersection(sys.argv))
+        is_client = bool(_CLIENT_COMMANDS.intersection(sys.argv))
+        if not (is_worker or is_client):
             return
 
         from dbos import DBOS, DBOSConfig
@@ -57,6 +72,13 @@ class EpisodesConfig(AppConfig):
             "system_database_url": system_db_url,
         }
         DBOS(config=dbos_config)
+        if is_client and not is_worker:
+            # Listen to no application queues — this process only enqueues.
+            # ``Queue.enqueue`` calls ``start_workflow(execute_workflow=False)``
+            # which only writes to ``dbos.workflow_status``; the dispatcher is
+            # not needed. Pure "don't call launch()" doesn't work because
+            # ``DBOS._sys_db`` is created inside ``launch()``.
+            DBOS.listen_queues([])
         DBOS.launch()
 
     def _init_qdrant(self):
