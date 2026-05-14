@@ -136,3 +136,7 @@ prompt) satisfies this check; summarized/paraphrased content does not.
 - Bug fixes, refactors, dependency bumps, doc-only PRs.
 - Hot-fixes explicitly tagged as urgent in the PR description (note as
   follow-up debt, don't block).
+- **CI/CD and dev-tooling PRs** — changes confined to `.github/`,
+  `.ai-checks/`, or similar non-runtime infrastructure paths that add
+  no application behaviour. These are tooling/chore changes regardless
+  of their size. Established precedent: PRs #118, #122, #134.

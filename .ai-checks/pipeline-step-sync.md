@@ -81,3 +81,17 @@ must be reflected in the "Pipeline parallelism" paragraph of
   (e.g. renaming an internal helper, extracting a sub-function inside a step).
 - Pure bug fixes inside a step that don't change its contract.
 - Tests-only PRs.
+- **Changes inside an existing step's implementation that do not alter the
+  step list.** If `PIPELINE_STEPS` in `episodes/models.py` is unchanged and
+  no `@DBOS.step()` decorators are added or removed in
+  `episodes/workflows.py`, then any change to the code *inside* a step
+  (new field extracted, LLM prompt adjusted, bug fixed) is not a pipeline
+  structural change. Do not require `README.md`'s high-level step-table to
+  update for per-field or per-behaviour changes within a step.
+- **`doc/README.md` updates that describe per-step behaviour** (fields
+  extracted, edge-case handling, additive-only semantics for a field) are
+  compliant even if the `README.md` summary table is not updated — the table
+  documents step *names and roles*, not per-field implementation details.
+  A PR that updates `doc/README.md` to describe new behaviour inside an
+  existing step, while leaving `README.md`'s table unchanged, passes this
+  check.

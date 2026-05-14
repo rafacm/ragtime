@@ -108,3 +108,16 @@ a destructive operation and the human must do it.
   confirm it was rebase-merged.
 - Initial repo bootstrap commits (before the rules existed). Use
   judgement on the date of the violation.
+- **GitHub Actions synthetic merge commit.** `actions/checkout@v4`
+  checks out `refs/pull/N/merge` — a two-parent commit GitHub creates
+  for CI with a message of the form `Merge <sha>... into <sha>...`.
+  This commit is NOT part of the PR author's branch; it exists only on
+  the runner. If the only merge-shaped commit you can see is the
+  top-of-tree HEAD with that exact message pattern, the branch is
+  rebased cleanly and you must pass this check. Only flag merge commits
+  that appear *within* the PR's own commit list (i.e. authored before
+  the synthetic HEAD).
+- **Do not infer the source branch from the PR title, description, or
+  diff content.** Read the branch name from explicit metadata (e.g.
+  `head.ref` in the diff context). If that information is absent, do
+  not assume the PR came from `main`.

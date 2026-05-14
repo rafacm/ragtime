@@ -105,3 +105,7 @@ Apply across the diff. Especially noisy areas historically:
 - Tests, where descriptive `# Given / # When / # Then` comments can
   improve readability — judgement call, lean permissive.
 - Generated code / migrations.
+- **Lines removed by this PR.** A line shown in the diff with a `-`
+  prefix is being *deleted*. Do not flag removed lines as violations —
+  they are already gone. Evaluate only lines that are added (`+`
+  prefix) or present in unchanged context.

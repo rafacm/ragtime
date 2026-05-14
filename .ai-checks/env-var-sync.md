@@ -72,3 +72,11 @@ key, even a revoked one. Flag any commit that adds a value matching
 - Internal feature flags that are intentionally undocumented (rare;
   require a comment in code explaining why).
 - Test-only env vars set in `tests/` and never read by production code.
+- **Django model field names, method parameters, and Python attribute
+  names are not environment variables.** Only flag lines where code
+  explicitly reads from the process environment: `os.getenv(...)`,
+  `os.environ[...]`, `os.environ.get(...)`, `settings.RAGTIME_*`, or
+  equivalent runtime env reads. A Django model field named `show_name`
+  has no connection to a hypothetical `RAGTIME_SHOW_NAME` env var — do
+  not invent env var names from field or variable names you see in the
+  diff.
